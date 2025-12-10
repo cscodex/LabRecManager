@@ -1,0 +1,50 @@
+# Render Blueprint for Lab Record Manager
+# This file configures automatic deployment of both backend and frontend services
+
+services:
+  # ==========================================
+  # BACKEND API SERVICE
+  # ==========================================
+  - type: web
+    name: lab-record-api
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: server
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    healthCheckPath: /api/dashboard/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set this in Render dashboard with your Neon connection string
+      - key: DIRECT_URL
+        sync: false # Set this in Render dashboard for migrations
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: CLIENT_URL
+        sync: false # Set to your frontend Render URL after deploying frontend
+      - key: PORT
+        value: 5001
+
+  # ==========================================
+  # FRONTEND CLIENT SERVICE
+  # ==========================================
+  - type: web
+    name: lab-record-client
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: client
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false # Set to your backend Render URL after deploying backend

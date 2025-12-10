@@ -1,0 +1,1186 @@
+// Prisma Schema for Lab Record Manager System
+// Comprehensive schema supporting multi-language, viva, grading, and accounting
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==================== SCHOOL & ORGANIZATION ====================
+
+model School {
+  id                  String   @id @default(uuid())
+  name                String
+  nameHindi           String?  @map("name_hindi")
+  nameRegional        String?  @map("name_regional")
+  code                String   @unique
+  address             String?
+  state               String?
+  district            String?
+  boardAffiliation    String?  @map("board_affiliation")
+  primaryLanguage     String   @default("en") @map("primary_language")
+  secondaryLanguages  String[] @map("secondary_languages")
+  academicYearStart   Int      @default(4) @map("academic_year_start")
+  logoUrl             String?  @map("logo_url")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  academicYears    AcademicYear[]
+  users            User[]
+  classes          Class[]
+  subjects         Subject[]
+  labs             Lab[]
+  feeCategories    FeeCategory[]
+  feeStructures    FeeStructure[]
+  reportTemplates  ReportTemplate[]
+  notificationTemplates NotificationTemplate[]
+  assignments      Assignment[]
+  gradeScales      GradeScale[]
+
+  @@map("schools")
+}
+
+// Grade scale configuration for the school
+model GradeScale {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  gradeLetter   String   @map("grade_letter")
+  gradePoint    Decimal  @map("grade_point") @db.Decimal(4, 2)
+  minPercentage Int      @map("min_percentage")
+  maxPercentage Int      @map("max_percentage")
+  description   String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  school School @relation(fields: [schoolId], references: [id])
+  history GradeScaleHistory[]
+
+  @@unique([schoolId, gradeLetter])
+  @@map("grade_scales")
+}
+
+// Grade Scale History - tracks changes to grade scales
+model GradeScaleHistory {
+  id              String   @id @default(uuid())
+  gradeScaleId    String   @map("grade_scale_id")
+  action          String   // created, updated, deleted, restored
+  
+  // Previous values (null for 'created' action)
+  previousLetter  String?  @map("previous_letter")
+  previousMinPct  Int?     @map("previous_min_pct")
+  previousMaxPct  Int?     @map("previous_max_pct")
+  previousPoints  Decimal? @map("previous_points") @db.Decimal(4,2)
+  
+  // New values (null for 'deleted' action)
+  newLetter       String?  @map("new_letter")
+  newMinPct       Int?     @map("new_min_pct")
+  newMaxPct       Int?     @map("new_max_pct")
+  newPoints       Decimal? @map("new_points") @db.Decimal(4,2)
+  
+  changedById     String   @map("changed_by_id")
+  changedAt       DateTime @default(now()) @map("changed_at")
+  reason          String?
+  
+  gradeScale      GradeScale @relation(fields: [gradeScaleId], references: [id], onDelete: Cascade)
+  
+  @@index([gradeScaleId])
+  @@index([changedAt])
+  @@map("grade_scale_history")
+}
+
+model AcademicYear {
+  id        String   @id @default(uuid())
+  schoolId  String   @map("school_id")
+  yearLabel String   @map("year_label")
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  isCurrent Boolean  @default(false) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  school        School         @relation(fields: [schoolId], references: [id])
+  classes       Class[]
+  assignments   Assignment[]
+  feeStructures FeeStructure[]
+  studentFees   StudentFee[]
+  finalLabMarks FinalLabMarks[]
+  grades        Grade[]
+
+  @@map("academic_years")
+}
+
+// ==================== USER MANAGEMENT ====================
+
+model User {
+  id                 String    @id @default(uuid())
+  schoolId           String    @map("school_id")
+  email              String    @unique
+  phone              String?
+  passwordHash       String    @map("password_hash")
+  role               UserRole
+  firstName          String    @map("first_name")
+  firstNameHindi     String?   @map("first_name_hindi")
+  firstNameRegional  String?   @map("first_name_regional")
+  lastName           String    @map("last_name")
+  lastNameHindi      String?   @map("last_name_hindi")
+  lastNameRegional   String?   @map("last_name_regional")
+  admissionNumber    String?   @map("admission_number")
+  employeeId         String?   @map("employee_id")
+  profileImageUrl    String?   @map("profile_image_url")
+  preferredLanguage  String    @default("en") @map("preferred_language")
+  isActive           Boolean   @default(true) @map("is_active")
+  lastLogin          DateTime? @map("last_login")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  school             School             @relation(fields: [schoolId], references: [id])
+  sessions           UserSession[]
+  classTeacherOf     Class[]            @relation("ClassTeacher")
+  classEnrollments   ClassEnrollment[]
+  groupsCreated      StudentGroup[]
+  groupMemberships   GroupMember[]
+  classSubjectsAsInstructor    ClassSubject[] @relation("Instructor")
+  classSubjectsAsLabInstructor ClassSubject[] @relation("LabInstructor")
+  labsInCharge       Lab[]
+  assignmentsCreated Assignment[]
+  assignmentsAssigned AssignmentTarget[]
+  submissions        Submission[]
+  vivaSessionsAsStudent  VivaSession[] @relation("VivaStudent")
+  vivaSessionsAsExaminer VivaSession[] @relation("VivaExaminer")
+  vivaQuestionsCreated   VivaQuestion[]
+  gradesGiven        Grade[]  @relation("GradedBy")
+  gradesModified     Grade[]  @relation("ModifiedBy")
+  finalMarksAsStudent FinalLabMarks[] @relation("FinalMarksStudent")
+  finalMarksFinalized FinalLabMarks[] @relation("FinalMarksFinalized")
+  feePaymentsCollected FeePayment[] @relation("Collector")
+  materialUsageAsStudent LabMaterialUsage[] @relation("MaterialUsageStudent")
+  materialUsageRecorded LabMaterialUsage[] @relation("MaterialUsageRecorded")
+  activityLogs       ActivityLog[]
+  labAttendanceAsStudent   LabAttendance[] @relation("AttendanceStudent")
+  labAttendanceAsInstructor LabAttendance[] @relation("AttendanceInstructor")
+  reportsGenerated   GeneratedReport[]
+  notifications      Notification[]
+  vivaParticipations VivaParticipant[]
+  deviceTests        DeviceTest[]
+
+  @@map("users")
+}
+
+// Device Test - tracks camera, mic, speaker test results
+model DeviceTest {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  
+  // Camera test
+  cameraStatus    String?  @map("camera_status") // granted, denied, not_tested
+  cameraTestedAt  DateTime? @map("camera_tested_at")
+  cameraDeviceId  String?  @map("camera_device_id")
+  cameraDeviceName String? @map("camera_device_name")
+  
+  // Microphone test
+  micStatus       String?  @map("mic_status")
+  micTestedAt     DateTime? @map("mic_tested_at")
+  micDeviceId     String?  @map("mic_device_id")
+  micDeviceName   String?  @map("mic_device_name")
+  
+  // Speaker test
+  speakerStatus   String?  @map("speaker_status")
+  speakerTestedAt DateTime? @map("speaker_tested_at")
+  speakerDeviceId String?  @map("speaker_device_id")
+  speakerDeviceName String? @map("speaker_device_name")
+  speakerVolume   Int?     @map("speaker_volume")
+  
+  // Metadata
+  userAgent       String?  @map("user_agent")
+  platform        String?  // desktop, mobile, tablet
+  browser         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId])
+  @@map("device_tests")
+}
+
+enum UserRole {
+  admin
+  principal
+  instructor
+  student
+  accountant
+  lab_assistant
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_sessions")
+}
+
+// ==================== CLASS & GROUPS ====================
+
+model Class {
+  id             String   @id @default(uuid())
+  schoolId       String   @map("school_id")
+  academicYearId String   @map("academic_year_id")
+  name           String
+  nameHindi      String?  @map("name_hindi")
+  gradeLevel     Int      @map("grade_level")
+  section        String?
+  stream         String?
+  classTeacherId String?  @map("class_teacher_id")
+  maxStudents    Int      @default(60) @map("max_students")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  school        School           @relation(fields: [schoolId], references: [id])
+  academicYear  AcademicYear     @relation(fields: [academicYearId], references: [id])
+  classTeacher  User?            @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+  enrollments   ClassEnrollment[]
+  groups        StudentGroup[]
+  classSubjects ClassSubject[]
+  feeStructures FeeStructure[]
+  labAttendance LabAttendance[]
+  finalLabMarks FinalLabMarks[]
+
+  @@map("classes")
+}
+
+model ClassEnrollment {
+  id             String           @id @default(uuid())
+  studentId      String           @map("student_id")
+  classId        String           @map("class_id")
+  rollNumber     Int?             @map("roll_number")
+  enrollmentDate DateTime         @default(now()) @map("enrollment_date")
+  status         EnrollmentStatus @default(active)
+
+  // Relations
+  student User  @relation(fields: [studentId], references: [id])
+  class   Class @relation(fields: [classId], references: [id])
+
+  @@unique([studentId, classId])
+  @@map("class_enrollments")
+}
+
+enum EnrollmentStatus {
+  active
+  transferred
+  dropped
+  graduated
+}
+
+model StudentGroup {
+  id          String   @id @default(uuid())
+  classId     String   @map("class_id")
+  name        String
+  nameHindi   String?  @map("name_hindi")
+  description String?
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  class     Class              @relation(fields: [classId], references: [id])
+  createdBy User               @relation(fields: [createdById], references: [id])
+  members   GroupMember[]
+  targets   AssignmentTarget[]
+  submissions Submission[]
+
+  @@map("student_groups")
+}
+
+model GroupMember {
+  id        String    @id @default(uuid())
+  groupId   String    @map("group_id")
+  studentId String    @map("student_id")
+  role      GroupRole @default(member)
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+
+  // Relations
+  group   StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student User         @relation(fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId])
+  @@map("group_members")
+}
+
+enum GroupRole {
+  leader
+  member
+}
+
+// ==================== SUBJECTS & LABS ====================
+
+model Subject {
+  id                 String   @id @default(uuid())
+  schoolId           String   @map("school_id")
+  code               String
+  name               String
+  nameHindi          String?  @map("name_hindi")
+  nameRegional       String?  @map("name_regional")
+  hasLab             Boolean  @default(false) @map("has_lab")
+  labHoursPerWeek    Int      @default(0) @map("lab_hours_per_week")
+  theoryHoursPerWeek Int      @default(0) @map("theory_hours_per_week")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  // Relations
+  school        School         @relation(fields: [schoolId], references: [id])
+  classSubjects ClassSubject[]
+  labs          Lab[]
+  assignments   Assignment[]
+  vivaQuestions VivaQuestion[]
+  feeStructures FeeStructure[]
+  finalLabMarks FinalLabMarks[]
+
+  @@map("subjects")
+}
+
+model ClassSubject {
+  id              String  @id @default(uuid())
+  classId         String  @map("class_id")
+  subjectId       String  @map("subject_id")
+  instructorId    String? @map("instructor_id")
+  labInstructorId String? @map("lab_instructor_id")
+
+  // Relations
+  class         Class   @relation(fields: [classId], references: [id])
+  subject       Subject @relation(fields: [subjectId], references: [id])
+  instructor    User?   @relation("Instructor", fields: [instructorId], references: [id])
+  labInstructor User?   @relation("LabInstructor", fields: [labInstructorId], references: [id])
+
+  @@unique([classId, subjectId])
+  @@map("class_subjects")
+}
+
+model Lab {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  name          String
+  nameHindi     String?  @map("name_hindi")
+  roomNumber    String?  @map("room_number")
+  capacity      Int      @default(30)
+  subjectId     String?  @map("subject_id")
+  equipmentList Json?    @map("equipment_list")
+  inchargeId    String?  @map("incharge_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  school        School             @relation(fields: [schoolId], references: [id])
+  subject       Subject?           @relation(fields: [subjectId], references: [id])
+  incharge      User?              @relation(fields: [inchargeId], references: [id])
+  assignments   Assignment[]
+  materialUsage LabMaterialUsage[]
+  attendance    LabAttendance[]
+
+  @@map("labs")
+}
+
+// ==================== ASSIGNMENTS ====================
+
+model Assignment {
+  id                String   @id @default(uuid())
+  schoolId          String   @map("school_id")
+  subjectId         String   @map("subject_id")
+  labId             String?  @map("lab_id")
+  academicYearId    String?  @map("academic_year_id")
+  createdById       String   @map("created_by")
+  
+  // Multi-language content
+  title             String
+  titleHindi        String?  @map("title_hindi")
+  titleRegional     String?  @map("title_regional")
+  description       String?
+  descriptionHindi  String?  @map("description_hindi")
+  descriptionRegional String? @map("description_regional")
+  
+  // Assignment details
+  experimentNumber     String?         @map("experiment_number")
+  assignmentType       AssignmentType  @map("assignment_type")
+  programmingLanguage  String?         @map("programming_language")
+  
+  // Requirements
+  aim              String?
+  aimHindi         String?  @map("aim_hindi")
+  theory           String?
+  theoryHindi      String?  @map("theory_hindi")
+  procedure        String?
+  procedureHindi   String?  @map("procedure_hindi")
+  expectedOutput   String?  @map("expected_output")
+  referenceCode    String?  @map("reference_code")
+  attachments      Json?
+  
+  // Grading configuration (default marks breakdown)
+  maxMarks              Int      @default(100) @map("max_marks")
+  passingMarks          Int      @default(35) @map("passing_marks")
+  vivaMarks             Int      @default(20) @map("viva_marks")
+  practicalMarks        Int      @default(60) @map("practical_marks")
+  outputMarks           Int      @default(20) @map("output_marks")
+  
+  // Late submission policy (applied at target level)
+  lateSubmissionAllowed Boolean   @default(true) @map("late_submission_allowed")
+  latePenaltyPercent    Int       @default(10) @map("late_penalty_percent")
+  
+  status            AssignmentStatus @default(draft)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  school        School             @relation(fields: [schoolId], references: [id])
+  subject       Subject            @relation(fields: [subjectId], references: [id])
+  lab           Lab?               @relation(fields: [labId], references: [id])
+  academicYear  AcademicYear?      @relation(fields: [academicYearId], references: [id])
+  createdBy     User               @relation(fields: [createdById], references: [id])
+  files         AssignmentFile[]
+  targets       AssignmentTarget[]
+  submissions   Submission[]
+  vivaQuestions VivaQuestion[]
+  materialUsage LabMaterialUsage[]
+
+  @@map("assignments")
+}
+
+enum AssignmentType {
+  program
+  experiment
+  project
+  observation
+  viva_only
+}
+
+enum AssignmentStatus {
+  draft
+  published
+  archived
+}
+
+model AssignmentFile {
+  id           String   @id @default(uuid())
+  assignmentId String   @map("assignment_id")
+  fileName     String   @map("file_name")
+  fileType     String?  @map("file_type")
+  fileSize     Int?     @map("file_size")
+  fileUrl      String   @map("file_url")
+  uploadedById String   @map("uploaded_by")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@map("assignment_files")
+}
+
+model AssignmentTarget {
+  id                  String     @id @default(uuid())
+  assignmentId        String     @map("assignment_id")
+  targetType          TargetType @map("target_type")
+  targetClassId       String?    @map("target_class_id")
+  targetGroupId       String?    @map("target_group_id")
+  targetStudentId     String?    @map("target_student_id")
+  assignedById        String     @map("assigned_by")
+  assignedAt          DateTime   @default(now()) @map("assigned_at")
+  
+  // Dates (set when assigning to students/classes)
+  publishDate         DateTime?  @map("publish_date")
+  dueDate             DateTime?  @map("due_date")
+  
+  specialInstructions String?    @map("special_instructions")
+  extendedDueDate     DateTime?  @map("extended_due_date")
+
+  // Relations
+  assignment    Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignedBy    User          @relation(fields: [assignedById], references: [id])
+  targetGroup   StudentGroup? @relation(fields: [targetGroupId], references: [id])
+
+  @@map("assignment_targets")
+}
+
+enum TargetType {
+  class
+  group
+  student
+}
+
+// ==================== SUBMISSIONS ====================
+
+model Submission {
+  id                   String           @id @default(uuid())
+  assignmentId         String           @map("assignment_id")
+  studentId            String           @map("student_id")
+  groupId              String?          @map("group_id")
+  
+  // Submission content
+  codeContent          String?          @map("code_content")
+  outputContent        String?          @map("output_content")
+  observations         String?
+  observationsHindi    String?          @map("observations_hindi")
+  conclusion           String?
+  conclusionHindi      String?          @map("conclusion_hindi")
+  
+  // Files
+  attachments          Json?
+  outputScreenshotUrl  String?          @map("output_screenshot_url")
+  
+  // Metadata
+  submissionNumber     Int              @default(1) @map("submission_number")
+  isLate               Boolean          @default(false) @map("is_late")
+  lateDays             Int              @default(0) @map("late_days")
+  
+  status               SubmissionStatus @default(submitted)
+  submittedAt          DateTime         @default(now()) @map("submitted_at")
+  lastModified         DateTime         @updatedAt @map("last_modified")
+
+  // Relations
+  assignment   Assignment           @relation(fields: [assignmentId], references: [id])
+  student      User                 @relation(fields: [studentId], references: [id])
+  group        StudentGroup?        @relation(fields: [groupId], references: [id])
+  files        SubmissionFile[]
+  revisions    SubmissionRevision[]
+  vivaSessions VivaSession[]
+  grade        Grade?
+
+  @@unique([assignmentId, studentId, submissionNumber])
+  @@map("submissions")
+}
+
+enum SubmissionStatus {
+  draft
+  submitted
+  under_review
+  needs_revision
+  viva_scheduled
+  viva_completed
+  graded
+  returned
+}
+
+model SubmissionFile {
+  id           String   @id @default(uuid())
+  submissionId String   @map("submission_id")
+  fileName     String   @map("file_name")
+  fileType     String?  @map("file_type")
+  fileSize     Int?     @map("file_size")
+  fileUrl      String   @map("file_url")
+  isOutput     Boolean  @default(false) @map("is_output")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@map("submission_files")
+}
+
+model SubmissionRevision {
+  id             String   @id @default(uuid())
+  submissionId   String   @map("submission_id")
+  revisionNumber Int      @map("revision_number")
+  codeContent    String?  @map("code_content")
+  outputContent  String?  @map("output_content")
+  attachments    Json?
+  revisionNote   String?  @map("revision_note")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id])
+
+  @@map("submission_revisions")
+}
+
+// ==================== VIVA/VOICE SYSTEM ====================
+
+model VivaSession {
+  id             String      @id @default(uuid())
+  submissionId   String      @map("submission_id")
+  studentId      String      @map("student_id")
+  examinerId     String      @map("examiner_id")
+  
+  // Scheduling
+  scheduledAt      DateTime?   @map("scheduled_at")
+  scheduledEndTime DateTime?   @map("scheduled_end_time")
+  durationMinutes  Int         @default(10) @map("duration_minutes")
+  actualStartTime  DateTime?   @map("actual_start_time")
+  actualEndTime    DateTime?   @map("actual_end_time")
+  
+  // Auto-start/admit settings
+  autoStart      Boolean     @default(true) @map("auto_start")
+  autoAdmit      Boolean     @default(true) @map("auto_admit")
+  
+  // Viva details
+  mode           VivaMode    @default(online)
+  meetingLink    String?     @map("meeting_link")
+  
+  // Recording
+  recordingUrl      String?   @map("recording_url")
+  recordingFilePath String?   @map("recording_file_path")
+  recordingSize     Int?      @map("recording_size_bytes")
+  recordingDuration Int?      @map("recording_duration_seconds")
+  
+  // Questions & Evaluation
+  questionsAsked    Json?    @map("questions_asked")
+  studentResponses  Json?    @map("student_responses")
+  
+  // Scoring
+  marksObtained      Decimal? @map("marks_obtained") @db.Decimal(5, 2)
+  maxMarks           Decimal? @map("max_marks") @db.Decimal(5, 2)
+  performanceRating  Int?     @map("performance_rating")
+  
+  // Feedback
+  examinerRemarks       String? @map("examiner_remarks")
+  examinerRemarksHindi  String? @map("examiner_remarks_hindi")
+  improvementSuggestions String? @map("improvement_suggestions")
+  
+  status         VivaStatus @default(scheduled)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  submission   Submission        @relation(fields: [submissionId], references: [id])
+  student      User              @relation("VivaStudent", fields: [studentId], references: [id])
+  examiner     User              @relation("VivaExaminer", fields: [examinerId], references: [id])
+  participants VivaParticipant[]
+
+  @@map("viva_sessions")
+}
+
+enum VivaMode {
+  online
+  offline
+  recorded
+}
+
+enum VivaStatus {
+  scheduled
+  in_progress
+  completed
+  cancelled
+  rescheduled
+  no_show
+}
+
+// Waiting room participant status
+enum ParticipantStatus {
+  waiting     // In waiting room
+  admitted    // Admitted to session
+  in_session  // Currently in active session
+  left        // Left the session
+  rejected    // Instructor rejected entry
+}
+
+// Viva session participants (waiting room + active participants)
+model VivaParticipant {
+  id             String            @id @default(uuid())
+  sessionId      String            @map("session_id")
+  userId         String            @map("user_id")
+  role           String            @default("student") // student, examiner, observer
+  status         ParticipantStatus @default(waiting)
+  joinedWaitingAt DateTime         @default(now()) @map("joined_waiting_at")
+  admittedAt     DateTime?         @map("admitted_at")
+  leftAt         DateTime?         @map("left_at")
+  
+  // Connection details
+  socketId       String?           @map("socket_id")
+  isVideoEnabled Boolean           @default(false) @map("is_video_enabled")
+  isAudioEnabled Boolean           @default(false) @map("is_audio_enabled")
+  
+  // Relations
+  session        VivaSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id])
+  
+  @@unique([sessionId, userId])
+  @@map("viva_participants")
+}
+
+model VivaQuestion {
+  id               String          @id @default(uuid())
+  subjectId        String          @map("subject_id")
+  assignmentId     String?         @map("assignment_id")
+  
+  question         String
+  questionHindi    String?         @map("question_hindi")
+  expectedAnswer   String?         @map("expected_answer")
+  expectedAnswerHindi String?      @map("expected_answer_hindi")
+  
+  difficulty       DifficultyLevel @default(medium)
+  marks            Int             @default(2)
+  topicTags        String[]        @map("topic_tags")
+  
+  createdById      String          @map("created_by")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  subject    Subject     @relation(fields: [subjectId], references: [id])
+  assignment Assignment? @relation(fields: [assignmentId], references: [id])
+  createdBy  User        @relation(fields: [createdById], references: [id])
+
+  @@map("viva_questions")
+}
+
+enum DifficultyLevel {
+  easy
+  medium
+  hard
+}
+
+// ==================== GRADING & MARKS ====================
+
+model Grade {
+  id               String   @id @default(uuid())
+  submissionId     String   @unique @map("submission_id")
+  studentId        String   @map("student_id")
+  gradedById       String   @map("graded_by")
+  academicYearId   String?  @map("academic_year_id")
+  
+  // Detailed marks breakdown
+  practicalMarks   Decimal  @default(0) @map("practical_marks") @db.Decimal(5, 2)
+  outputMarks      Decimal  @default(0) @map("output_marks") @db.Decimal(5, 2)
+  vivaMarks        Decimal  @default(0) @map("viva_marks") @db.Decimal(5, 2)
+  
+  // Totals
+  totalMarks       Decimal? @map("total_marks") @db.Decimal(5, 2)
+  maxMarks         Decimal? @map("max_marks") @db.Decimal(5, 2)
+  percentage       Decimal? @db.Decimal(5, 2)
+  gradeLetter      String?  @map("grade_letter")
+  
+  // Late penalty
+  latePenaltyMarks Decimal  @default(0) @map("late_penalty_marks") @db.Decimal(5, 2)
+  finalMarks       Decimal? @map("final_marks") @db.Decimal(5, 2)
+  
+  // Feedback
+  codeFeedback        String? @map("code_feedback")
+  codeFeedbackHindi   String? @map("code_feedback_hindi")
+  outputFeedback      String? @map("output_feedback")
+  generalRemarks      String? @map("general_remarks")
+  generalRemarksHindi String? @map("general_remarks_hindi")
+  
+  // Status
+  isPublished  Boolean   @default(false) @map("is_published")
+  publishedAt  DateTime? @map("published_at")
+  
+  // Modification tracking
+  gradedAt     DateTime  @default(now()) @map("graded_at")
+  modifiedAt   DateTime? @map("modified_at")
+  modifiedById String?   @map("modified_by_id")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  submission   Submission     @relation(fields: [submissionId], references: [id])
+  gradedBy     User           @relation("GradedBy", fields: [gradedById], references: [id])
+  modifiedBy   User?          @relation("ModifiedBy", fields: [modifiedById], references: [id])
+  academicYear AcademicYear?  @relation(fields: [academicYearId], references: [id])
+  history      GradeHistory[]
+
+  @@map("grades")
+}
+
+model GradeHistory {
+  id            String   @id @default(uuid())
+  gradeId       String   @map("grade_id")
+  previousMarks Json     @map("previous_marks")
+  newMarks      Json     @map("new_marks")
+  reason        String?
+  modifiedById  String   @map("modified_by")
+  modifiedAt    DateTime @default(now()) @map("modified_at")
+
+  grade Grade @relation(fields: [gradeId], references: [id])
+
+  @@map("grade_history")
+}
+
+model FinalLabMarks {
+  id                   String   @id @default(uuid())
+  studentId            String   @map("student_id")
+  subjectId            String   @map("subject_id")
+  classId              String   @map("class_id")
+  academicYearId       String   @map("academic_year_id")
+  
+  // Aggregated marks
+  totalAssignments     Int      @map("total_assignments")
+  completedAssignments Int      @map("completed_assignments")
+  internalMarks        Decimal? @map("internal_marks") @db.Decimal(5, 2)
+  vivaAverage          Decimal? @map("viva_average") @db.Decimal(5, 2)
+  practicalExamMarks   Decimal? @map("practical_exam_marks") @db.Decimal(5, 2)
+  
+  // Final calculation
+  totalMarks           Decimal? @map("total_marks") @db.Decimal(5, 2)
+  maxMarks             Decimal? @map("max_marks") @db.Decimal(5, 2)
+  percentage           Decimal? @db.Decimal(5, 2)
+  gradeLetter          String?  @map("grade_letter")
+  gradePoints          Decimal? @map("grade_points") @db.Decimal(3, 2)
+  
+  remarks              String?
+  isPass               Boolean? @map("is_pass")
+  
+  finalizedById        String?   @map("finalized_by")
+  finalizedAt          DateTime? @map("finalized_at")
+
+  // Relations
+  student      User          @relation("FinalMarksStudent", fields: [studentId], references: [id])
+  subject      Subject       @relation(fields: [subjectId], references: [id])
+  class        Class         @relation(fields: [classId], references: [id])
+  academicYear AcademicYear  @relation(fields: [academicYearId], references: [id])
+  finalizedBy  User?         @relation("FinalMarksFinalized", fields: [finalizedById], references: [id])
+
+  @@unique([studentId, subjectId, academicYearId])
+  @@map("final_lab_marks")
+}
+
+// ==================== ACCOUNTING & FEES ====================
+
+model FeeCategory {
+  id          String        @id @default(uuid())
+  schoolId    String        @map("school_id")
+  name        String
+  nameHindi   String?       @map("name_hindi")
+  description String?
+  isRecurring Boolean       @default(true) @map("is_recurring")
+  frequency   FeeFrequency  @default(yearly)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  school       School         @relation(fields: [schoolId], references: [id])
+  feeStructures FeeStructure[]
+
+  @@map("fee_categories")
+}
+
+enum FeeFrequency {
+  monthly
+  quarterly
+  half_yearly
+  yearly
+  one_time
+}
+
+model FeeStructure {
+  id                   String   @id @default(uuid())
+  schoolId             String   @map("school_id")
+  academicYearId       String   @map("academic_year_id")
+  feeCategoryId        String   @map("fee_category_id")
+  classId              String?  @map("class_id")
+  subjectId            String?  @map("subject_id")
+  
+  amount               Decimal  @db.Decimal(10, 2)
+  currency             String   @default("INR")
+  dueDate              DateTime? @map("due_date")
+  
+  concessionApplicable Boolean  @default(true) @map("concession_applicable")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  // Relations
+  school       School       @relation(fields: [schoolId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  feeCategory  FeeCategory  @relation(fields: [feeCategoryId], references: [id])
+  class        Class?       @relation(fields: [classId], references: [id])
+  subject      Subject?     @relation(fields: [subjectId], references: [id])
+  studentFees  StudentFee[]
+
+  @@map("fee_structures")
+}
+
+model StudentFee {
+  id               String    @id @default(uuid())
+  studentId        String    @map("student_id")
+  feeStructureId   String    @map("fee_structure_id")
+  academicYearId   String    @map("academic_year_id")
+  
+  baseAmount       Decimal   @map("base_amount") @db.Decimal(10, 2)
+  concessionAmount Decimal   @default(0) @map("concession_amount") @db.Decimal(10, 2)
+  concessionReason String?   @map("concession_reason")
+  finalAmount      Decimal   @map("final_amount") @db.Decimal(10, 2)
+  
+  status           FeeStatus @default(pending)
+  dueDate          DateTime? @map("due_date")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  payments     FeePayment[]
+
+  @@map("student_fees")
+}
+
+enum FeeStatus {
+  pending
+  partial
+  paid
+  overdue
+  waived
+}
+
+model FeePayment {
+  id            String      @id @default(uuid())
+  studentFeeId  String      @map("student_fee_id")
+  studentId     String      @map("student_id")
+  
+  amount        Decimal     @db.Decimal(10, 2)
+  paymentMode   PaymentMode @map("payment_mode")
+  transactionId String?     @map("transaction_id")
+  receiptNumber String?     @unique @map("receipt_number")
+  
+  paymentDate   DateTime    @default(now()) @map("payment_date")
+  collectedById String      @map("collected_by")
+  
+  remarks       String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  studentFee  StudentFee @relation(fields: [studentFeeId], references: [id])
+  collectedBy User       @relation("Collector", fields: [collectedById], references: [id])
+
+  @@map("fee_payments")
+}
+
+enum PaymentMode {
+  cash
+  cheque
+  upi
+  card
+  net_banking
+  dd
+}
+
+model LabMaterialUsage {
+  id           String   @id @default(uuid())
+  labId        String   @map("lab_id")
+  studentId    String   @map("student_id")
+  assignmentId String?  @map("assignment_id")
+  
+  materialName String   @map("material_name")
+  quantityUsed Decimal  @map("quantity_used") @db.Decimal(10, 3)
+  unit         String?
+  costPerUnit  Decimal? @map("cost_per_unit") @db.Decimal(10, 2)
+  totalCost    Decimal? @map("total_cost") @db.Decimal(10, 2)
+  
+  usageDate    DateTime @default(now()) @map("usage_date")
+  recordedById String   @map("recorded_by")
+  
+  isBillable       Boolean @default(false) @map("is_billable")
+  billedToStudent  Boolean @default(false) @map("billed_to_student")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  lab        Lab         @relation(fields: [labId], references: [id])
+  student    User        @relation("MaterialUsageStudent", fields: [studentId], references: [id])
+  assignment Assignment? @relation(fields: [assignmentId], references: [id])
+  recordedBy User        @relation("MaterialUsageRecorded", fields: [recordedById], references: [id])
+
+  @@map("lab_material_usage")
+}
+
+// ==================== TRACKING & REPORTING ====================
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  schoolId    String   @map("school_id")
+  
+  actionType  ActivityType   @map("activity_type")
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  
+  description String?
+  metadata    Json?
+  
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+enum ActivityType {
+  login
+  logout
+  submission
+  grade
+  assignment
+  payment
+  viva
+  other
+}
+
+model LabAttendance {
+  id           String           @id @default(uuid())
+  labId        String           @map("lab_id")
+  classId      String           @map("class_id")
+  studentId    String           @map("student_id")
+  instructorId String           @map("instructor_id")
+  
+  sessionDate  DateTime         @map("session_date")
+  sessionSlot  Int?             @map("session_slot")
+  
+  status       AttendanceStatus @default(present)
+  entryTime    DateTime?        @map("entry_time")
+  exitTime     DateTime?        @map("exit_time")
+  
+  remarks      String?
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  lab        Lab   @relation(fields: [labId], references: [id])
+  class      Class @relation(fields: [classId], references: [id])
+  student    User  @relation("AttendanceStudent", fields: [studentId], references: [id])
+  instructor User  @relation("AttendanceInstructor", fields: [instructorId], references: [id])
+
+  @@unique([labId, studentId, sessionDate, sessionSlot])
+  @@map("lab_attendance")
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  excused
+}
+
+model ReportTemplate {
+  id             String     @id @default(uuid())
+  schoolId       String     @map("school_id")
+  
+  name           String
+  nameHindi      String?    @map("name_hindi")
+  reportType     ReportType @map("report_type")
+  
+  templateConfig Json       @map("template_config")
+  filtersConfig  Json?      @map("filters_config")
+  
+  isActive       Boolean    @default(true) @map("is_active")
+  createdById    String     @map("created_by")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  school           School            @relation(fields: [schoolId], references: [id])
+  generatedReports GeneratedReport[]
+
+  @@map("report_templates")
+}
+
+enum ReportType {
+  student_progress
+  class_summary
+  assignment_analytics
+  attendance_report
+  fee_collection
+  lab_utilization
+}
+
+model GeneratedReport {
+  id            String   @id @default(uuid())
+  templateId    String   @map("template_id")
+  generatedById String   @map("generated_by")
+  
+  filtersUsed   Json?    @map("filters_used")
+  reportData    Json?    @map("report_data")
+  fileUrl       String?  @map("file_url")
+  
+  generatedAt   DateTime @default(now()) @map("generated_at")
+  expiresAt     DateTime? @map("expires_at")
+
+  // Relations
+  template    ReportTemplate @relation(fields: [templateId], references: [id])
+  generatedBy User           @relation(fields: [generatedById], references: [id])
+
+  @@map("generated_reports")
+}
+
+// ==================== MULTI-LANGUAGE & NOTIFICATIONS ====================
+
+model Translation {
+  id           String   @id @default(uuid())
+  entityType   String   @map("entity_type")
+  entityKey    String   @map("entity_key")
+  languageCode String   @map("language_code")
+  translation  String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([entityType, entityKey, languageCode])
+  @@map("translations")
+}
+
+model NotificationTemplate {
+  id           String              @id @default(uuid())
+  schoolId     String              @map("school_id")
+  
+  templateKey  String              @map("template_key")
+  channel      NotificationChannel
+  
+  subject      String?
+  subjectHindi String?             @map("subject_hindi")
+  body         String
+  bodyHindi    String?             @map("body_hindi")
+  
+  variables    String[]
+  
+  isActive     Boolean             @default(true) @map("is_active")
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  school        School         @relation(fields: [schoolId], references: [id])
+  notifications Notification[]
+
+  @@unique([schoolId, templateKey, channel])
+  @@map("notification_templates")
+}
+
+enum NotificationChannel {
+  email
+  sms
+  push
+  whatsapp
+}
+
+model Notification {
+  id           String             @id @default(uuid())
+  userId       String             @map("user_id")
+  templateId   String?            @map("template_id")
+  
+  channel      NotificationChannel
+  recipient    String
+  languageUsed String?            @map("language_used")
+  
+  subject      String?
+  body         String
+  
+  status       NotificationStatus @default(pending)
+  
+  sentAt       DateTime?          @map("sent_at")
+  deliveredAt  DateTime?          @map("delivered_at")
+  readAt       DateTime?          @map("read_at")
+  
+  errorMessage String?            @map("error_message")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  // Relations
+  user     User                  @relation(fields: [userId], references: [id])
+  template NotificationTemplate? @relation(fields: [templateId], references: [id])
+
+  @@map("notifications")
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  delivered
+  failed
+  read
+}
