@@ -54,13 +54,22 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
         const classIds = enrollments.map(e => e.classId);
         const groupIds = groupMemberships.map(g => g.groupId);
 
+        // Build OR conditions for targets - only include conditions where IDs exist
+        const orConditions = [
+            { targetType: 'student', targetStudentId: req.user.id }
+        ];
+
+        if (classIds.length > 0) {
+            orConditions.push({ targetType: 'class', targetClassId: { in: classIds } });
+        }
+
+        if (groupIds.length > 0) {
+            orConditions.push({ targetType: 'group', targetGroupId: { in: groupIds } });
+        }
+
         where.targets = {
             some: {
-                OR: [
-                    { targetType: 'student', targetStudentId: req.user.id },
-                    { targetType: 'class', targetClassId: { in: classIds } },
-                    { targetType: 'group', targetGroupId: { in: groupIds } }
-                ]
+                OR: orConditions
             }
         };
     }
@@ -147,14 +156,23 @@ router.get('/my-assigned', authenticate, asyncHandler(async (req, res) => {
     });
     const groupIds = groupMemberships.map(g => g.groupId);
 
+    // Build OR conditions - only include conditions where IDs exist
+    const orConditions = [
+        { targetType: 'student', targetStudentId: userId }
+    ];
+
+    if (classIds.length > 0) {
+        orConditions.push({ targetType: 'class', targetClassId: { in: classIds } });
+    }
+
+    if (groupIds.length > 0) {
+        orConditions.push({ targetType: 'group', targetGroupId: { in: groupIds } });
+    }
+
     // Get all assignment targets for this student
     const targets = await prisma.assignmentTarget.findMany({
         where: {
-            OR: [
-                { targetType: 'student', targetStudentId: userId },
-                { targetType: 'class', targetClassId: { in: classIds } },
-                { targetType: 'group', targetGroupId: { in: groupIds } }
-            ]
+            OR: orConditions
         },
         include: {
             assignment: {
@@ -251,15 +269,24 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
         const classIds = enrollments.map(e => e.classId);
         const groupIds = groupMemberships.map(g => g.groupId);
 
+        // Build OR conditions - only include conditions where IDs exist
+        const orConditions = [
+            { targetType: 'student', targetStudentId: req.user.id }
+        ];
+
+        if (classIds.length > 0) {
+            orConditions.push({ targetType: 'class', targetClassId: { in: classIds } });
+        }
+
+        if (groupIds.length > 0) {
+            orConditions.push({ targetType: 'group', targetGroupId: { in: groupIds } });
+        }
+
         // Check if assignment is assigned to this student
         const assignmentTarget = await prisma.assignmentTarget.findFirst({
             where: {
                 assignmentId: req.params.id,
-                OR: [
-                    { targetType: 'student', targetStudentId: req.user.id },
-                    { targetType: 'class', targetClassId: { in: classIds } },
-                    { targetType: 'group', targetGroupId: { in: groupIds } }
-                ]
+                OR: orConditions
             }
         });
 
