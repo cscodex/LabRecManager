@@ -6,6 +6,7 @@ import {
     Upload, Download, FileText, Users, UserPlus, FileSpreadsheet,
     CheckCircle, XCircle, AlertCircle, RefreshCw, School, UserCheck
 } from 'lucide-react';
+import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { adminAPI, classesAPI, usersAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -292,6 +293,12 @@ export default function AdminStudentsPage() {
                                     <FileText className="w-4 h-4" />
                                     Download Template
                                 </button>
+                                <Link
+                                    href="/admin/students/import"
+                                    className="btn btn-ghost text-sm"
+                                >
+                                    Advanced Import →
+                                </Link>
                             </div>
                         </div>
 
@@ -376,7 +383,7 @@ export default function AdminStudentsPage() {
                                             className="w-4 h-4 rounded border-slate-300"
                                         />
                                     </th>
-                                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Admission No</th>
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Student ID</th>
                                     <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Name</th>
                                     <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Email</th>
                                     <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Class</th>
@@ -406,8 +413,8 @@ export default function AdminStudentsPage() {
                                                         className="w-4 h-4 rounded border-slate-300"
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-sm text-slate-700">
-                                                    {student.admissionNumber || '-'}
+                                                <td className="px-4 py-3 text-sm text-slate-700 font-mono">
+                                                    {student.studentId || student.admissionNumber || '-'}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
@@ -423,8 +430,8 @@ export default function AdminStudentsPage() {
                                                 <td className="px-4 py-3 text-sm text-slate-600">{className}</td>
                                                 <td className="px-4 py-3">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${student.isActive
-                                                            ? 'bg-emerald-100 text-emerald-700'
-                                                            : 'bg-slate-100 text-slate-500'
+                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                        : 'bg-slate-100 text-slate-500'
                                                         }`}>
                                                         {student.isActive ? 'Active' : 'Inactive'}
                                                     </span>

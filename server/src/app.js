@@ -25,6 +25,7 @@ const activityLogRoutes = require('./routes/activitylog.routes');
 const gradeScaleRoutes = require('./routes/gradeScale.routes');
 const adminRoutes = require('./routes/admin.routes');
 const deviceRoutes = require('./routes/device.routes');
+const aiRoutes = require('./routes/ai.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -77,6 +78,7 @@ app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/grade-scales', gradeScaleRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/devices', deviceRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

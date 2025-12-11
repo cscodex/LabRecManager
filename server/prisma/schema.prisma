@@ -133,6 +133,7 @@ model User {
   lastNameHindi      String?   @map("last_name_hindi")
   lastNameRegional   String?   @map("last_name_regional")
   admissionNumber    String?   @map("admission_number")
+  studentId          String?   @map("student_id")
   employeeId         String?   @map("employee_id")
   profileImageUrl    String?   @map("profile_image_url")
   preferredLanguage  String    @default("en") @map("preferred_language")

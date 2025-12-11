@@ -179,8 +179,8 @@ export default function UsersPage() {
                                             {u.role.replace('_', ' ')}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600">
-                                        {u.admissionNumber || u.employeeId || '-'}
+                                    <td className="px-6 py-4 text-slate-600 font-mono text-sm">
+                                        {u.studentId || u.admissionNumber || u.employeeId || '-'}
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`flex items-center gap-1 text-sm ${u.isActive ? 'text-emerald-600' : 'text-red-500'}`}>

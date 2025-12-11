@@ -91,10 +91,10 @@ export default function ProfileDropdown() {
                                 <span className="text-slate-600">{user.phone}</span>
                             </div>
                         )}
-                        {user.admissionNumber && (
+                        {(user.studentId || user.admissionNumber) && (
                             <div className="flex items-center gap-3 text-sm">
                                 <Shield className="w-4 h-4 text-slate-400" />
-                                <span className="text-slate-600">ID: {user.admissionNumber}</span>
+                                <span className="text-slate-600">Student ID: {user.studentId || user.admissionNumber}</span>
                             </div>
                         )}
                         {user.employeeId && (

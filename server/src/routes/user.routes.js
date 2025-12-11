@@ -26,7 +26,8 @@ router.get('/', authenticate, authorize('admin', 'principal', 'instructor'), asy
             { firstName: { contains: search, mode: 'insensitive' } },
             { lastName: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
-            { admissionNumber: { contains: search, mode: 'insensitive' } }
+            { admissionNumber: { contains: search, mode: 'insensitive' } },
+            { studentId: { contains: search, mode: 'insensitive' } }
         ];
     }
 
@@ -53,6 +54,7 @@ router.get('/', authenticate, authorize('admin', 'principal', 'instructor'), asy
                 lastNameHindi: true,
                 role: true,
                 admissionNumber: true,
+                studentId: true,
                 employeeId: true,
                 profileImageUrl: true,
                 isActive: true,
@@ -103,6 +105,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
             lastNameHindi: true,
             role: true,
             admissionNumber: true,
+            studentId: true,
             employeeId: true,
             profileImageUrl: true,
             preferredLanguage: true,
@@ -162,6 +165,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
         role: req.body.role,
         isActive: req.body.isActive,
         admissionNumber: req.body.admissionNumber,
+        studentId: req.body.studentId,
         employeeId: req.body.employeeId
     } : {};
 
@@ -218,7 +222,7 @@ router.post('/', authenticate, authorize('admin', 'principal', 'instructor'), [
 
     const {
         email, firstName, firstNameHindi, lastName, lastNameHindi,
-        role, phone, admissionNumber, employeeId, password, classId
+        role, phone, admissionNumber, studentId, employeeId, password, classId
     } = req.body;
 
     // Check if email exists
@@ -249,6 +253,7 @@ router.post('/', authenticate, authorize('admin', 'principal', 'instructor'), [
             schoolId: req.user.schoolId,
             phone,
             admissionNumber,
+            studentId: studentId || admissionNumber, // Use studentId or fallback to admissionNumber
             employeeId,
             preferredLanguage: 'en'
         },
@@ -259,6 +264,7 @@ router.post('/', authenticate, authorize('admin', 'principal', 'instructor'), [
             lastName: true,
             role: true,
             admissionNumber: true,
+            studentId: true,
             employeeId: true
         }
     });
@@ -345,7 +351,8 @@ router.post('/bulk', authenticate, authorize('admin', 'principal'), asyncHandler
         });
     }
 
-    const results = { created: [], failed: [] };
+    const { classId } = req.body; // Optional class to enroll all students
+    const results = { created: [], failed: [], enrolled: 0 };
 
     for (const userData of users) {
         try {
@@ -375,6 +382,7 @@ router.post('/bulk', authenticate, authorize('admin', 'principal'), asyncHandler
                     schoolId: req.user.schoolId,
                     phone: userData.phone,
                     admissionNumber: userData.admissionNumber,
+                    studentId: userData.studentId || userData.admissionNumber,
                     employeeId: userData.employeeId,
                     preferredLanguage: userData.preferredLanguage || 'en'
                 },
@@ -383,9 +391,28 @@ router.post('/bulk', authenticate, authorize('admin', 'principal'), asyncHandler
                     email: true,
                     firstName: true,
                     lastName: true,
-                    role: true
+                    role: true,
+                    studentId: true
                 }
             });
+
+            // Enroll in class if classId provided and user is a student
+            const enrollClassId = userData.classId || classId;
+            if (enrollClassId && (userData.role || 'student') === 'student') {
+                try {
+                    await prisma.classEnrollment.create({
+                        data: {
+                            studentId: user.id,
+                            classId: enrollClassId,
+                            status: 'active'
+                        }
+                    });
+                    results.enrolled++;
+                } catch (enrollError) {
+                    // Enrollment failed but user was created
+                    console.error('Enrollment failed:', enrollError.message);
+                }
+            }
 
             results.created.push(user);
         } catch (error) {
@@ -395,7 +422,7 @@ router.post('/bulk', authenticate, authorize('admin', 'principal'), asyncHandler
 
     res.status(201).json({
         success: true,
-        message: `Created ${results.created.length} users, ${results.failed.length} failed`,
+        message: `Created ${results.created.length} users, ${results.failed.length} failed, ${results.enrolled} enrolled in class`,
         data: results
     });
 }));
