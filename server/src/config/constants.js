@@ -65,5 +65,17 @@ module.exports = {
         'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
         'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
         'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
-    ]
+    ],
+
+    streams: [
+        { code: 'Commerce', name: 'Commerce', nameHindi: 'वाणिज्य' },
+        { code: 'NonMedical', name: 'Non-Medical (PCM)', nameHindi: 'नॉन-मेडिकल (पीसीएम)' },
+        { code: 'Medical', name: 'Medical (PCB)', nameHindi: 'मेडिकल (पीसीबी)' }
+    ],
+
+    academicYear: {
+        // April to March cycle
+        startMonth: 4,  // April
+        endMonth: 3     // March (of next year)
+    }
 };

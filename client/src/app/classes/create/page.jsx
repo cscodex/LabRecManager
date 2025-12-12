@@ -213,11 +213,9 @@ export default function CreateClassPage() {
                                     className="input"
                                 >
                                     <option value="">General</option>
-                                    <option value="Science">Science</option>
-                                    <option value="Commerce">Commerce</option>
-                                    <option value="Arts">Arts</option>
-                                    <option value="Computer Science">Computer Science</option>
-                                    <option value="Biology">Biology</option>
+                                    <option value="Commerce">Commerce (वाणिज्य)</option>
+                                    <option value="NonMedical">Non-Medical / PCM (नॉन-मेडिकल)</option>
+                                    <option value="Medical">Medical / PCB (मेडिकल)</option>
                                 </select>
                             </div>
 
