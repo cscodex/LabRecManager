@@ -89,7 +89,15 @@ router.get('/analytics', authenticate, authorize('admin', 'instructor', 'princip
         where: submissionFilter
     });
 
-    // Build grade filter
+    // Get graded submissions - count submissions that have a grade record
+    const gradedSubmissions = await prisma.submission.count({
+        where: {
+            ...submissionFilter,
+            grade: { isNot: null }
+        }
+    });
+
+    // Build grade filter for other grade-related queries
     let gradeFilter = {
         submission: { assignment: { schoolId } },
         ...(dateRange !== 'all' && { gradedAt: dateFilter })
@@ -98,11 +106,6 @@ router.get('/analytics', authenticate, authorize('admin', 'instructor', 'princip
     if (studentIds) {
         gradeFilter = { ...gradeFilter, studentId: { in: studentIds } };
     }
-
-    // Get graded submissions
-    const gradedSubmissions = await prisma.grade.count({
-        where: gradeFilter
-    });
 
     // Calculate submission rate
     const expectedSubmissions = totalStudents * totalAssignments;
