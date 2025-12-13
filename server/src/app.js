@@ -26,6 +26,7 @@ const gradeScaleRoutes = require('./routes/gradeScale.routes');
 const adminRoutes = require('./routes/admin.routes');
 const deviceRoutes = require('./routes/device.routes');
 const aiRoutes = require('./routes/ai.routes');
+const academicYearRoutes = require('./routes/academicYear.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -79,6 +80,7 @@ app.use('/api/grade-scales', gradeScaleRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/academic-years', academicYearRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
