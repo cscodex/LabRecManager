@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 
 export default function VivaPage() {
     const router = useRouter();
-    const { user, isAuthenticated, _hasHydrated } = useAuthStore();
+    const { user, isAuthenticated, _hasHydrated, selectedSessionId } = useAuthStore();
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -35,7 +35,7 @@ export default function VivaPage() {
             return;
         }
         loadSessions();
-    }, [isAuthenticated, _hasHydrated]);
+    }, [isAuthenticated, _hasHydrated, selectedSessionId]);
 
     const loadSessions = async () => {
         try {
