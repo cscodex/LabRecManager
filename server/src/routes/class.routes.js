@@ -7,15 +7,17 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 /**
  * @route   GET /api/classes
- * @desc    Get all classes
+ * @desc    Get all classes (filtered by session from header)
  * @access  Private
  */
 router.get('/', authenticate, asyncHandler(async (req, res) => {
     const { academicYearId, gradeLevel } = req.query;
+    // Use X-Academic-Session header if no explicit academicYearId provided
+    const sessionId = academicYearId || req.headers['x-academic-session'];
 
     let where = { schoolId: req.user.schoolId };
 
-    if (academicYearId) where.academicYearId = academicYearId;
+    if (sessionId) where.academicYearId = sessionId;
     if (gradeLevel) where.gradeLevel = parseInt(gradeLevel);
 
     const classes = await prisma.class.findMany({
@@ -26,7 +28,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
                 select: { id: true, firstName: true, lastName: true }
             },
             academicYear: {
-                select: { yearLabel: true }
+                select: { yearLabel: true, isCurrent: true }
             },
             _count: {
                 select: { enrollments: true, groups: true }

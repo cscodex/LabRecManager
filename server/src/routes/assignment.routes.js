@@ -8,14 +8,22 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 /**
  * @route   GET /api/assignments
- * @desc    Get all assignments (filtered by role)
+ * @desc    Get all assignments (filtered by role and session)
  * @access  Private
  */
 router.get('/', authenticate, asyncHandler(async (req, res) => {
-    const { page = 1, limit = 20, status, subjectId, classId, search, includeTargets } = req.query;
+    const { page = 1, limit = 20, status, subjectId, classId, search, includeTargets, academicYearId } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Use X-Academic-Session header for session filtering
+    const sessionId = academicYearId || req.headers['x-academic-session'];
+
     let where = { schoolId: req.user.schoolId };
+
+    // Filter by academic session
+    if (sessionId) {
+        where.academicYearId = sessionId;
+    }
 
     // Filter by status
     if (status) {
