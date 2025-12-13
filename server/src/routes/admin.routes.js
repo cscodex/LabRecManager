@@ -445,4 +445,89 @@ router.get('/stats', authenticate, authorize('admin', 'principal'), asyncHandler
     });
 }));
 
+/**
+ * @route   POST /api/admin/sql/execute
+ * @desc    Execute raw SQL query (DANGEROUS - Admin only)
+ * @access  Private (Admin only)
+ */
+router.post('/sql/execute', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+    const { query, connectionString } = req.body;
+
+    if (!query || !query.trim()) {
+        return res.status(400).json({
+            success: false,
+            message: 'SQL query is required'
+        });
+    }
+
+    // Log this dangerous operation
+    console.warn(`[SQL CONSOLE] Admin ${req.user.email} executing SQL:`, query.substring(0, 100));
+
+    try {
+        let result;
+
+        if (connectionString) {
+            // Use custom connection string (Neon)
+            const { Client } = require('pg');
+            const client = new Client({
+                connectionString: connectionString,
+                ssl: { rejectUnauthorized: false }
+            });
+
+            await client.connect();
+            result = await client.query(query);
+            await client.end();
+        } else {
+            // Use default Prisma connection via $queryRawUnsafe
+            // For SELECT queries, use $queryRawUnsafe
+            // For other queries, we need to use pg directly
+            const { Client } = require('pg');
+            const client = new Client({
+                connectionString: process.env.DATABASE_URL,
+                ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false
+            });
+
+            await client.connect();
+            result = await client.query(query);
+            await client.end();
+        }
+
+        // Log successful execution
+        await prisma.activityLog.create({
+            data: {
+                userId: req.user.id,
+                schoolId: req.user.schoolId,
+                actionType: 'admin',
+                entityType: 'sql_console',
+                entityId: null,
+                description: `Executed SQL: ${query.substring(0, 100)}${query.length > 100 ? '...' : ''}`
+            }
+        }).catch(err => console.warn('Failed to log SQL execution:', err.message));
+
+        res.json({
+            success: true,
+            message: 'Query executed successfully',
+            data: {
+                rows: result.rows || [],
+                rowCount: result.rowCount,
+                fields: result.fields?.map(f => ({ name: f.name, dataTypeID: f.dataTypeID })) || [],
+                command: result.command
+            }
+        });
+
+    } catch (error) {
+        console.error('[SQL CONSOLE] Query error:', error.message);
+        res.status(400).json({
+            success: false,
+            message: error.message || 'Query execution failed',
+            error: {
+                code: error.code,
+                detail: error.detail,
+                hint: error.hint
+            }
+        });
+    }
+}));
+
 module.exports = router;
+
