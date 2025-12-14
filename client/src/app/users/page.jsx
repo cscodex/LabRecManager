@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Users, Search, Plus, Book, BarChart3, Mail } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import axios from 'axios';
+import api from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function UsersPage() {
     const router = useRouter();
-    const { user, isAuthenticated, accessToken, _hasHydrated } = useAuthStore();
+    const { user, isAuthenticated, accessToken, _hasHydrated, selectedSessionId } = useAuthStore();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -27,15 +27,13 @@ export default function UsersPage() {
             return;
         }
         loadUsers();
-    }, [isAuthenticated, roleFilter]);
+    }, [isAuthenticated, roleFilter, selectedSessionId]);
 
     const loadUsers = async () => {
+        setLoading(true);
         try {
             const params = roleFilter !== 'all' ? { role: roleFilter } : {};
-            const res = await axios.get('/api/users', {
-                headers: { Authorization: `Bearer ${accessToken}` },
-                params
-            });
+            const res = await api.get('/users', { params });
             setUsers(res.data.data.users || []);
         } catch (error) {
             toast.error('Failed to load users');

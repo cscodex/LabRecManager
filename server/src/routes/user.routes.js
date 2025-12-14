@@ -16,6 +16,9 @@ router.get('/', authenticate, authorize('admin', 'principal', 'instructor'), asy
     const { page = 1, limit = 20, role, search, isActive, classId } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Get academic session from header
+    const sessionId = req.headers['x-academic-session'];
+
     let where = { schoolId: req.user.schoolId };
 
     if (role) where.role = role;
@@ -35,6 +38,20 @@ router.get('/', authenticate, authorize('admin', 'principal', 'instructor'), asy
     if (classId) {
         where.classEnrollments = {
             some: { classId, status: 'active' }
+        };
+    }
+
+    // Session-based filtering: for students, filter by enrollments in classes of the selected academic year
+    if (sessionId && (role === 'student' || !role)) {
+        // If filtering students or all users, add session-based class enrollment filter
+        where.OR = where.OR || [];
+        where.classEnrollments = {
+            some: {
+                status: 'active',
+                class: {
+                    academicYearId: sessionId
+                }
+            }
         };
     }
 

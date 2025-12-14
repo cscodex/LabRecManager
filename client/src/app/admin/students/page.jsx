@@ -15,7 +15,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function AdminStudentsPage() {
     const router = useRouter();
-    const { user, isAuthenticated, _hasHydrated } = useAuthStore();
+    const { user, isAuthenticated, _hasHydrated, selectedSessionId } = useAuthStore();
     const fileInputRef = useRef(null);
 
     const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export default function AdminStudentsPage() {
         if (!isAuthenticated) { router.push('/login'); return; }
         if (!isAdmin) { router.push('/dashboard'); return; }
         loadData();
-    }, [isAuthenticated, _hasHydrated, isAdmin]);
+    }, [isAuthenticated, _hasHydrated, isAdmin, selectedSessionId]);
 
     const loadData = async () => {
         setLoading(true);

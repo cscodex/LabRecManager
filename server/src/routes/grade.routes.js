@@ -27,6 +27,9 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, submissionId, studentId, isPublished } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Get academic session from header
+    const sessionId = req.headers['x-academic-session'];
+
     let where = {};
 
     // Students can only see their published grades
@@ -48,6 +51,11 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
 
     if (submissionId) {
         where.submissionId = submissionId;
+    }
+
+    // Filter by academic year/session
+    if (sessionId) {
+        where.academicYearId = sessionId;
     }
 
     const [grades, total] = await Promise.all([

@@ -15,6 +15,9 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, assignmentId, status, studentId } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Get academic session from header
+    const sessionId = req.headers['x-academic-session'];
+
     let where = {};
 
     // Students can only see their own submissions
@@ -40,6 +43,14 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
 
     if (status) {
         where.status = status;
+    }
+
+    // Filter by academic year/session via assignment
+    if (sessionId) {
+        where.assignment = {
+            ...where.assignment,
+            academicYearId: sessionId
+        };
     }
 
     const [submissions, total] = await Promise.all([

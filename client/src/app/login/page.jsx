@@ -1,22 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, GraduationCap, LogIn } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, LogIn, Calendar } from 'lucide-react';
 import { authAPI } from '@/lib/api';
+import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import DatabaseStatus from '@/components/DatabaseStatus';
 
 export default function LoginPage() {
     const router = useRouter();
-    const { setAuth } = useAuthStore();
+    const { setAuth, setSession, setAvailableSessions } = useAuthStore();
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [language, setLanguage] = useState('en');
 
+    // Session selection state
+    const [academicYears, setAcademicYears] = useState([]);
+    const [selectedYear, setSelectedYear] = useState('');
+    const [loadingYears, setLoadingYears] = useState(true);
+
     const { register, handleSubmit, formState: { errors } } = useForm();
+
+    // Load academic years on mount
+    useEffect(() => {
+        loadAcademicYears();
+    }, []);
+
+    const loadAcademicYears = async () => {
+        try {
+            const res = await api.get('/schools/academic-years');
+            const years = res.data.data.academicYears || [];
+            setAcademicYears(years);
+            // Default to current year
+            const currentYear = years.find(y => y.isCurrent);
+            if (currentYear) {
+                setSelectedYear(currentYear.id);
+            } else if (years.length > 0) {
+                setSelectedYear(years[0].id);
+            }
+        } catch (error) {
+            console.log('Could not load academic years');
+        } finally {
+            setLoadingYears(false);
+        }
+    };
 
     const text = {
         en: {
@@ -44,13 +74,25 @@ export default function LoginPage() {
     const t = text[language];
 
     const onSubmit = async (data) => {
+        if (!selectedYear) {
+            toast.error('Please select an academic session');
+            return;
+        }
+
         setIsLoading(true);
         try {
             const response = await authAPI.login(data.email, data.password);
             const { user, accessToken, refreshToken } = response.data.data;
             setAuth(user, accessToken, refreshToken);
+
+            // Set the selected session
+            const selectedSession = academicYears.find(y => y.id === selectedYear);
+            if (selectedSession) {
+                setAvailableSessions(academicYears);
+                setSession(selectedSession);
+            }
+
             toast.success(t.welcome);
-            // Use replace for cleaner navigation and add a small delay
             setTimeout(() => {
                 router.replace('/dashboard');
             }, 100);
@@ -126,6 +168,35 @@ export default function LoginPage() {
                         <h2 className="text-2xl font-bold text-slate-900 mb-6">{t.login}</h2>
 
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                            {/* Academic Session Selector - Like UDISE+ */}
+                            <div>
+                                <label className="label flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-primary-500" />
+                                    {language === 'hi' ? 'शैक्षणिक सत्र' : 'Academic Session'}
+                                </label>
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                    className="input w-full bg-gradient-to-r from-orange-50 to-green-50 border-2 border-primary-200 focus:border-primary-500"
+                                    disabled={loadingYears}
+                                >
+                                    {loadingYears ? (
+                                        <option>Loading sessions...</option>
+                                    ) : academicYears.length === 0 ? (
+                                        <option value="">No sessions available</option>
+                                    ) : (
+                                        academicYears.map(year => (
+                                            <option key={year.id} value={year.id}>
+                                                {year.yearLabel} {year.isCurrent ? '(Current)' : ''}
+                                            </option>
+                                        ))
+                                    )}
+                                </select>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {language === 'hi' ? 'डेटा चयनित सत्र के अनुसार प्रदर्शित होगा' : 'Data will display according to selected session'}
+                                </p>
+                            </div>
+
                             <div>
                                 <label className="label">{t.email}</label>
                                 <input
