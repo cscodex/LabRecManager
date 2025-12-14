@@ -5,6 +5,31 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 /**
+ * @route   GET /api/schools/academic-years
+ * @desc    Get all academic years (PUBLIC - for login page session selector)
+ * @access  Public
+ */
+router.get('/academic-years', asyncHandler(async (req, res) => {
+    // Get academic years across all schools (or filter by school if needed)
+    const academicYears = await prisma.academicYear.findMany({
+        orderBy: { startDate: 'desc' },
+        select: {
+            id: true,
+            yearLabel: true,
+            startDate: true,
+            endDate: true,
+            isCurrent: true
+        }
+    });
+
+    res.json({
+        success: true,
+        data: { academicYears }
+    });
+}));
+
+
+/**
  * @route   GET /api/schools
  * @desc    Get all schools (admin only)
  * @access  Private (Super Admin)
