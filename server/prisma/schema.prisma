@@ -263,6 +263,8 @@ model Class {
   labAttendance LabAttendance[]
   finalLabMarks FinalLabMarks[]
 
+  @@index([academicYearId])
+  @@index([schoolId, academicYearId])
   @@map("classes")
 }
 
@@ -455,6 +457,10 @@ model Assignment {
   vivaQuestions VivaQuestion[]
   materialUsage LabMaterialUsage[]
 
+  @@index([academicYearId])
+  @@index([schoolId, academicYearId])
+  @@index([subjectId, academicYearId])
+  @@index([status])
   @@map("assignments")
 }
 
@@ -557,6 +563,9 @@ model Submission {
   grade        Grade?
 
   @@unique([assignmentId, studentId, submissionNumber])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@index([status])
   @@map("submissions")
 }
 
@@ -784,6 +793,8 @@ model Grade {
   academicYear AcademicYear?  @relation(fields: [academicYearId], references: [id])
   history      GradeHistory[]
 
+  @@index([academicYearId])
+  @@index([studentId])
   @@map("grades")
 }
 
@@ -1006,6 +1017,9 @@ model ActivityLog {
   // Relations
   user User @relation(fields: [userId], references: [id])
 
+  @@index([createdAt])
+  @@index([schoolId, createdAt])
+  @@index([userId])
   @@map("activity_logs")
 }
 
