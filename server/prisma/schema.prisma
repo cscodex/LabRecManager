@@ -141,6 +141,10 @@ model User {
   lastLogin          DateTime? @map("last_login")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
+  
+  // PIN-based password reset
+  resetPin           String?   @map("reset_pin")
+  pinExpiresAt       DateTime? @map("pin_expires_at")
 
   // Relations
   school             School             @relation(fields: [schoolId], references: [id])

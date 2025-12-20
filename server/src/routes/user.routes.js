@@ -6,6 +6,7 @@ const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadSingle } = require('../middleware/upload');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { createStudentProfileExtras, createBulkProfileExtras } = require('../utils/profileHelper');
 
 /**
  * @route   GET /api/users
@@ -298,6 +299,11 @@ router.post('/', authenticate, authorize('admin', 'principal', 'instructor'), [
         });
     }
 
+    // Create profile extras for students (avatar, device test, notifications)
+    if (role === 'student') {
+        await createStudentProfileExtras(user.id, firstName, lastName, req.user.schoolId, req.user.id);
+    }
+
     // Log the action
     await prisma.activityLog.create({
         data: {
@@ -435,6 +441,12 @@ router.post('/bulk', authenticate, authorize('admin', 'principal'), asyncHandler
         } catch (error) {
             results.failed.push({ email: userData.email, reason: error.message });
         }
+    }
+
+    // Create profile extras for all created students
+    const createdStudents = results.created.filter(u => (u.role || 'student') === 'student');
+    if (createdStudents.length > 0) {
+        await createBulkProfileExtras(createdStudents, req.user.schoolId, req.user.id);
     }
 
     res.status(201).json({
