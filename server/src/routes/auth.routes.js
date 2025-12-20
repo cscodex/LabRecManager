@@ -440,4 +440,143 @@ router.put('/profile', authenticate, [
     });
 }));
 
+/**
+ * @route   POST /api/auth/login-with-pin
+ * @desc    First-time login with PIN (for new students)
+ * @access  Public
+ */
+router.post('/login-with-pin', asyncHandler(async (req, res) => {
+    const { email, pin, newPassword } = req.body;
+
+    if (!email || !pin) {
+        return res.status(400).json({
+            success: false,
+            message: 'Email and PIN are required'
+        });
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+        where: { email },
+        include: {
+            school: {
+                select: { id: true, name: true, nameHindi: true, primaryLanguage: true }
+            }
+        }
+    });
+
+    if (!user) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid email or PIN'
+        });
+    }
+
+    // Check if PIN exists
+    if (!user.resetPin || !user.pinExpiresAt) {
+        return res.status(400).json({
+            success: false,
+            message: 'No PIN set for this account. Use password to login.',
+            requiresPassword: true
+        });
+    }
+
+    // Check if PIN expired
+    if (new Date() > user.pinExpiresAt) {
+        return res.status(400).json({
+            success: false,
+            message: 'PIN has expired. Contact administrator for a new PIN.'
+        });
+    }
+
+    // Verify PIN
+    const isPinValid = await bcrypt.compare(pin, user.resetPin);
+    if (!isPinValid) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid PIN'
+        });
+    }
+
+    // If no newPassword provided, tell frontend to ask for password setup
+    if (!newPassword) {
+        return res.json({
+            success: true,
+            requiresPasswordSetup: true,
+            message: 'PIN verified. Please set your password.',
+            data: {
+                email: user.email,
+                firstName: user.firstName
+            }
+        });
+    }
+
+    // Validate new password
+    if (newPassword.length < 6) {
+        return res.status(400).json({
+            success: false,
+            message: 'Password must be at least 6 characters'
+        });
+    }
+
+    // Set new password and clear PIN
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            passwordHash,
+            resetPin: null,
+            pinExpiresAt: null,
+            lastLogin: new Date()
+        }
+    });
+
+    // Generate tokens
+    const accessToken = jwt.sign(
+        { userId: user.id, role: user.role },
+        jwtConfig.secret,
+        { expiresIn: jwtConfig.expiresIn }
+    );
+
+    const refreshToken = jwt.sign(
+        { userId: user.id, type: 'refresh' },
+        jwtConfig.secret,
+        { expiresIn: jwtConfig.refreshExpiresIn }
+    );
+
+    // Log activity
+    try {
+        await prisma.activityLog.create({
+            data: {
+                userId: user.id,
+                schoolId: user.schoolId,
+                actionType: 'login',
+                description: 'First-time login with PIN',
+                ipAddress: req.ip
+            }
+        });
+    } catch (e) { }
+
+    res.json({
+        success: true,
+        message: 'Password set and login successful',
+        data: {
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.role,
+                preferredLanguage: user.preferredLanguage,
+                profileImageUrl: user.profileImageUrl,
+                school: user.school
+            },
+            accessToken,
+            refreshToken
+        }
+    });
+}));
+
 module.exports = router;
