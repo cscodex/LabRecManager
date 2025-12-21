@@ -808,19 +808,28 @@ export default function LabInventoryPage() {
                                     <Image className="w-4 h-4 inline mr-1" /> Image URL
                                 </label>
                                 <input
-                                    type="url"
+                                    type="text"
                                     value={formData.imageUrl}
                                     onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                                     className="input"
-                                    placeholder="https://example.com/image.jpg"
+                                    placeholder="https://i.imgur.com/example.jpg"
                                 />
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Use Imgur, ImgBB, or any direct image URL
+                                    <button type="button" onClick={() => setFormData({ ...formData, imageUrl: 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?w=300' })} className="ml-2 text-primary-500 hover:underline">
+                                        Try demo image
+                                    </button>
+                                </p>
                                 {formData.imageUrl && (
                                     <div className="mt-2 relative">
                                         <img
                                             src={formData.imageUrl}
                                             alt="Item preview"
                                             className="w-full h-32 object-cover rounded-lg border border-slate-200"
-                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23f1f5f9" width="100" height="100"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="12">Image Error</text></svg>';
+                                            }}
                                         />
                                         <button
                                             type="button"
@@ -831,7 +840,6 @@ export default function LabInventoryPage() {
                                         </button>
                                     </div>
                                 )}
-                                <p className="text-xs text-slate-400 mt-1">Upload to Imgur/Google Photos and paste URL here</p>
                             </div>
 
                             <div className="flex gap-3 pt-4">
