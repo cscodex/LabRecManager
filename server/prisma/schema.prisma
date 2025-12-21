@@ -178,6 +178,7 @@ model User {
   vivaParticipations VivaParticipant[]
   deviceTests        DeviceTest[]
   importHistory      ImportHistory[]
+  maintenanceRecords ItemMaintenanceHistory[] @relation("MaintenanceRecordedBy")
 
   @@map("users")
 }
@@ -428,6 +429,7 @@ model LabItem {
   lab             Lab            @relation(fields: [labId], references: [id], onDelete: Cascade)
   school          School         @relation(fields: [schoolId], references: [id])
   assignedGroups  StudentGroup[]
+  maintenanceHistory ItemMaintenanceHistory[]
 
   @@unique([labId, itemNumber])
   @@map("lab_items")
@@ -452,6 +454,26 @@ model ImportHistory {
   uploadedBy User @relation(fields: [uploadedById], references: [id])
 
   @@map("import_history")
+}
+
+// Maintenance history for tracking repairs, issues, replacements
+model ItemMaintenanceHistory {
+  id           String    @id @default(uuid())
+  itemId       String    @map("item_id")
+  recordedById String    @map("recorded_by")
+  type         String    // issue, maintenance, repair, replacement
+  description  String
+  cost         Decimal?  @db.Decimal(10, 2)
+  vendor       String?
+  partName     String?   @map("part_name")
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  item       LabItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  recordedBy User    @relation("MaintenanceRecordedBy", fields: [recordedById], references: [id])
+
+  @@map("item_maintenance_history")
 }
 
 // ==================== ASSIGNMENTS ====================

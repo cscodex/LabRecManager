@@ -20,9 +20,22 @@ CREATE INDEX IF NOT EXISTS idx_import_history_lab_id ON import_history(lab_id);
 CREATE INDEX IF NOT EXISTS idx_import_history_school_id ON import_history(school_id);
 CREATE INDEX IF NOT EXISTS idx_import_history_created_at ON import_history(created_at DESC);
 
--- View recent imports
--- SELECT ih.*, l.name as lab_name, u.first_name, u.last_name 
--- FROM import_history ih 
--- JOIN labs l ON ih.lab_id = l.id 
--- JOIN users u ON ih.uploaded_by = u.id 
--- ORDER BY ih.created_at DESC;
+-- =====================================================
+-- Item Maintenance History (for repairs, issues, etc.)
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS item_maintenance_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES lab_items(id) ON DELETE CASCADE,
+    recorded_by UUID NOT NULL REFERENCES users(id),
+    type VARCHAR(50) NOT NULL,  -- issue, maintenance, repair, replacement
+    description TEXT NOT NULL,
+    cost DECIMAL(10,2),
+    vendor VARCHAR(255),
+    part_name VARCHAR(255),
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_item_id ON item_maintenance_history(item_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_created_at ON item_maintenance_history(created_at DESC);

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -57,6 +57,12 @@ export default function LabInventoryPage() {
     // Custom fields state
     const [customFields, setCustomFields] = useState([]);
     const [newFieldName, setNewFieldName] = useState('');
+
+    // Maintenance history state
+    const [maintenanceHistory, setMaintenanceHistory] = useState([]);
+    const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+    const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+    const [maintenanceForm, setMaintenanceForm] = useState({ type: 'issue', description: '', cost: '', vendor: '', partName: '' });
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -636,7 +642,16 @@ export default function LabInventoryPage() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex gap-1">
-                                                    <button onClick={() => setViewingItem(item)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="View Details">
+                                                    <button onClick={async () => {
+                                                        setViewingItem(item);
+                                                        setMaintenanceHistory([]);
+                                                        setMaintenanceLoading(true);
+                                                        try {
+                                                            const res = await labsAPI.getMaintenanceHistory(item.id);
+                                                            setMaintenanceHistory(res.data.data.history || []);
+                                                        } catch { }
+                                                        setMaintenanceLoading(false);
+                                                    }} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="View Details">
                                                         <Eye className="w-4 h-4" />
                                                     </button>
                                                     <button onClick={() => setQrItem(item)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="QR Code">
@@ -787,80 +802,36 @@ export default function LabInventoryPage() {
                                 <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="input" rows={2} />
                             </div>
 
-                            {/* Image Upload */}
+                            {/* Image URL */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    <Image className="w-4 h-4 inline mr-1" /> Item Image
+                                    <Image className="w-4 h-4 inline mr-1" /> Image URL
                                 </label>
-                                {/* Drag & Drop Zone */}
-                                <div
-                                    className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors ${formData.imageUrl ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 hover:border-primary-400 hover:bg-primary-50'
-                                        }`}
-                                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-primary-500', 'bg-primary-100'); }}
-                                    onDragLeave={(e) => { e.currentTarget.classList.remove('border-primary-500', 'bg-primary-100'); }}
-                                    onDrop={async (e) => {
-                                        e.preventDefault();
-                                        e.currentTarget.classList.remove('border-primary-500', 'bg-primary-100');
-                                        const file = e.dataTransfer.files[0];
-                                        if (file && file.type.startsWith('image/')) {
-                                            try {
-                                                toast.loading('Uploading image...', { id: 'img-upload' });
-                                                const res = await labsAPI.uploadImage(file);
-                                                setFormData(prev => ({ ...prev, imageUrl: res.data.data.imageUrl }));
-                                                toast.success('Image uploaded', { id: 'img-upload' });
-                                            } catch (err) {
-                                                toast.error('Failed to upload image', { id: 'img-upload' });
-                                            }
-                                        }
-                                    }}
-                                >
-                                    {formData.imageUrl ? (
-                                        <div className="relative">
-                                            <img src={formData.imageUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData(prev => ({ ...prev, imageUrl: '' }))}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <label className="cursor-pointer">
-                                            <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                                            <p className="text-sm text-slate-600">Drag & drop image or click to upload</p>
-                                            <p className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</p>
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={async (e) => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        try {
-                                                            toast.loading('Uploading image...', { id: 'img-upload' });
-                                                            const res = await labsAPI.uploadImage(file);
-                                                            setFormData(prev => ({ ...prev, imageUrl: res.data.data.imageUrl }));
-                                                            toast.success('Image uploaded', { id: 'img-upload' });
-                                                        } catch (err) {
-                                                            toast.error('Failed to upload image', { id: 'img-upload' });
-                                                        }
-                                                    }
-                                                }}
-                                            />
-                                        </label>
-                                    )}
-                                </div>
-                                {/* URL fallback */}
-                                <div className="mt-2">
-                                    <input
-                                        type="url"
-                                        value={formData.imageUrl}
-                                        onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                                        className="input text-sm"
-                                        placeholder="Or paste image URL..."
-                                    />
-                                </div>
+                                <input
+                                    type="url"
+                                    value={formData.imageUrl}
+                                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                                    className="input"
+                                    placeholder="https://example.com/image.jpg"
+                                />
+                                {formData.imageUrl && (
+                                    <div className="mt-2 relative">
+                                        <img
+                                            src={formData.imageUrl}
+                                            alt="Item preview"
+                                            className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                                <p className="text-xs text-slate-400 mt-1">Upload to Imgur/Google Photos and paste URL here</p>
                             </div>
 
                             <div className="flex gap-3 pt-4">
@@ -979,6 +950,85 @@ export default function LabInventoryPage() {
                                     <button onClick={() => { handleEdit(viewingItem); setViewingItem(null); }} className="btn btn-primary flex-1">
                                         <Edit2 className="w-4 h-4" /> Edit Item
                                     </button>
+                                </div>
+
+                                {/* Maintenance History Section */}
+                                <div className="border-t border-slate-200 pt-4 mt-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                                            <History className="w-4 h-4 text-primary-500" /> Maintenance History
+                                        </h4>
+                                        <button onClick={() => setShowMaintenanceForm(!showMaintenanceForm)} className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1">
+                                            <Plus className="w-4 h-4" /> Add Record
+                                        </button>
+                                    </div>
+
+                                    {/* Add Record Form */}
+                                    {showMaintenanceForm && (
+                                        <div className="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
+                                            <select value={maintenanceForm.type} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, type: e.target.value })} className="input text-sm">
+                                                <option value="issue">🔴 Issue</option>
+                                                <option value="maintenance">🔧 Maintenance</option>
+                                                <option value="repair">🛠️ Repair</option>
+                                                <option value="replacement">♻️ Part Replacement</option>
+                                            </select>
+                                            <textarea value={maintenanceForm.description} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, description: e.target.value })} className="input text-sm" rows={2} placeholder="Description..." />
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <input type="number" value={maintenanceForm.cost} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, cost: e.target.value })} className="input text-sm" placeholder="Cost (₹)" />
+                                                <input type="text" value={maintenanceForm.vendor} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, vendor: e.target.value })} className="input text-sm" placeholder="Vendor" />
+                                                <input type="text" value={maintenanceForm.partName} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, partName: e.target.value })} className="input text-sm" placeholder="Part name" />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setShowMaintenanceForm(false)} className="btn btn-secondary text-xs flex-1">Cancel</button>
+                                                <button onClick={async () => {
+                                                    if (!maintenanceForm.description) { toast.error('Description required'); return; }
+                                                    try {
+                                                        await labsAPI.addMaintenanceRecord(viewingItem.id, maintenanceForm);
+                                                        toast.success('Record added');
+                                                        setShowMaintenanceForm(false);
+                                                        setMaintenanceForm({ type: 'issue', description: '', cost: '', vendor: '', partName: '' });
+                                                        // Reload history
+                                                        const res = await labsAPI.getMaintenanceHistory(viewingItem.id);
+                                                        setMaintenanceHistory(res.data.data.history || []);
+                                                    } catch (err) { toast.error('Failed to add record'); }
+                                                }} className="btn btn-primary text-xs flex-1">Save</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* History Timeline */}
+                                    {maintenanceLoading ? (
+                                        <p className="text-sm text-slate-500 text-center py-4">Loading...</p>
+                                    ) : maintenanceHistory.length === 0 ? (
+                                        <p className="text-sm text-slate-400 text-center py-4">No maintenance records</p>
+                                    ) : (
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {maintenanceHistory.map(record => (
+                                                <div key={record.id} className={`p-2 rounded-lg border text-sm ${record.type === 'issue' ? 'bg-red-50 border-red-200' :
+                                                    record.type === 'repair' ? 'bg-blue-50 border-blue-200' :
+                                                        record.type === 'replacement' ? 'bg-purple-50 border-purple-200' :
+                                                            'bg-amber-50 border-amber-200'
+                                                    }`}>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {record.type === 'issue' && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                                                        {record.type === 'repair' && <Wrench className="w-4 h-4 text-blue-500" />}
+                                                        {record.type === 'replacement' && <RefreshCw className="w-4 h-4 text-purple-500" />}
+                                                        {record.type === 'maintenance' && <Wrench className="w-4 h-4 text-amber-500" />}
+                                                        <span className="font-medium capitalize">{record.type}</span>
+                                                        <span className="text-xs text-slate-500 ml-auto">{new Date(record.createdAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <p className="text-slate-700">{record.description}</p>
+                                                    {(record.cost || record.vendor || record.partName) && (
+                                                        <div className="flex gap-3 mt-1 text-xs text-slate-500">
+                                                            {record.cost && <span>₹{record.cost}</span>}
+                                                            {record.vendor && <span>{record.vendor}</span>}
+                                                            {record.partName && <span>{record.partName}</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

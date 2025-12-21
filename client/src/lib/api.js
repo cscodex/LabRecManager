@@ -207,6 +207,9 @@ export const labsAPI = {
     // Import history
     getImportHistory: () => api.get('/labs/import-history'),
     saveImportHistory: (labId, data) => api.post(`/labs/${labId}/import-history`, data),
+    // Maintenance history
+    getMaintenanceHistory: (itemId) => api.get(`/labs/items/${itemId}/maintenance`),
+    addMaintenanceRecord: (itemId, data) => api.post(`/labs/items/${itemId}/maintenance`, data),
     // Group assignment
     assignPcToGroup: (groupId, pcId) => api.put(`/labs/groups/${groupId}/assign-pc`, { pcId }),
 };

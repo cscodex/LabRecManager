@@ -100,6 +100,63 @@ router.post('/:labId/import-history', authenticate, authorize('admin', 'principa
 }));
 
 /**
+ * @route   GET /api/labs/items/:itemId/maintenance
+ * @desc    Get maintenance history for an item
+ * @access  Private
+ */
+router.get('/items/:itemId/maintenance', authenticate, asyncHandler(async (req, res) => {
+    const { itemId } = req.params;
+
+    const history = await prisma.itemMaintenanceHistory.findMany({
+        where: { itemId },
+        include: {
+            recordedBy: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ success: true, data: { history } });
+}));
+
+/**
+ * @route   POST /api/labs/items/:itemId/maintenance
+ * @desc    Add maintenance record for an item
+ * @access  Private (Admin)
+ */
+router.post('/items/:itemId/maintenance', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
+    const { itemId } = req.params;
+    const { type, description, cost, vendor, partName, resolvedAt } = req.body;
+
+    // Validate item exists
+    const item = await prisma.labItem.findUnique({ where: { id: itemId } });
+    if (!item) {
+        return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    const record = await prisma.itemMaintenanceHistory.create({
+        data: {
+            itemId,
+            recordedById: req.user.id,
+            type,
+            description,
+            cost: cost ? parseFloat(cost) : null,
+            vendor: vendor || null,
+            partName: partName || null,
+            resolvedAt: resolvedAt ? new Date(resolvedAt) : null
+        },
+        include: {
+            recordedBy: { select: { id: true, firstName: true, lastName: true } }
+        }
+    });
+
+    res.status(201).json({
+        success: true,
+        message: 'Maintenance record added',
+        data: { record }
+    });
+}));
+
+/**
  * @route   GET /api/labs/inventory-reports
  * @desc    Get inventory reports with alerts
  * @access  Private (Admin/Principal)
