@@ -27,6 +27,28 @@ router.get('/item-types', authenticate, asyncHandler(async (req, res) => {
 }));
 
 /**
+ * @route   GET /api/labs/items/pcs
+ * @desc    Get all PCs across all labs (for group assignment dropdown)
+ * @access  Private
+ * @note    This route must be defined BEFORE /:id to avoid matching "items" as an id
+ */
+router.get('/items/pcs', authenticate, asyncHandler(async (req, res) => {
+    const items = await prisma.labItem.findMany({
+        where: { schoolId: req.user.schoolId, itemType: 'pc', status: 'active' },
+        include: {
+            lab: { select: { id: true, name: true, roomNumber: true } },
+            assignedGroups: { select: { id: true, name: true } }
+        },
+        orderBy: [{ lab: { name: 'asc' } }, { itemNumber: 'asc' }]
+    });
+
+    res.json({
+        success: true,
+        data: { items }
+    });
+}));
+
+/**
  * @route   GET /api/labs
  * @desc    Get all labs for the school
  * @access  Private
@@ -187,27 +209,6 @@ router.get('/:labId/items', authenticate, asyncHandler(async (req, res) => {
             }
         },
         orderBy: [{ itemType: 'asc' }, { itemNumber: 'asc' }]
-    });
-
-    res.json({
-        success: true,
-        data: { items }
-    });
-}));
-
-/**
- * @route   GET /api/labs/items/pcs
- * @desc    Get all PCs across all labs (for group assignment dropdown)
- * @access  Private
- */
-router.get('/items/pcs', authenticate, asyncHandler(async (req, res) => {
-    const items = await prisma.labItem.findMany({
-        where: { schoolId: req.user.schoolId, itemType: 'pc', status: 'active' },
-        include: {
-            lab: { select: { id: true, name: true, roomNumber: true } },
-            assignedGroups: { select: { id: true, name: true } }
-        },
-        orderBy: [{ lab: { name: 'asc' } }, { itemNumber: 'asc' }]
     });
 
     res.json({
