@@ -413,7 +413,6 @@ model LabItem {
   brand       String?
   modelNo     String?  @map("model_no")
   serialNo    String?  @map("serial_no")
-  quantity    Int      @default(1)  // For items like chairs/tables
   specs       Json?    // Type-specific fields: {ram, storage, processor, os} for PC, {paperSize, dpi} for printer, etc.
   status      String   @default("active") // active, maintenance, retired
   notes       String?

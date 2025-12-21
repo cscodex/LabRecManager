@@ -238,7 +238,7 @@ router.post('/:labId/items', authenticate, authorize('admin', 'principal', 'lab_
         return res.status(404).json({ success: false, message: 'Lab not found' });
     }
 
-    const { itemType, itemNumber, brand, modelNo, serialNo, quantity, specs, status, notes, purchaseDate, warrantyEnd } = req.body;
+    const { itemType, itemNumber, brand, modelNo, serialNo, specs, status, notes, purchaseDate, warrantyEnd } = req.body;
 
     const item = await prisma.labItem.create({
         data: {
@@ -249,7 +249,6 @@ router.post('/:labId/items', authenticate, authorize('admin', 'principal', 'lab_
             brand,
             modelNo,
             serialNo,
-            quantity: quantity || 1,
             specs: specs || {},
             status: status || 'active',
             notes,
@@ -279,7 +278,7 @@ router.put('/:labId/items/:itemId', authenticate, authorize('admin', 'principal'
         return res.status(404).json({ success: false, message: 'Item not found' });
     }
 
-    const { itemType, itemNumber, brand, modelNo, serialNo, quantity, specs, status, notes, purchaseDate, warrantyEnd } = req.body;
+    const { itemType, itemNumber, brand, modelNo, serialNo, specs, status, notes, purchaseDate, warrantyEnd } = req.body;
 
     const updated = await prisma.labItem.update({
         where: { id: req.params.itemId },
@@ -289,7 +288,6 @@ router.put('/:labId/items/:itemId', authenticate, authorize('admin', 'principal'
             brand,
             modelNo,
             serialNo,
-            quantity,
             specs,
             status,
             notes,
