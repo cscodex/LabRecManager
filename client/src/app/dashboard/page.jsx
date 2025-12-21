@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     FileText, Upload, Award, Video, Users,
-    ChevronRight, TrendingUp, Clock, CheckCircle, BookOpen
+    ChevronRight, TrendingUp, Clock, CheckCircle, BookOpen, Monitor
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { dashboardAPI } from '@/lib/api';
@@ -182,6 +182,46 @@ export default function DashboardPage() {
                                 <div>
                                     <p className="font-semibold text-slate-900">Manage Classes</p>
                                     <p className="text-sm text-slate-500">View students</p>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
+                            </div>
+                        </Link>
+                    </>
+                )}
+                {user?.role === 'admin' && (
+                    <>
+                        <Link href="/admin/labs" className="card p-4 hover:shadow-lg transition group">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition">
+                                    <Monitor className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-slate-900">Labs & PCs</p>
+                                    <p className="text-sm text-slate-500">Manage computer labs</p>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
+                            </div>
+                        </Link>
+                        <Link href="/users" className="card p-4 hover:shadow-lg transition group">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition">
+                                    <Users className="w-6 h-6 text-purple-600" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-slate-900">User Management</p>
+                                    <p className="text-sm text-slate-500">Manage all users</p>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
+                            </div>
+                        </Link>
+                        <Link href="/admin/students" className="card p-4 hover:shadow-lg transition group">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200 transition">
+                                    <BookOpen className="w-6 h-6 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-slate-900">Import Students</p>
+                                    <p className="text-sm text-slate-500">Bulk import CSV</p>
                                 </div>
                                 <ChevronRight className="w-5 h-5 text-slate-400 ml-auto" />
                             </div>

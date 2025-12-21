@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
     Home, BookOpen, FileText, Award, Users, GraduationCap,
     Video, BarChart3, Settings, LogOut, Menu, X, ChevronLeft,
-    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus
+    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 
@@ -16,6 +16,7 @@ const navItems = {
         { href: '/admin/students', label: 'Manage Students', labelHindi: 'छात्र प्रबंधन', icon: UserPlus },
         { href: '/classes', label: 'Classes', labelHindi: 'कक्षाएं', icon: Users },
         { href: '/users', label: 'Users', labelHindi: 'उपयोगकर्ता', icon: GraduationCap },
+        { href: '/admin/labs', label: 'Labs & PCs', labelHindi: 'लैब और पीसी', icon: Monitor },
         { href: '/assignments', label: 'Assignments', labelHindi: 'असाइनमेंट', icon: BookOpen },
         { href: '/assigned-work', label: 'Assigned Work', labelHindi: 'सौंपा गया कार्य', icon: ListChecks },
         { href: '/submissions', label: 'Submissions', labelHindi: 'प्रस्तुतियाँ', icon: FileText },
@@ -52,6 +53,7 @@ const navItems = {
     lab_assistant: [
         { href: '/dashboard', label: 'Dashboard', labelHindi: 'डैशबोर्ड', icon: Home },
         { href: '/classes', label: 'Classes', labelHindi: 'कक्षाएं', icon: Users },
+        { href: '/admin/labs', label: 'Labs & PCs', labelHindi: 'लैब और पीसी', icon: Monitor },
         { href: '/assignments', label: 'Assignments', labelHindi: 'असाइनमेंट', icon: BookOpen },
         { href: '/assigned-work', label: 'Assigned Work', labelHindi: 'सौंपा गया कार्य', icon: ListChecks },
         { href: '/submissions', label: 'Submissions', labelHindi: 'प्रस्तुतियाँ', icon: FileText },
