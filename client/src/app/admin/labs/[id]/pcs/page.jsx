@@ -41,7 +41,7 @@ export default function LabInventoryPage() {
     const [editingItem, setEditingItem] = useState(null);
     const [formData, setFormData] = useState({
         itemType: 'pc', itemNumber: '', brand: '', modelNo: '', serialNo: '',
-        quantity: 1, specs: {}, status: 'active', notes: '', purchaseDate: '', warrantyEnd: ''
+        specs: {}, status: 'active', notes: '', purchaseDate: '', warrantyEnd: ''
     });
 
     // Custom fields state
@@ -120,7 +120,6 @@ export default function LabInventoryPage() {
             brand: item.brand || '',
             modelNo: item.modelNo || '',
             serialNo: item.serialNo || '',
-            quantity: item.quantity || 1,
             specs: item.specs || {},
             status: item.status || 'active',
             notes: item.notes || '',
@@ -148,7 +147,7 @@ export default function LabInventoryPage() {
         setNewFieldName('');
         setFormData({
             itemType: 'pc', itemNumber: '', brand: '', modelNo: '', serialNo: '',
-            quantity: 1, specs: {}, status: 'active', notes: '', purchaseDate: '', warrantyEnd: ''
+            specs: {}, status: 'active', notes: '', purchaseDate: '', warrantyEnd: ''
         });
     };
 
@@ -226,6 +225,26 @@ export default function LabInventoryPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-6">
+                {/* Stock Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+                    {Object.entries(ITEM_TYPES).map(([key, { label, icon: Icon, color }]) => {
+                        const count = items.filter(i => i.itemType === key).length;
+                        if (count === 0) return null;
+                        return (
+                            <div key={key} className="card p-3 text-center">
+                                <Icon className={`w-6 h-6 mx-auto mb-1 text-${color}-500`} />
+                                <p className="text-2xl font-bold text-slate-900">{count}</p>
+                                <p className="text-xs text-slate-500">{label}s</p>
+                            </div>
+                        );
+                    })}
+                    <div className="card p-3 text-center bg-slate-900 text-white">
+                        <Package className="w-6 h-6 mx-auto mb-1" />
+                        <p className="text-2xl font-bold">{items.length}</p>
+                        <p className="text-xs opacity-80">Total</p>
+                    </div>
+                </div>
+
                 {/* Filter Tabs */}
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                     <button onClick={() => setFilterType('all')} className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${filterType === 'all' ? 'bg-primary-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
@@ -258,7 +277,7 @@ export default function LabInventoryPage() {
                                 <tr>
                                     <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Item</th>
                                     <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Brand/Model</th>
-                                    <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Qty</th>
+                                    <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Serial</th>
                                     <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Specs</th>
                                     <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Status</th>
                                     <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Actions</th>
@@ -285,7 +304,7 @@ export default function LabInventoryPage() {
                                                 <p className="text-slate-900">{item.brand || '-'}</p>
                                                 <p className="text-xs text-slate-500">{item.modelNo || ''}</p>
                                             </td>
-                                            <td className="px-4 py-3 text-slate-700">{item.quantity}</td>
+                                            <td className="px-4 py-3 text-slate-600 text-sm">{item.serialNo || '-'}</td>
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-wrap gap-1 max-w-xs">
                                                     {item.specs && Object.entries(item.specs).slice(0, 4).map(([k, v]) => v && (
@@ -342,13 +361,9 @@ export default function LabInventoryPage() {
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
+                                <div className="col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Item Number *</label>
                                     <input type="text" value={formData.itemNumber} onChange={(e) => setFormData({ ...formData, itemNumber: e.target.value })} className="input" placeholder="e.g., CL2-PC-001" required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
-                                    <input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })} className="input" min="1" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Brand</label>
