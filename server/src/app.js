@@ -28,6 +28,7 @@ const deviceRoutes = require('./routes/device.routes');
 const aiRoutes = require('./routes/ai.routes');
 const academicYearRoutes = require('./routes/academicYear.routes');
 const pinRoutes = require('./routes/pin.routes');
+const labRoutes = require('./routes/lab.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -83,6 +84,7 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/pin', pinRoutes);
+app.use('/api/labs', labRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

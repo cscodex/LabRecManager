@@ -179,6 +179,23 @@ export const classesAPI = {
     getUngroupedStudents: (classId) => api.get(`/classes/${classId}/ungrouped-students`),
 };
 
+// Labs API
+export const labsAPI = {
+    getAll: () => api.get('/labs'),
+    getById: (id) => api.get(`/labs/${id}`),
+    create: (data) => api.post('/labs', data),
+    update: (id, data) => api.put(`/labs/${id}`, data),
+    delete: (id) => api.delete(`/labs/${id}`),
+    // PCs
+    getPCs: (labId) => api.get(`/labs/${labId}/pcs`),
+    getAllPCs: () => api.get('/labs/pcs/all'),
+    createPC: (labId, data) => api.post(`/labs/${labId}/pcs`, data),
+    updatePC: (labId, pcId, data) => api.put(`/labs/${labId}/pcs/${pcId}`, data),
+    deletePC: (labId, pcId) => api.delete(`/labs/${labId}/pcs/${pcId}`),
+    // Group assignment
+    assignPcToGroup: (groupId, pcId) => api.put(`/labs/groups/${groupId}/assign-pc`, { pcId }),
+};
+
 // Users API
 export const usersAPI = {
     getAll: (params) => api.get('/users', { params }),

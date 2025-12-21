@@ -297,6 +297,11 @@ router.get('/:id/groups', authenticate, asyncHandler(async (req, res) => {
             },
             createdBy: {
                 select: { id: true, firstName: true, lastName: true }
+            },
+            assignedPc: {
+                include: {
+                    lab: { select: { id: true, name: true } }
+                }
             }
         }
     });

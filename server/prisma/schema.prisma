@@ -42,6 +42,7 @@ model School {
   notificationTemplates NotificationTemplate[]
   assignments      Assignment[]
   gradeScales      GradeScale[]
+  labPcs           LabPC[]
 
   @@map("schools")
 }
@@ -296,19 +297,21 @@ enum EnrollmentStatus {
 }
 
 model StudentGroup {
-  id          String   @id @default(uuid())
-  classId     String   @map("class_id")
-  name        String
-  nameHindi   String?  @map("name_hindi")
-  description String?
-  createdById String   @map("created_by")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  classId      String   @map("class_id")
+  name         String
+  nameHindi    String?  @map("name_hindi")
+  description  String?
+  createdById  String   @map("created_by")
+  assignedPcId String?  @map("assigned_pc_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
-  class     Class              @relation(fields: [classId], references: [id])
-  createdBy User               @relation(fields: [createdById], references: [id])
-  members   GroupMember[]
-  targets   AssignmentTarget[]
+  class       Class              @relation(fields: [classId], references: [id])
+  createdBy   User               @relation(fields: [createdById], references: [id])
+  assignedPc  LabPC?             @relation(fields: [assignedPcId], references: [id])
+  members     GroupMember[]
+  targets     AssignmentTarget[]
   submissions Submission[]
 
   @@map("student_groups")
@@ -396,8 +399,35 @@ model Lab {
   assignments   Assignment[]
   materialUsage LabMaterialUsage[]
   attendance    LabAttendance[]
+  pcs           LabPC[]
 
   @@map("labs")
+}
+
+model LabPC {
+  id          String   @id @default(uuid())
+  labId       String   @map("lab_id")
+  schoolId    String   @map("school_id")
+  pcNumber    String   @map("pc_number")  // e.g., "CL2-PC-001"
+  brand       String?
+  modelNo     String?  @map("model_no")
+  serialNo    String?  @map("serial_no")
+  ram         String?  // e.g., "16GB DDR4"
+  storage     String?  // e.g., "512GB SSD"
+  processor   String?  // e.g., "Intel i5-10400"
+  os          String?  // e.g., "Windows 11"
+  status      String   @default("active") // active, maintenance, retired
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  lab             Lab            @relation(fields: [labId], references: [id], onDelete: Cascade)
+  school          School         @relation(fields: [schoolId], references: [id])
+  assignedGroups  StudentGroup[]
+
+  @@unique([labId, pcNumber])
+  @@map("lab_pcs")
 }
 
 // ==================== ASSIGNMENTS ====================

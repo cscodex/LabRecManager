@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Users, GraduationCap, ArrowLeft, UserPlus, UsersRound, Plus, Search, Mail, Phone, Calendar, Lock, ChevronLeft, ChevronRight, Shuffle, Trash2, UserMinus, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, GraduationCap, ArrowLeft, UserPlus, UsersRound, Plus, Search, Mail, Phone, Calendar, Lock, ChevronLeft, ChevronRight, Shuffle, Trash2, UserMinus, X, ChevronDown, ChevronUp, Monitor } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { classesAPI } from '@/lib/api';
+import { classesAPI, labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import PageHeader from '@/components/PageHeader';
 
@@ -31,6 +31,10 @@ export default function ClassDetailPage() {
     const [ungroupedStudents, setUngroupedStudents] = useState([]);
     const [addingToGroup, setAddingToGroup] = useState(null);
     const [selectedStudentToAdd, setSelectedStudentToAdd] = useState('');
+
+    // PC assignment state
+    const [allPCs, setAllPCs] = useState([]);
+    const [assigningPcToGroup, setAssigningPcToGroup] = useState(null);
 
     // Track initial session and redirect if session changes
     useEffect(() => {
@@ -158,6 +162,29 @@ export default function ClassDetailPage() {
             loadClassData();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to add student');
+        }
+    };
+
+    // Load all PCs when showing PC assignment dropdown
+    const handleShowAssignPc = async (groupId) => {
+        setAssigningPcToGroup(groupId);
+        try {
+            const res = await labsAPI.getAllPCs();
+            setAllPCs(res.data.data.pcs || []);
+        } catch (error) {
+            toast.error('Failed to load PCs');
+        }
+    };
+
+    // Assign PC to group
+    const handleAssignPc = async (groupId, pcId) => {
+        try {
+            await labsAPI.assignPcToGroup(groupId, pcId || null);
+            toast.success(pcId ? 'PC assigned to group' : 'PC unassigned');
+            setAssigningPcToGroup(null);
+            loadClassData();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to assign PC');
         }
     };
 
@@ -474,6 +501,52 @@ export default function ClassDetailPage() {
                                             >
                                                 {expandedGroupId === group.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                             </button>
+                                        </div>
+
+                                        {/* Assigned PC Display/Assignment */}
+                                        <div className="mb-3 p-2 bg-slate-50 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Monitor className="w-4 h-4 text-blue-500" />
+                                                    {group.assignedPc ? (
+                                                        <span className="text-sm font-medium text-slate-700">
+                                                            {group.assignedPc.pcNumber}
+                                                            <span className="text-xs text-slate-500 ml-1">({group.assignedPc.lab?.name})</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-sm text-slate-400">No PC assigned</span>
+                                                    )}
+                                                </div>
+                                                {(isAdmin || isInstructor) && (
+                                                    assigningPcToGroup === group.id ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <select
+                                                                onChange={(e) => handleAssignPc(group.id, e.target.value)}
+                                                                className="text-xs py-1 px-2 border rounded"
+                                                                defaultValue=""
+                                                            >
+                                                                <option value="">Select PC...</option>
+                                                                <option value="">-- Unassign --</option>
+                                                                {allPCs.map(pc => (
+                                                                    <option key={pc.id} value={pc.id}>
+                                                                        {pc.pcNumber} ({pc.lab?.name})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            <button onClick={() => setAssigningPcToGroup(null)} className="text-slate-400 hover:text-slate-600">
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleShowAssignPc(group.id)}
+                                                            className="text-xs text-blue-600 hover:text-blue-700"
+                                                        >
+                                                            {group.assignedPc ? 'Change' : 'Assign PC'}
+                                                        </button>
+                                                    )
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Collapsed view - member chips */}
