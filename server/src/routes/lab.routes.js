@@ -59,14 +59,28 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
         include: {
             subject: { select: { id: true, name: true } },
             incharge: { select: { id: true, firstName: true, lastName: true } },
-            _count: { select: { items: true } }
+            items: { select: { itemType: true } }
         },
         orderBy: { name: 'asc' }
     });
 
+    // Add item counts by type
+    const labsWithCounts = labs.map(lab => {
+        const itemCounts = {};
+        lab.items.forEach(item => {
+            itemCounts[item.itemType] = (itemCounts[item.itemType] || 0) + 1;
+        });
+        return {
+            ...lab,
+            items: undefined, // Remove items array from response
+            itemCounts,
+            totalItems: lab.items.length
+        };
+    });
+
     res.json({
         success: true,
-        data: { labs }
+        data: { labs: labsWithCounts }
     });
 }));
 
@@ -238,7 +252,7 @@ router.post('/:labId/items', authenticate, authorize('admin', 'principal', 'lab_
         return res.status(404).json({ success: false, message: 'Lab not found' });
     }
 
-    const { itemType, itemNumber, brand, modelNo, serialNo, specs, status, notes, purchaseDate, warrantyEnd } = req.body;
+    const { itemType, itemNumber, brand, modelNo, serialNo, specs, status, notes, imageUrl, purchaseDate, warrantyEnd } = req.body;
 
     const item = await prisma.labItem.create({
         data: {
@@ -252,6 +266,7 @@ router.post('/:labId/items', authenticate, authorize('admin', 'principal', 'lab_
             specs: specs || {},
             status: status || 'active',
             notes,
+            imageUrl,
             purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
             warrantyEnd: warrantyEnd ? new Date(warrantyEnd) : null
         }
@@ -278,7 +293,7 @@ router.put('/:labId/items/:itemId', authenticate, authorize('admin', 'principal'
         return res.status(404).json({ success: false, message: 'Item not found' });
     }
 
-    const { itemType, itemNumber, brand, modelNo, serialNo, specs, status, notes, purchaseDate, warrantyEnd } = req.body;
+    const { itemType, itemNumber, brand, modelNo, serialNo, specs, status, notes, imageUrl, purchaseDate, warrantyEnd } = req.body;
 
     const updated = await prisma.labItem.update({
         where: { id: req.params.itemId },
@@ -291,6 +306,7 @@ router.put('/:labId/items/:itemId', authenticate, authorize('admin', 'principal'
             specs,
             status,
             notes,
+            imageUrl,
             purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
             warrantyEnd: warrantyEnd ? new Date(warrantyEnd) : null
         }

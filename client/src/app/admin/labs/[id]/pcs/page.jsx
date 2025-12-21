@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -39,10 +39,12 @@ export default function LabInventoryPage() {
 
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
+    const [viewingItem, setViewingItem] = useState(null);
     const [formData, setFormData] = useState({
         itemType: 'pc', itemNumber: '', brand: '', modelNo: '', serialNo: '',
-        specs: {}, status: 'active', notes: '', purchaseDate: '', warrantyEnd: ''
+        specs: {}, status: 'active', notes: '', imageUrl: '', purchaseDate: '', warrantyEnd: ''
     });
+    const fileInputRef = useRef(null);
 
     // Custom fields state
     const [customFields, setCustomFields] = useState([]);
@@ -123,6 +125,7 @@ export default function LabInventoryPage() {
             specs: item.specs || {},
             status: item.status || 'active',
             notes: item.notes || '',
+            imageUrl: item.imageUrl || '',
             purchaseDate: item.purchaseDate?.split('T')[0] || '',
             warrantyEnd: item.warrantyEnd?.split('T')[0] || ''
         });
@@ -147,7 +150,7 @@ export default function LabInventoryPage() {
         setNewFieldName('');
         setFormData({
             itemType: 'pc', itemNumber: '', brand: '', modelNo: '', serialNo: '',
-            specs: {}, status: 'active', notes: '', purchaseDate: '', warrantyEnd: ''
+            specs: {}, status: 'active', notes: '', imageUrl: '', purchaseDate: '', warrantyEnd: ''
         });
     };
 
@@ -197,6 +200,98 @@ export default function LabInventoryPage() {
 
     const filteredItems = filterType === 'all' ? items : items.filter(i => i.itemType === filterType);
 
+    // Download CSV Template with sample data
+    const downloadTemplate = () => {
+        const headers = ['itemType', 'itemNumber', 'brand', 'modelNo', 'serialNo', 'status', 'notes', 'purchaseDate', 'warrantyEnd', 'specs'];
+        const sampleData = [
+            ['pc', 'LAB1-PC-001', 'Dell', 'OptiPlex 7080', 'ABC123456', 'active', 'Main workstation', '2024-01-15', '2027-01-15', '{"processor":"i7-10700","ram":"16GB","storage":"512GB SSD","os":"Windows 11"}'],
+            ['printer', 'LAB1-PTR-001', 'HP', 'LaserJet Pro', 'XYZ789012', 'active', 'Color printer', '2024-03-10', '2026-03-10', '{"printType":"Laser Color","paperSize":"A4","connectivity":"WiFi/USB"}'],
+            ['projector', 'LAB1-PRJ-001', 'Epson', 'EB-X51', 'PRJ456789', 'active', 'Ceiling mounted', '2023-06-20', '2025-06-20', '{"resolution":"1024x768","lumens":"3800","connectivity":"HDMI/VGA"}'],
+            ['chair', 'LAB1-CHR-001', 'Godrej', 'Ergonomic Pro', '', 'active', 'Adjustable height', '2024-02-01', '2029-02-01', '{"material":"Mesh","color":"Black"}'],
+            ['table', 'LAB1-TBL-001', 'Featherlite', 'Comp Desk', '', 'active', 'Cable management', '2024-02-01', '2034-02-01', '{"material":"Wood","dimensions":"120x60x75cm","color":"Oak"}']
+        ];
+        const csvContent = [headers.join(','), ...sampleData.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'inventory_template.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Template downloaded');
+    };
+
+    // Export items to CSV
+    const exportItems = () => {
+        if (items.length === 0) { toast.error('No items to export'); return; }
+        const headers = ['itemType', 'itemNumber', 'brand', 'modelNo', 'serialNo', 'status', 'notes', 'purchaseDate', 'warrantyEnd', 'specs'];
+        const rows = items.map(item => [
+            item.itemType || '',
+            item.itemNumber || '',
+            item.brand || '',
+            item.modelNo || '',
+            item.serialNo || '',
+            item.status || '',
+            item.notes || '',
+            item.purchaseDate?.split('T')[0] || '',
+            item.warrantyEnd?.split('T')[0] || '',
+            JSON.stringify(item.specs || {})
+        ]);
+        const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${lab?.name || 'inventory'}_export.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${items.length} items`);
+    };
+
+    // Import items from CSV
+    const handleImport = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length < 2) { toast.error('CSV file is empty or invalid'); return; }
+            const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+            const requiredHeaders = ['itemType', 'itemNumber'];
+            if (!requiredHeaders.every(h => headers.includes(h))) {
+                toast.error('Missing required columns: itemType, itemNumber');
+                return;
+            }
+            let successCount = 0, errorCount = 0;
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].match(/("[^"]*"|[^,]+)/g)?.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"').trim()) || [];
+                const row = {};
+                headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
+                if (!row.itemType || !row.itemNumber) { errorCount++; continue; }
+                try {
+                    let specs = {};
+                    if (row.specs) { try { specs = JSON.parse(row.specs); } catch { } }
+                    await labsAPI.createItem(params.id, {
+                        itemType: row.itemType,
+                        itemNumber: row.itemNumber,
+                        brand: row.brand || null,
+                        modelNo: row.modelNo || null,
+                        serialNo: row.serialNo || null,
+                        status: row.status || 'active',
+                        notes: row.notes || null,
+                        purchaseDate: row.purchaseDate || null,
+                        warrantyEnd: row.warrantyEnd || null,
+                        specs
+                    });
+                    successCount++;
+                } catch { errorCount++; }
+            }
+            toast.success(`Imported ${successCount} items${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
+            loadData();
+        } catch (err) { toast.error('Failed to parse CSV file'); }
+        e.target.value = '';
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -218,9 +313,21 @@ export default function LabInventoryPage() {
                             {lab?.roomNumber && <p className="text-sm text-slate-500">Room: {lab.roomNumber}</p>}
                         </div>
                     </div>
-                    <button onClick={() => { setEditingItem(null); setCustomFields([]); setShowModal(true); }} className="btn btn-primary">
-                        <Plus className="w-4 h-4" /> Add Item
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={downloadTemplate} className="btn btn-secondary text-sm" title="Download Template">
+                            <FileSpreadsheet className="w-4 h-4" /> Template
+                        </button>
+                        <button onClick={exportItems} className="btn btn-secondary text-sm" title="Export to CSV">
+                            <Download className="w-4 h-4" /> Export
+                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary text-sm" title="Import from CSV">
+                            <Upload className="w-4 h-4" /> Import
+                        </button>
+                        <input type="file" ref={fileInputRef} accept=".csv" onChange={handleImport} className="hidden" />
+                        <button onClick={() => { setEditingItem(null); setCustomFields([]); setShowModal(true); }} className="btn btn-primary">
+                            <Plus className="w-4 h-4" /> Add Item
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -320,10 +427,13 @@ export default function LabInventoryPage() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex gap-1">
-                                                    <button onClick={() => handleEdit(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
+                                                    <button onClick={() => setViewingItem(item)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="View Details">
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => handleEdit(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
                                                         <Edit2 className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={() => handleDelete(item)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                                    <button onClick={() => handleDelete(item)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
@@ -465,6 +575,30 @@ export default function LabInventoryPage() {
                                 <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="input" rows={2} />
                             </div>
 
+                            {/* Image URL */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    <Image className="w-4 h-4 inline mr-1" /> Image URL
+                                </label>
+                                <input
+                                    type="url"
+                                    value={formData.imageUrl}
+                                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                                    className="input"
+                                    placeholder="https://example.com/image.jpg"
+                                />
+                                {formData.imageUrl && (
+                                    <div className="mt-2 relative">
+                                        <img
+                                            src={formData.imageUrl}
+                                            alt="Item preview"
+                                            className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex gap-3 pt-4">
                                 <button type="button" onClick={closeModal} className="btn btn-secondary flex-1">Cancel</button>
                                 <button type="submit" className="btn btn-primary flex-1">{editingItem ? 'Update' : 'Add Item'}</button>
@@ -473,6 +607,120 @@ export default function LabInventoryPage() {
                     </div>
                 </div>
             )}
+
+            {/* View Item Modal */}
+            {viewingItem && (() => {
+                const typeInfo = ITEM_TYPES[viewingItem.itemType] || ITEM_TYPES.other;
+                const Icon = typeInfo.icon;
+                return (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl bg-${typeInfo.color}-100 flex items-center justify-center`}>
+                                        <Icon className={`w-5 h-5 text-${typeInfo.color}-600`} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-slate-900">{viewingItem.itemNumber}</h3>
+                                        <p className="text-sm text-slate-500">{typeInfo.label}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setViewingItem(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                            </div>
+                            <div className="p-6 space-y-6">
+                                {/* Item Image */}
+                                {viewingItem.imageUrl && (
+                                    <div className="rounded-xl overflow-hidden border border-slate-200">
+                                        <img src={viewingItem.imageUrl} alt={viewingItem.itemNumber} className="w-full h-48 object-cover" />
+                                    </div>
+                                )}
+
+                                {/* Status */}
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-slate-500">Status</span>
+                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(viewingItem.status)}`}>{viewingItem.status}</span>
+                                </div>
+
+                                {/* Basic Info */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    {viewingItem.brand && (
+                                        <div><p className="text-xs text-slate-500 mb-1">Brand</p><p className="font-medium text-slate-900">{viewingItem.brand}</p></div>
+                                    )}
+                                    {viewingItem.modelNo && (
+                                        <div><p className="text-xs text-slate-500 mb-1">Model No</p><p className="font-medium text-slate-900">{viewingItem.modelNo}</p></div>
+                                    )}
+                                    {viewingItem.serialNo && (
+                                        <div className="col-span-2"><p className="text-xs text-slate-500 mb-1">Serial Number</p><p className="font-medium text-slate-900 font-mono">{viewingItem.serialNo}</p></div>
+                                    )}
+                                </div>
+
+                                {/* Specifications */}
+                                {viewingItem.specs && Object.keys(viewingItem.specs).length > 0 && (
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-700 mb-3">Specifications</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {Object.entries(viewingItem.specs).map(([key, value]) => value && (
+                                                <div key={key} className="bg-slate-50 rounded-lg p-3">
+                                                    <p className="text-xs text-slate-500 mb-1">{SPEC_LABELS[key] || key}</p>
+                                                    <p className="font-medium text-slate-900">{String(value)}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Dates */}
+                                {(viewingItem.purchaseDate || viewingItem.warrantyEnd) && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {viewingItem.purchaseDate && (
+                                            <div className="flex items-center gap-2">
+                                                <Calendar className="w-4 h-4 text-slate-400" />
+                                                <div><p className="text-xs text-slate-500">Purchased</p><p className="font-medium text-slate-900">{new Date(viewingItem.purchaseDate).toLocaleDateString()}</p></div>
+                                            </div>
+                                        )}
+                                        {viewingItem.warrantyEnd && (
+                                            <div className="flex items-center gap-2">
+                                                <Shield className="w-4 h-4 text-slate-400" />
+                                                <div><p className="text-xs text-slate-500">Warranty Until</p><p className="font-medium text-slate-900">{new Date(viewingItem.warrantyEnd).toLocaleDateString()}</p></div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Assigned Groups (for PCs) */}
+                                {viewingItem.itemType === 'pc' && viewingItem.assignedGroups?.length > 0 && (
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-700 mb-2">Assigned to Groups</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {viewingItem.assignedGroups.map(group => (
+                                                <span key={group.id} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+                                                    {group.name} {group.class && `(${group.class.gradeLevel}${group.class.section || ''})`}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Notes */}
+                                {viewingItem.notes && (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
+                                        <p className="text-xs text-amber-600 font-medium mb-1">Notes</p>
+                                        <p className="text-slate-700">{viewingItem.notes}</p>
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex gap-3 pt-2">
+                                    <button onClick={() => setViewingItem(null)} className="btn btn-secondary flex-1">Close</button>
+                                    <button onClick={() => { handleEdit(viewingItem); setViewingItem(null); }} className="btn btn-primary flex-1">
+                                        <Edit2 className="w-4 h-4" /> Edit Item
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }

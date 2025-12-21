@@ -3,10 +3,21 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
+
+const ITEM_TYPE_ICONS = {
+    pc: { icon: Monitor, color: 'blue' },
+    printer: { icon: Printer, color: 'purple' },
+    router: { icon: Wifi, color: 'green' },
+    speaker: { icon: Speaker, color: 'amber' },
+    projector: { icon: Projector, color: 'red' },
+    chair: { icon: Armchair, color: 'slate' },
+    table: { icon: Table, color: 'emerald' },
+    other: { icon: Package, color: 'gray' }
+};
 
 export default function LabsPage() {
     const router = useRouter();
@@ -160,13 +171,28 @@ export default function LabsPage() {
                                     {lab.roomNumber && <span>Room: {lab.roomNumber}</span>}
                                     <span>Capacity: {lab.capacity}</span>
                                 </div>
+                                {/* Item Counts by Type */}
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {lab.itemCounts && Object.entries(lab.itemCounts).map(([type, count]) => {
+                                        const typeInfo = ITEM_TYPE_ICONS[type] || ITEM_TYPE_ICONS.other;
+                                        const Icon = typeInfo.icon;
+                                        return (
+                                            <span key={type} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-${typeInfo.color}-50 text-${typeInfo.color}-700`}>
+                                                <Icon className="w-3 h-3" /> {count}
+                                            </span>
+                                        );
+                                    })}
+                                    {(!lab.itemCounts || Object.keys(lab.itemCounts).length === 0) && (
+                                        <span className="text-xs text-slate-400">No items</span>
+                                    )}
+                                </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-sm text-slate-500">{lab._count?.pcs || 0} PCs</span>
+                                    <span className="text-sm text-slate-500">{lab.totalItems || 0} Total Items</span>
                                     <Link
                                         href={`/admin/labs/${lab.id}/pcs`}
                                         className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                                     >
-                                        Manage PCs →
+                                        Manage Inventory →
                                     </Link>
                                 </div>
                             </div>
