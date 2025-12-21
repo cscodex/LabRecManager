@@ -610,7 +610,7 @@ export default function LabInventoryPage() {
                                                 <div className="flex items-center gap-3">
                                                     {/* Thumbnail or Icon */}
                                                     {item.imageUrl ? (
-                                                        <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+                                                        <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg object-contain bg-slate-100 border border-slate-200" />
                                                     ) : (
                                                         <div className={`w-10 h-10 rounded-lg bg-${typeInfo.color}-100 flex items-center justify-center`}>
                                                             <Icon className={`w-5 h-5 text-${typeInfo.color}-600`} />
@@ -837,7 +837,7 @@ export default function LabInventoryPage() {
                                             <img
                                                 src={formData.imageUrl}
                                                 alt="Preview"
-                                                className="w-full h-32 object-cover rounded-lg"
+                                                className="w-full h-32 object-contain bg-slate-50 rounded-lg"
                                                 onError={(e) => { e.target.onerror = null; e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23f1f5f9" width="100" height="100"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="12">Image Error</text></svg>'; }}
                                             />
                                             <button
@@ -919,7 +919,7 @@ export default function LabInventoryPage() {
                                 {/* Item Image */}
                                 {viewingItem.imageUrl && (
                                     <div className="rounded-xl overflow-hidden border border-slate-200">
-                                        <img src={viewingItem.imageUrl} alt={viewingItem.itemNumber} className="w-full h-48 object-cover" />
+                                        <img src={viewingItem.imageUrl} alt={viewingItem.itemNumber} className="w-full max-h-48 object-contain bg-slate-50" />
                                     </div>
                                 )}
 
