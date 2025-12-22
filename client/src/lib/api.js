@@ -259,6 +259,13 @@ export const labsAPI = {
     addMaintenanceRecord: (itemId, data) => api.post(`/labs/items/${itemId}/maintenance`, data),
     // Group assignment
     assignPcToGroup: (groupId, pcId) => api.put(`/labs/groups/${groupId}/assign-pc`, { pcId }),
+    // Equipment Shifting
+    createShiftRequest: (itemId, toLabId, reason) => api.post('/labs/shift-requests', { itemId, toLabId, reason }),
+    getShiftRequests: (params) => api.get('/labs/shift-requests', { params }),
+    approveShiftRequest: (requestId, adminNotes) => api.put(`/labs/shift-requests/${requestId}/approve`, { adminNotes }),
+    rejectShiftRequest: (requestId, adminNotes) => api.put(`/labs/shift-requests/${requestId}/reject`, { adminNotes }),
+    completeShiftRequest: (requestId, notes) => api.put(`/labs/shift-requests/${requestId}/complete`, { notes }),
+    getItemShiftHistory: (itemId) => api.get(`/labs/items/${itemId}/shift-history`),
 };
 
 // Users API

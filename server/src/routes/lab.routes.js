@@ -589,4 +589,335 @@ router.put('/groups/:groupId/assign-pc', authenticate, authorize('admin', 'princ
     });
 }));
 
+// ==================== EQUIPMENT SHIFTING ====================
+
+/**
+ * @route   POST /api/labs/shift-requests
+ * @desc    Create a new equipment shift request
+ * @access  Private (Admin, Lab Assistant)
+ */
+router.post('/shift-requests', authenticate, authorize('admin', 'principal', 'lab_assistant'), [
+    body('itemId').isUUID().withMessage('Valid item ID required'),
+    body('toLabId').isUUID().withMessage('Valid destination lab ID required'),
+    body('reason').trim().notEmpty().withMessage('Reason for shift is required')
+], asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { itemId, toLabId, reason } = req.body;
+
+    // Get the item and its current lab
+    const item = await prisma.labItem.findFirst({
+        where: { id: itemId, schoolId: req.user.schoolId },
+        include: { lab: { select: { id: true, name: true } } }
+    });
+
+    if (!item) {
+        return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    // Verify destination lab exists
+    const toLab = await prisma.lab.findFirst({
+        where: { id: toLabId, schoolId: req.user.schoolId }
+    });
+
+    if (!toLab) {
+        return res.status(404).json({ success: false, message: 'Destination lab not found' });
+    }
+
+    if (item.labId === toLabId) {
+        return res.status(400).json({ success: false, message: 'Item is already in the destination lab' });
+    }
+
+    // Check for existing pending request
+    const existingRequest = await prisma.equipmentShiftRequest.findFirst({
+        where: { itemId, status: 'pending' }
+    });
+
+    if (existingRequest) {
+        return res.status(400).json({ success: false, message: 'A pending shift request already exists for this item' });
+    }
+
+    const shiftRequest = await prisma.equipmentShiftRequest.create({
+        data: {
+            itemId,
+            fromLabId: item.labId,
+            toLabId,
+            requestedById: req.user.id,
+            reason
+        },
+        include: {
+            item: { select: { id: true, itemNumber: true, itemType: true } },
+            fromLab: { select: { id: true, name: true } },
+            toLab: { select: { id: true, name: true } },
+            requestedBy: { select: { id: true, firstName: true, lastName: true } }
+        }
+    });
+
+    res.status(201).json({
+        success: true,
+        message: 'Shift request created successfully',
+        data: { shiftRequest }
+    });
+}));
+
+/**
+ * @route   GET /api/labs/shift-requests
+ * @desc    Get all shift requests (with optional status filter)
+ * @access  Private (Admin, Lab Assistant)
+ */
+router.get('/shift-requests', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
+    const { status, labId } = req.query;
+    const schoolId = req.user.schoolId;
+
+    let where = {};
+
+    // Filter by status
+    if (status) {
+        where.status = status;
+    }
+
+    // Filter by lab (either from or to)
+    if (labId) {
+        where.OR = [{ fromLabId: labId }, { toLabId: labId }];
+    }
+
+    // Get labs belonging to the school for filtering
+    const schoolLabs = await prisma.lab.findMany({
+        where: { schoolId },
+        select: { id: true }
+    });
+    const labIds = schoolLabs.map(l => l.id);
+
+    // Only show requests for labs in this school
+    if (!labId) {
+        where.fromLabId = { in: labIds };
+    }
+
+    const shiftRequests = await prisma.equipmentShiftRequest.findMany({
+        where,
+        include: {
+            item: { select: { id: true, itemNumber: true, itemType: true, brand: true, modelNo: true } },
+            fromLab: { select: { id: true, name: true, roomNumber: true } },
+            toLab: { select: { id: true, name: true, roomNumber: true } },
+            requestedBy: { select: { id: true, firstName: true, lastName: true } },
+            approvedBy: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: { requestedAt: 'desc' }
+    });
+
+    res.json({
+        success: true,
+        data: { shiftRequests }
+    });
+}));
+
+/**
+ * @route   PUT /api/labs/shift-requests/:id/approve
+ * @desc    Approve a shift request (Admin only)
+ * @access  Private (Admin)
+ */
+router.put('/shift-requests/:id/approve', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { adminNotes } = req.body;
+
+    const shiftRequest = await prisma.equipmentShiftRequest.findUnique({
+        where: { id: req.params.id }
+    });
+
+    if (!shiftRequest) {
+        return res.status(404).json({ success: false, message: 'Shift request not found' });
+    }
+
+    if (shiftRequest.status !== 'pending') {
+        return res.status(400).json({ success: false, message: `Cannot approve a request with status: ${shiftRequest.status}` });
+    }
+
+    const updated = await prisma.equipmentShiftRequest.update({
+        where: { id: req.params.id },
+        data: {
+            status: 'approved',
+            approvedById: req.user.id,
+            approvedAt: new Date(),
+            adminNotes
+        },
+        include: {
+            item: { select: { id: true, itemNumber: true, itemType: true } },
+            fromLab: { select: { id: true, name: true } },
+            toLab: { select: { id: true, name: true } },
+            requestedBy: { select: { id: true, firstName: true, lastName: true } },
+            approvedBy: { select: { id: true, firstName: true, lastName: true } }
+        }
+    });
+
+    // Send notification to requester
+    await prisma.notification.create({
+        data: {
+            userId: shiftRequest.requestedById,
+            subject: 'Shift Request Approved',
+            body: `Your request to move ${updated.item.itemNumber} from ${updated.fromLab.name} to ${updated.toLab.name} has been approved. Please complete the physical move.`,
+            status: 'pending'
+        }
+    });
+
+    res.json({
+        success: true,
+        message: 'Shift request approved',
+        data: { shiftRequest: updated }
+    });
+}));
+
+/**
+ * @route   PUT /api/labs/shift-requests/:id/reject
+ * @desc    Reject a shift request (Admin only)
+ * @access  Private (Admin)
+ */
+router.put('/shift-requests/:id/reject', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { adminNotes } = req.body;
+
+    const shiftRequest = await prisma.equipmentShiftRequest.findUnique({
+        where: { id: req.params.id }
+    });
+
+    if (!shiftRequest) {
+        return res.status(404).json({ success: false, message: 'Shift request not found' });
+    }
+
+    if (shiftRequest.status !== 'pending') {
+        return res.status(400).json({ success: false, message: `Cannot reject a request with status: ${shiftRequest.status}` });
+    }
+
+    const updated = await prisma.equipmentShiftRequest.update({
+        where: { id: req.params.id },
+        data: {
+            status: 'rejected',
+            approvedById: req.user.id,
+            approvedAt: new Date(),
+            adminNotes
+        },
+        include: {
+            item: { select: { id: true, itemNumber: true, itemType: true } },
+            fromLab: { select: { id: true, name: true } },
+            toLab: { select: { id: true, name: true } }
+        }
+    });
+
+    // Send notification to requester
+    await prisma.notification.create({
+        data: {
+            userId: shiftRequest.requestedById,
+            subject: 'Shift Request Rejected',
+            body: `Your request to move ${updated.item.itemNumber} from ${updated.fromLab.name} to ${updated.toLab.name} has been rejected.${adminNotes ? ' Reason: ' + adminNotes : ''}`,
+            status: 'pending'
+        }
+    });
+
+    res.json({
+        success: true,
+        message: 'Shift request rejected',
+        data: { shiftRequest: updated }
+    });
+}));
+
+/**
+ * @route   PUT /api/labs/shift-requests/:id/complete
+ * @desc    Complete an approved shift request (moves the item)
+ * @access  Private (Admin, Lab Assistant)
+ */
+router.put('/shift-requests/:id/complete', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
+    const { notes } = req.body;
+
+    const shiftRequest = await prisma.equipmentShiftRequest.findUnique({
+        where: { id: req.params.id },
+        include: {
+            item: true,
+            fromLab: { select: { name: true } },
+            toLab: { select: { name: true } }
+        }
+    });
+
+    if (!shiftRequest) {
+        return res.status(404).json({ success: false, message: 'Shift request not found' });
+    }
+
+    if (shiftRequest.status !== 'approved') {
+        return res.status(400).json({ success: false, message: 'Only approved requests can be completed' });
+    }
+
+    // Use transaction to ensure atomicity
+    const [updatedRequest, updatedItem, history] = await prisma.$transaction([
+        // Mark request as completed
+        prisma.equipmentShiftRequest.update({
+            where: { id: req.params.id },
+            data: {
+                status: 'completed',
+                completedAt: new Date()
+            }
+        }),
+        // Move the item to the new lab
+        prisma.labItem.update({
+            where: { id: shiftRequest.itemId },
+            data: { labId: shiftRequest.toLabId }
+        }),
+        // Create history record
+        prisma.equipmentShiftHistory.create({
+            data: {
+                itemId: shiftRequest.itemId,
+                fromLabId: shiftRequest.fromLabId,
+                toLabId: shiftRequest.toLabId,
+                shiftedById: req.user.id,
+                approvedById: shiftRequest.approvedById,
+                shiftRequestId: shiftRequest.id,
+                notes
+            }
+        })
+    ]);
+
+    res.json({
+        success: true,
+        message: `${shiftRequest.item.itemNumber} moved from ${shiftRequest.fromLab.name} to ${shiftRequest.toLab.name}`,
+        data: {
+            shiftRequest: updatedRequest,
+            item: updatedItem,
+            history
+        }
+    });
+}));
+
+/**
+ * @route   GET /api/labs/items/:itemId/shift-history
+ * @desc    Get shift history for an item
+ * @access  Private
+ */
+router.get('/items/:itemId/shift-history', authenticate, asyncHandler(async (req, res) => {
+    const { itemId } = req.params;
+
+    // Verify item exists and belongs to school
+    const item = await prisma.labItem.findFirst({
+        where: { id: itemId, schoolId: req.user.schoolId }
+    });
+
+    if (!item) {
+        return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    const history = await prisma.equipmentShiftHistory.findMany({
+        where: { itemId },
+        include: {
+            fromLab: { select: { id: true, name: true } },
+            toLab: { select: { id: true, name: true } },
+            shiftedBy: { select: { id: true, firstName: true, lastName: true } },
+            approvedBy: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: { shiftedAt: 'desc' }
+    });
+
+    res.json({
+        success: true,
+        data: { history }
+    });
+}));
+
 module.exports = router;
+

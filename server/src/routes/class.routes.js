@@ -239,11 +239,35 @@ router.post('/:id/groups', authenticate, authorize('instructor', 'lab_assistant'
         });
     }
 
+    const classId = req.params.id;
     const { name, nameHindi, description, studentIds, leaderId } = req.body;
+
+    // Check if any students are already in a group for this class
+    const existingMembers = await prisma.groupMember.findMany({
+        where: {
+            studentId: { in: studentIds },
+            group: { classId }
+        },
+        include: {
+            group: { select: { name: true } },
+            student: { select: { firstName: true, lastName: true } }
+        }
+    });
+
+    if (existingMembers.length > 0) {
+        const conflicts = existingMembers.map(m =>
+            `${m.student.firstName} ${m.student.lastName} is already in "${m.group.name}"`
+        );
+        return res.status(400).json({
+            success: false,
+            message: 'Some students are already in groups',
+            conflicts
+        });
+    }
 
     const group = await prisma.studentGroup.create({
         data: {
-            classId: req.params.id,
+            classId,
             name,
             nameHindi,
             description,
@@ -314,7 +338,7 @@ router.get('/:id/groups', authenticate, asyncHandler(async (req, res) => {
 
 /**
  * @route   POST /api/classes/:id/groups/auto-generate
- * @desc    Auto-generate groups with 2-3 students each
+ * @desc    Auto-generate groups with 2-3 students each (only for ungrouped students)
  * @access  Private (Admin, Instructor)
  */
 router.post('/:id/groups/auto-generate', authenticate, authorize('admin', 'principal', 'instructor', 'lab_assistant'), asyncHandler(async (req, res) => {
@@ -328,27 +352,60 @@ router.post('/:id/groups/auto-generate', authenticate, authorize('admin', 'princ
         }
     });
 
-    if (enrollments.length < 2) {
+    // Get students who are already in groups for this class
+    const existingGroupMembers = await prisma.groupMember.findMany({
+        where: {
+            group: { classId }
+        },
+        select: { studentId: true }
+    });
+    const groupedStudentIds = new Set(existingGroupMembers.map(m => m.studentId));
+
+    // Filter to only ungrouped students
+    const ungroupedStudents = enrollments
+        .filter(e => !groupedStudentIds.has(e.student.id))
+        .map(e => e.student);
+
+    if (ungroupedStudents.length === 0) {
         return res.status(400).json({
             success: false,
-            message: 'Need at least 2 students to create groups'
+            message: 'All students are already in groups. No ungrouped students found.'
         });
     }
 
-    // Shuffle students randomly
-    const students = enrollments.map(e => e.student);
-    for (let i = students.length - 1; i > 0; i--) {
+    if (ungroupedStudents.length < 2) {
+        return res.status(400).json({
+            success: false,
+            message: 'Need at least 2 ungrouped students to create groups'
+        });
+    }
+
+    // Get the highest existing group number to continue the sequence
+    const existingGroups = await prisma.studentGroup.findMany({
+        where: { classId },
+        select: { name: true }
+    });
+    let maxGroupNum = 0;
+    existingGroups.forEach(g => {
+        const match = g.name.match(/Group (\d+)/);
+        if (match) {
+            maxGroupNum = Math.max(maxGroupNum, parseInt(match[1]));
+        }
+    });
+
+    // Shuffle ungrouped students randomly
+    for (let i = ungroupedStudents.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [students[i], students[j]] = [students[j], students[i]];
+        [ungroupedStudents[i], ungroupedStudents[j]] = [ungroupedStudents[j], ungroupedStudents[i]];
     }
 
     // Create groups of 2-3 students
     const groupsToCreate = [];
-    let groupNum = 1;
+    let groupNum = maxGroupNum + 1;
     let i = 0;
 
-    while (i < students.length) {
-        const remaining = students.length - i;
+    while (i < ungroupedStudents.length) {
+        const remaining = ungroupedStudents.length - i;
         let groupSize;
 
         if (remaining <= 3) {
@@ -361,7 +418,7 @@ router.post('/:id/groups/auto-generate', authenticate, authorize('admin', 'princ
 
         groupsToCreate.push({
             name: `Group ${groupNum}`,
-            members: students.slice(i, i + groupSize)
+            members: ungroupedStudents.slice(i, i + groupSize)
         });
 
         i += groupSize;
@@ -394,8 +451,8 @@ router.post('/:id/groups/auto-generate', authenticate, authorize('admin', 'princ
 
     res.status(201).json({
         success: true,
-        message: `Created ${createdGroups.length} groups with ${students.length} students`,
-        messageHindi: `${createdGroups.length} समूह बनाए गए, ${students.length} छात्रों के साथ`,
+        message: `Created ${createdGroups.length} new groups with ${ungroupedStudents.length} ungrouped students`,
+        messageHindi: `${createdGroups.length} नए समूह बनाए गए, ${ungroupedStudents.length} छात्रों के साथ`,
         data: { groups: createdGroups }
     });
 }));
@@ -475,10 +532,21 @@ router.post('/:classId/groups/:groupId/members', authenticate, authorize('admin'
         return res.status(404).json({ success: false, message: 'Group not found' });
     }
 
-    // Check if student is already in group
-    const existing = await prisma.groupMember.findFirst({ where: { groupId, studentId } });
-    if (existing) {
-        return res.status(400).json({ success: false, message: 'Student already in this group' });
+    // Check if student is already in ANY group for this class
+    const existingMembership = await prisma.groupMember.findFirst({
+        where: {
+            studentId,
+            group: { classId }
+        },
+        include: {
+            group: { select: { name: true } }
+        }
+    });
+    if (existingMembership) {
+        return res.status(400).json({
+            success: false,
+            message: `Student is already in "${existingMembership.group.name}". A student can only be in one group per class.`
+        });
     }
 
     // Check if student is enrolled in class

@@ -354,6 +354,15 @@ router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_ass
                 body: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`,
                 status: 'pending'
             });
+        } else if (target.type === 'student') {
+            shareData.targetUserId = target.id;
+
+            notifications.push({
+                userId: target.id,
+                subject: 'Document Shared with You',
+                body: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`,
+                status: 'pending'
+            });
         }
 
         shares.push(shareData);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox } from 'lucide-react';
+import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { documentsAPI, classesAPI } from '@/lib/api';
 import api from '@/lib/api';
@@ -67,13 +67,14 @@ export default function DocumentsPage() {
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     const [copied, setCopied] = useState(false);
     const [shareMode, setShareMode] = useState('link'); // 'link' or 'target'
-    const [shareTargetType, setShareTargetType] = useState(''); // 'class', 'group', 'instructor'
+    const [shareTargetType, setShareTargetType] = useState(''); // 'class', 'group', 'instructor', 'student'
     const [shareTargets, setShareTargets] = useState([]);
     const [shareMessage, setShareMessage] = useState('');
     const [shareSearch, setShareSearch] = useState('');
     const [availableClasses, setAvailableClasses] = useState([]);
     const [availableGroups, setAvailableGroups] = useState([]);
     const [availableInstructors, setAvailableInstructors] = useState([]);
+    const [availableStudents, setAvailableStudents] = useState([]);
     const [sharingLoading, setSharingLoading] = useState(false);
 
     // Delete dialog
@@ -144,6 +145,10 @@ export default function DocumentsPage() {
             // Load instructors and admins
             const userRes = await api.get('/users', { params: { role: 'instructor,admin,principal' } });
             setAvailableInstructors(userRes.data.data.users || []);
+
+            // Load students
+            const studentRes = await api.get('/users', { params: { role: 'student' } });
+            setAvailableStudents(studentRes.data.data.users || []);
         } catch (err) {
             console.error('Failed to load share options:', err);
         }
@@ -767,7 +772,7 @@ export default function DocumentsPage() {
                                     {!shareTargetType ? (
                                         <div className="space-y-3">
                                             <p className="text-sm text-slate-500">Select who you want to share with:</p>
-                                            <div className="grid grid-cols-3 gap-3">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                                 <button
                                                     onClick={() => setShareTargetType('class')}
                                                     className="p-4 border-2 border-slate-200 rounded-xl hover:border-primary-400 hover:bg-primary-50 transition text-center"
@@ -783,6 +788,14 @@ export default function DocumentsPage() {
                                                     <Users className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
                                                     <span className="text-sm font-medium">Groups</span>
                                                     <p className="text-xs text-slate-500 mt-1">{availableGroups.length} available</p>
+                                                </button>
+                                                <button
+                                                    onClick={() => setShareTargetType('student')}
+                                                    className="p-4 border-2 border-slate-200 rounded-xl hover:border-primary-400 hover:bg-primary-50 transition text-center"
+                                                >
+                                                    <GraduationCap className="w-8 h-8 mx-auto text-blue-600 mb-2" />
+                                                    <span className="text-sm font-medium">Students</span>
+                                                    <p className="text-xs text-slate-500 mt-1">{availableStudents.length} available</p>
                                                 </button>
                                                 <button
                                                     onClick={() => setShareTargetType('instructor')}
@@ -805,7 +818,7 @@ export default function DocumentsPage() {
                                                     ← Back
                                                 </button>
                                                 <span className="text-sm font-medium capitalize">
-                                                    {shareTargetType === 'class' ? 'Classes' : shareTargetType === 'group' ? 'Groups' : 'Instructors/Admins'}
+                                                    {shareTargetType === 'class' ? 'Classes' : shareTargetType === 'group' ? 'Groups' : shareTargetType === 'student' ? 'Students' : 'Instructors/Admins'}
                                                 </span>
                                             </div>
 
@@ -880,6 +893,32 @@ export default function DocumentsPage() {
                                                                 <span className="text-xs text-slate-400 capitalize">({usr.role})</span>
                                                             </label>
                                                         ))
+                                                )}
+                                                {shareTargetType === 'student' && (
+                                                    availableStudents.length === 0 ? (
+                                                        <div className="p-4 text-center text-slate-500 text-sm">
+                                                            No students found.
+                                                        </div>
+                                                    ) : (
+                                                        availableStudents
+                                                            .filter(stu => `${stu.firstName} ${stu.lastName} ${stu.email || ''} ${stu.studentId || stu.admissionNumber || ''}`.toLowerCase().includes(shareSearch.toLowerCase()))
+                                                            .map(stu => (
+                                                                <label key={stu.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={shareTargets.some(t => t.type === 'student' && t.id === stu.id)}
+                                                                        onChange={() => toggleShareTarget('student', stu.id)}
+                                                                        className="rounded text-primary-600"
+                                                                    />
+                                                                    <div className="flex-1">
+                                                                        <span className="text-sm">{stu.firstName} {stu.lastName}</span>
+                                                                        {(stu.studentId || stu.admissionNumber) && (
+                                                                            <span className="text-xs text-slate-400 ml-2">({stu.studentId || stu.admissionNumber})</span>
+                                                                        )}
+                                                                    </div>
+                                                                </label>
+                                                            ))
+                                                    )
                                                 )}
                                             </div>
                                         </div>

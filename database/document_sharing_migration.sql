@@ -9,10 +9,13 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Create target type for document sharing
 DO $$ BEGIN
-    CREATE TYPE document_share_target_type AS ENUM ('class', 'group', 'instructor', 'admin');
+    CREATE TYPE document_share_target_type AS ENUM ('class', 'group', 'instructor', 'admin', 'student');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
+
+-- Add 'student' value to enum if table already exists
+ALTER TYPE document_share_target_type ADD VALUE IF NOT EXISTS 'student';
 
 -- Document Shares table - tracks who a document is shared with
 -- Uses gen_random_uuid() which is available in PostgreSQL 13+ and Neon
@@ -30,7 +33,7 @@ CREATE TABLE IF NOT EXISTS document_shares (
     CONSTRAINT valid_target CHECK (
         (target_type = 'class' AND target_class_id IS NOT NULL) OR
         (target_type = 'group' AND target_group_id IS NOT NULL) OR
-        (target_type IN ('instructor', 'admin') AND target_user_id IS NOT NULL)
+        (target_type IN ('instructor', 'admin', 'student') AND target_user_id IS NOT NULL)
     )
 );
 

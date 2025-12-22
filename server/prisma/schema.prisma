@@ -183,6 +183,10 @@ model User {
   documents          Document[] @relation("DocumentUploadedBy")
   documentSharesSent DocumentShare[] @relation("DocumentSharedBy")
   documentSharesReceived DocumentShare[] @relation("DocumentSharedToUser")
+  shiftRequestsCreated   EquipmentShiftRequest[] @relation("ShiftRequestedBy")
+  shiftRequestsApproved  EquipmentShiftRequest[] @relation("ShiftApprovedBy")
+  shiftHistoryPerformed  EquipmentShiftHistory[] @relation("ShiftedBy")
+  shiftHistoryApproved   EquipmentShiftHistory[] @relation("ShiftHistoryApprovedBy")
 
   @@map("users")
 }
@@ -409,6 +413,10 @@ model Lab {
   attendance    LabAttendance[]
   items         LabItem[]
   importHistory ImportHistory[]
+  shiftRequestsFrom    EquipmentShiftRequest[] @relation("ShiftFromLab")
+  shiftRequestsTo      EquipmentShiftRequest[] @relation("ShiftToLab")
+  shiftHistoryFrom     EquipmentShiftHistory[] @relation("ShiftHistoryFromLab")
+  shiftHistoryTo       EquipmentShiftHistory[] @relation("ShiftHistoryToLab")
 
   @@map("labs")
 }
@@ -436,6 +444,8 @@ model LabItem {
   school          School         @relation(fields: [schoolId], references: [id])
   assignedGroups  StudentGroup[]
   maintenanceHistory ItemMaintenanceHistory[]
+  shiftRequests   EquipmentShiftRequest[] @relation("ShiftRequests")
+  shiftHistory    EquipmentShiftHistory[] @relation("ShiftHistory")
 
   @@unique([labId, itemNumber])
   @@map("lab_items")
@@ -482,6 +492,65 @@ model ItemMaintenanceHistory {
   @@map("item_maintenance_history")
 }
 
+// Enum for equipment shift request status
+enum EquipmentShiftStatus {
+  pending
+  approved
+  rejected
+  completed
+
+  @@map("equipment_shift_status")
+}
+
+// Equipment Shift Requests - tracks requests to move items between labs
+model EquipmentShiftRequest {
+  id           String               @id @default(uuid())
+  itemId       String               @map("item_id")
+  fromLabId    String               @map("from_lab_id")
+  toLabId      String               @map("to_lab_id")
+  requestedById String              @map("requested_by")
+  approvedById  String?             @map("approved_by")
+  status       EquipmentShiftStatus @default(pending)
+  reason       String?
+  adminNotes   String?              @map("admin_notes")
+  requestedAt  DateTime             @default(now()) @map("requested_at")
+  approvedAt   DateTime?            @map("approved_at")
+  completedAt  DateTime?            @map("completed_at")
+
+  // Relations
+  item        LabItem  @relation("ShiftRequests", fields: [itemId], references: [id], onDelete: Cascade)
+  fromLab     Lab      @relation("ShiftFromLab", fields: [fromLabId], references: [id])
+  toLab       Lab      @relation("ShiftToLab", fields: [toLabId], references: [id])
+  requestedBy User     @relation("ShiftRequestedBy", fields: [requestedById], references: [id])
+  approvedBy  User?    @relation("ShiftApprovedBy", fields: [approvedById], references: [id])
+  shiftHistory EquipmentShiftHistory[]
+
+  @@map("equipment_shift_requests")
+}
+
+// Equipment Shift History - permanent record of all completed moves
+model EquipmentShiftHistory {
+  id             String   @id @default(uuid())
+  itemId         String   @map("item_id")
+  fromLabId      String   @map("from_lab_id")
+  toLabId        String   @map("to_lab_id")
+  shiftedById    String   @map("shifted_by")
+  approvedById   String?  @map("approved_by")
+  shiftRequestId String?  @map("shift_request_id")
+  notes          String?
+  shiftedAt      DateTime @default(now()) @map("shifted_at")
+
+  // Relations
+  item         LabItem                 @relation("ShiftHistory", fields: [itemId], references: [id], onDelete: Cascade)
+  fromLab      Lab                     @relation("ShiftHistoryFromLab", fields: [fromLabId], references: [id])
+  toLab        Lab                     @relation("ShiftHistoryToLab", fields: [toLabId], references: [id])
+  shiftedBy    User                    @relation("ShiftedBy", fields: [shiftedById], references: [id])
+  approvedBy   User?                   @relation("ShiftHistoryApprovedBy", fields: [approvedById], references: [id])
+  shiftRequest EquipmentShiftRequest?  @relation(fields: [shiftRequestId], references: [id])
+
+  @@map("equipment_shift_history")
+}
+
 // Document storage for PDFs, DOCX, XLS files
 model Document {
   id           String   @id @default(uuid())
@@ -514,6 +583,7 @@ enum DocumentShareTargetType {
   group
   instructor
   admin
+  student
 }
 
 // Document Shares - tracks who a document is shared with
