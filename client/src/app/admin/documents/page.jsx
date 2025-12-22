@@ -143,11 +143,18 @@ export default function DocumentsPage() {
             setAvailableGroups(allGroups);
 
             // Load instructors and admins
-            const userRes = await api.get('/users', { params: { role: 'instructor,admin,principal' } });
-            setAvailableInstructors(userRes.data.data.users || []);
+            const userRes = await api.get('/users', { params: { role: 'instructor', limit: 200 } });
+            const adminRes = await api.get('/users', { params: { role: 'admin', limit: 50 } });
+            const principalRes = await api.get('/users', { params: { role: 'principal', limit: 10 } });
+            const allInstructors = [
+                ...(userRes.data.data.users || []),
+                ...(adminRes.data.data.users || []),
+                ...(principalRes.data.data.users || [])
+            ];
+            setAvailableInstructors(allInstructors);
 
-            // Load students
-            const studentRes = await api.get('/users', { params: { role: 'student' } });
+            // Load students with high limit
+            const studentRes = await api.get('/users', { params: { role: 'student', limit: 500 } });
             setAvailableStudents(studentRes.data.data.users || []);
         } catch (err) {
             console.error('Failed to load share options:', err);
@@ -938,14 +945,44 @@ export default function DocumentsPage() {
                                         </div>
                                     )}
 
-                                    {/* Selected Count */}
+                                    {/* Selected Count Summary */}
                                     {shareTargets.length > 0 && (
-                                        <div className="flex flex-wrap gap-2">
-                                            {shareTargets.map((t, i) => (
-                                                <span key={i} className="px-2 py-1 bg-primary-100 text-primary-700 text-xs rounded-full">
-                                                    {t.type}: {t.id.slice(0, 8)}...
-                                                </span>
-                                            ))}
+                                        <div className="bg-slate-50 rounded-lg p-3">
+                                            <p className="text-sm font-medium text-slate-700 mb-2">Selected Recipients ({shareTargets.length}):</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {/* Count by type */}
+                                                {['class', 'group', 'student', 'instructor', 'admin'].map(type => {
+                                                    const count = shareTargets.filter(t => t.type === type).length;
+                                                    if (count === 0) return null;
+                                                    const labels = { class: 'Classes', group: 'Groups', student: 'Students', instructor: 'Instructors', admin: 'Admins' };
+                                                    const colors = { class: 'bg-primary-100 text-primary-700', group: 'bg-emerald-100 text-emerald-700', student: 'bg-blue-100 text-blue-700', instructor: 'bg-amber-100 text-amber-700', admin: 'bg-purple-100 text-purple-700' };
+                                                    return (
+                                                        <span key={type} className={`px-2 py-1 text-xs rounded-full font-medium ${colors[type]}`}>
+                                                            {count} {labels[type]}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* List selected names */}
+                                            <div className="mt-2 text-xs text-slate-500 max-h-20 overflow-y-auto">
+                                                {shareTargets.map((t, i) => {
+                                                    let name = '';
+                                                    if (t.type === 'class') {
+                                                        const cls = availableClasses.find(c => c.id === t.id);
+                                                        name = cls ? (cls.name || `Grade ${cls.gradeLevel}-${cls.section}`) : t.id;
+                                                    } else if (t.type === 'group') {
+                                                        const grp = availableGroups.find(g => g.id === t.id);
+                                                        name = grp ? `${grp.name} (${grp.className})` : t.id;
+                                                    } else if (t.type === 'student') {
+                                                        const stu = availableStudents.find(s => s.id === t.id);
+                                                        name = stu ? `${stu.firstName} ${stu.lastName}` : t.id;
+                                                    } else {
+                                                        const usr = availableInstructors.find(u => u.id === t.id);
+                                                        name = usr ? `${usr.firstName} ${usr.lastName}` : t.id;
+                                                    }
+                                                    return <span key={i}>{i > 0 ? ', ' : ''}{name}</span>;
+                                                })}
+                                            </div>
                                         </div>
                                     )}
 
