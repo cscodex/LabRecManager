@@ -19,12 +19,17 @@ const upload = multer({
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/vnd.ms-excel',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'text/csv'
+            'text/csv',
+            'text/plain',
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp'
         ];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, XLS, XLSX, CSV allowed.'));
+            cb(new Error('Invalid file type. Allowed: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT, JPG, PNG, GIF, WEBP'));
         }
     }
 });
@@ -37,7 +42,12 @@ function getFileType(mimeType) {
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
         'application/vnd.ms-excel': 'xls',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-        'text/csv': 'csv'
+        'text/csv': 'csv',
+        'text/plain': 'txt',
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp'
     };
     return types[mimeType] || 'file';
 }

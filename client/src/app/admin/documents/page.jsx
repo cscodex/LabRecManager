@@ -25,6 +25,12 @@ const FILE_ICONS = {
     xls: '📊',
     xlsx: '📊',
     csv: '📊',
+    txt: '📝',
+    jpg: '🖼️',
+    jpeg: '🖼️',
+    png: '🖼️',
+    gif: '🖼️',
+    webp: '🖼️',
     file: '📁'
 };
 
@@ -271,8 +277,8 @@ export default function DocumentsPage() {
                                     <label className="cursor-pointer">
                                         <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
                                         <p className="text-slate-600">Drag & drop or click to select</p>
-                                        <p className="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, XLS, XLSX • Max 100MB</p>
-                                        <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv" onChange={handleFileSelect} />
+                                        <p className="text-xs text-slate-400 mt-1">PDF, DOC, XLS, CSV, TXT, Images • Max 100MB</p>
+                                        <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp" onChange={handleFileSelect} />
                                     </label>
                                 )}
                             </div>
@@ -325,21 +331,35 @@ export default function DocumentsPage() {
                             </div>
                         </div>
                         <div className="flex-1 overflow-auto bg-slate-100 p-4">
-                            {viewingDoc.fileType === 'pdf' ? (
-                                <iframe
-                                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingDoc.url)}&embedded=true`}
-                                    className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-white"
-                                    title="PDF Preview"
-                                />
-                            ) : ['doc', 'docx', 'xls', 'xlsx'].includes(viewingDoc.fileType) ? (
+                            {['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(viewingDoc.fileType) ? (
                                 <iframe
                                     src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingDoc.url)}&embedded=true`}
                                     className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-white"
                                     title="Document Preview"
                                 />
+                            ) : ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(viewingDoc.fileType) ? (
+                                <div className="flex items-center justify-center h-full min-h-[400px] bg-white rounded-lg border border-slate-200">
+                                    <img
+                                        src={viewingDoc.url}
+                                        alt={viewingDoc.name}
+                                        className="max-w-full max-h-[500px] object-contain"
+                                    />
+                                </div>
+                            ) : viewingDoc.fileType === 'csv' ? (
+                                <iframe
+                                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingDoc.url)}&embedded=true`}
+                                    className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-white"
+                                    title="CSV Preview"
+                                />
+                            ) : viewingDoc.fileType === 'txt' ? (
+                                <iframe
+                                    src={viewingDoc.url}
+                                    className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-white"
+                                    title="Text Preview"
+                                />
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-slate-500">
-                                    <span className="text-6xl mb-4">{FILE_ICONS[viewingDoc.fileType]}</span>
+                                    <span className="text-6xl mb-4">{FILE_ICONS[viewingDoc.fileType] || FILE_ICONS.file}</span>
                                     <p className="mb-4">Preview not available for {viewingDoc.fileType.toUpperCase()} files</p>
                                     <a href={viewingDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
                                         <ExternalLink className="w-4 h-4" /> Open in New Tab
