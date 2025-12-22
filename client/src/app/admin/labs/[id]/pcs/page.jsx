@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History, ArrowRightLeft } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI, filesAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -64,6 +64,12 @@ export default function LabInventoryPage() {
     const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
     const [maintenanceForm, setMaintenanceForm] = useState({ type: 'issue', description: '', cost: '', vendor: '', partName: '' });
 
+    // Shift modal state
+    const [shiftModal, setShiftModal] = useState({ open: false, item: null });
+    const [availableLabs, setAvailableLabs] = useState([]);
+    const [shiftToLab, setShiftToLab] = useState('');
+    const [shiftReason, setShiftReason] = useState('');
+    const [shiftLoading, setShiftLoading] = useState(false);
     useEffect(() => {
         if (!_hasHydrated) return;
         if (!isAuthenticated) { router.push('/login'); return; }
@@ -76,12 +82,16 @@ export default function LabInventoryPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [labRes, itemsRes] = await Promise.all([
+            const [labRes, itemsRes, labsRes] = await Promise.all([
                 labsAPI.getById(params.id),
-                labsAPI.getItems(params.id)
+                labsAPI.getItems(params.id),
+                labsAPI.getAll()
             ]);
             setLab(labRes.data.data.lab);
             setItems(itemsRes.data.data.items || []);
+            // Filter out current lab from available labs
+            const allLabs = labsRes.data.data.labs || [];
+            setAvailableLabs(allLabs.filter(l => l.id !== params.id));
         } catch (error) {
             toast.error('Failed to load lab data');
         } finally {
@@ -657,6 +667,9 @@ export default function LabInventoryPage() {
                                                     <button onClick={() => setQrItem(item)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="QR Code">
                                                         <QrCode className="w-4 h-4" />
                                                     </button>
+                                                    <button onClick={() => { setShiftModal({ open: true, item }); setShiftToLab(''); setShiftReason(''); }} className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded" title="Move to Another Lab">
+                                                        <ArrowRightLeft className="w-4 h-4" />
+                                                    </button>
                                                     <button onClick={() => handleEdit(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
                                                         <Edit2 className="w-4 h-4" />
                                                     </button>
@@ -1151,6 +1164,93 @@ export default function LabInventoryPage() {
                 type="danger"
                 loading={deleteLoading}
             />
+
+            {/* Shift Request Modal */}
+            {shiftModal.open && shiftModal.item && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full">
+                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                                    <ArrowRightLeft className="w-5 h-5 text-amber-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-slate-900">Move Equipment</h3>
+                                    <p className="text-sm text-slate-500">{shiftModal.item.itemNumber}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShiftModal({ open: false, item: null })} className="text-slate-400 hover:text-slate-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Current Lab</label>
+                                <p className="text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">{lab?.name}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Move to Lab *</label>
+                                <select
+                                    value={shiftToLab}
+                                    onChange={(e) => setShiftToLab(e.target.value)}
+                                    className="input"
+                                    required
+                                >
+                                    <option value="">Select destination lab...</option>
+                                    {availableLabs.map(l => (
+                                        <option key={l.id} value={l.id}>{l.name}{l.roomNumber ? ` (${l.roomNumber})` : ''}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Transfer *</label>
+                                <textarea
+                                    value={shiftReason}
+                                    onChange={(e) => setShiftReason(e.target.value)}
+                                    className="input min-h-[80px]"
+                                    placeholder="Why does this equipment need to be moved?"
+                                    required
+                                />
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                <p className="text-sm text-amber-700">
+                                    <strong>Note:</strong> This request will need admin approval before the equipment is moved.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-slate-200 flex gap-3">
+                            <button
+                                onClick={() => setShiftModal({ open: false, item: null })}
+                                className="btn btn-secondary flex-1"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!shiftToLab || !shiftReason.trim()) {
+                                        toast.error('Please select destination and provide reason');
+                                        return;
+                                    }
+                                    setShiftLoading(true);
+                                    try {
+                                        await labsAPI.createShiftRequest(shiftModal.item.id, shiftToLab, shiftReason);
+                                        toast.success('Shift request submitted for approval');
+                                        setShiftModal({ open: false, item: null });
+                                    } catch (error) {
+                                        toast.error(error.response?.data?.message || 'Failed to create shift request');
+                                    } finally {
+                                        setShiftLoading(false);
+                                    }
+                                }}
+                                disabled={shiftLoading || !shiftToLab || !shiftReason.trim()}
+                                className="btn btn-primary flex-1"
+                            >
+                                {shiftLoading ? 'Submitting...' : 'Submit Request'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
