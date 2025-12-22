@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar } from 'lucide-react';
+import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Bell } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { documentsAPI } from '@/lib/api';
+import { documentsAPI, classesAPI } from '@/lib/api';
+import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import QRCode from 'qrcode';
@@ -36,15 +37,17 @@ const FILE_ICONS = {
 
 export default function DocumentsPage() {
     const router = useRouter();
-    const { isAuthenticated, _hasHydrated } = useAuthStore();
+    const { user, isAuthenticated, _hasHydrated } = useAuthStore();
 
     const [documents, setDocuments] = useState([]);
+    const [sharedDocuments, setSharedDocuments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+    const [activeTab, setActiveTab] = useState('my'); // 'my' or 'shared'
 
     // Upload modal state
     const [showUpload, setShowUpload] = useState(false);
@@ -59,10 +62,17 @@ export default function DocumentsPage() {
     const [editingDoc, setEditingDoc] = useState(null);
     const [editData, setEditData] = useState({ name: '', description: '', category: '', isPublic: false });
 
-    // Share modal
+    // Share modal - advanced
     const [sharingDoc, setSharingDoc] = useState(null);
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     const [copied, setCopied] = useState(false);
+    const [shareMode, setShareMode] = useState('link'); // 'link' or 'target'
+    const [shareTargets, setShareTargets] = useState([]);
+    const [shareMessage, setShareMessage] = useState('');
+    const [availableClasses, setAvailableClasses] = useState([]);
+    const [availableGroups, setAvailableGroups] = useState([]);
+    const [availableInstructors, setAvailableInstructors] = useState([]);
+    const [sharingLoading, setSharingLoading] = useState(false);
 
     // Delete dialog
     const [deleteDialog, setDeleteDialog] = useState({ open: false, doc: null });
@@ -71,6 +81,8 @@ export default function DocumentsPage() {
         if (!_hasHydrated) return;
         if (!isAuthenticated) { router.push('/login'); return; }
         loadDocuments();
+        loadSharedDocuments();
+        loadShareOptions();
     }, [_hasHydrated, isAuthenticated]);
 
     const loadDocuments = async () => {
@@ -90,9 +102,52 @@ export default function DocumentsPage() {
 
     useEffect(() => {
         if (_hasHydrated && isAuthenticated) {
-            loadDocuments();
+            if (activeTab === 'my') {
+                loadDocuments();
+            } else {
+                loadSharedDocuments();
+            }
         }
-    }, [searchQuery, categoryFilter, dateFrom, dateTo]);
+    }, [searchQuery, categoryFilter, dateFrom, dateTo, activeTab]);
+
+    const loadSharedDocuments = async () => {
+        try {
+            const res = await documentsAPI.getShared();
+            setSharedDocuments(res.data.data.documents || []);
+        } catch (err) {
+            console.error('Failed to load shared documents:', err);
+        }
+    };
+
+    const loadShareOptions = async () => {
+        try {
+            // Load classes
+            const classRes = await classesAPI.getAll();
+            setAvailableClasses(classRes.data.data.classes || []);
+
+            // Load instructors and admins
+            const userRes = await api.get('/users', { params: { role: 'instructor,admin,principal' } });
+            setAvailableInstructors(userRes.data.data.users || []);
+        } catch (err) {
+            console.error('Failed to load share options:', err);
+        }
+    };
+
+    const loadGroupsForClass = async (classId) => {
+        try {
+            const res = await classesAPI.getGroups(classId);
+            setAvailableGroups(prev => {
+                const newGroups = res.data.data.groups || [];
+                // Add class ID to each group for reference
+                const groupsWithClass = newGroups.map(g => ({ ...g, classId }));
+                // Merge with existing groups, avoiding duplicates
+                const existingIds = new Set(prev.map(g => g.id));
+                return [...prev, ...groupsWithClass.filter(g => !existingIds.has(g.id))];
+            });
+        } catch (err) {
+            console.error('Failed to load groups:', err);
+        }
+    };
 
     const handleFileSelect = (e) => {
         const file = e.target.files[0];
@@ -150,11 +205,50 @@ export default function DocumentsPage() {
 
     const handleShare = async (doc) => {
         setSharingDoc(doc);
+        setShareMode('link');
+        setShareTargets([]);
+        setShareMessage('');
+        setAvailableGroups([]);
         const shareUrl = `${window.location.origin}/view-document/${doc.id}`;
         try {
             const qr = await QRCode.toDataURL(shareUrl, { width: 200 });
             setQrCodeUrl(qr);
         } catch { }
+    };
+
+    const handleShareSubmit = async () => {
+        if (shareTargets.length === 0) {
+            toast.error('Select at least one target');
+            return;
+        }
+        setSharingLoading(true);
+        try {
+            await documentsAPI.share(sharingDoc.id, {
+                targets: shareTargets,
+                message: shareMessage
+            });
+            toast.success('Document shared successfully!');
+            setSharingDoc(null);
+            setShareTargets([]);
+            setShareMessage('');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to share document');
+        } finally {
+            setSharingLoading(false);
+        }
+    };
+
+    const toggleShareTarget = (type, id) => {
+        const exists = shareTargets.find(t => t.type === type && t.id === id);
+        if (exists) {
+            setShareTargets(shareTargets.filter(t => !(t.type === type && t.id === id)));
+        } else {
+            setShareTargets([...shareTargets, { type, id }]);
+            // If it's a class, load its groups
+            if (type === 'class') {
+                loadGroupsForClass(id);
+            }
+        }
     };
 
     const copyShareLink = () => {
@@ -168,7 +262,9 @@ export default function DocumentsPage() {
     const formatDate = (date) => new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     // Filter documents by date range
-    const filteredDocuments = documents.filter(doc => {
+    const filteredDocuments = (activeTab === 'my' ? documents : sharedDocuments).filter(item => {
+        const doc = activeTab === 'my' ? item : item.document;
+        if (!doc) return false;
         if (dateFrom && new Date(doc.createdAt) < new Date(dateFrom)) return false;
         if (dateTo) {
             const toDate = new Date(dateTo);
@@ -178,6 +274,9 @@ export default function DocumentsPage() {
         return true;
     });
 
+    // Check if user can upload (admin, principal, lab_assistant, instructor)
+    const canUpload = ['admin', 'principal', 'lab_assistant', 'instructor'].includes(user?.role);
+
     return (
         <div className="p-6 max-w-7xl mx-auto">
             {/* Header */}
@@ -186,8 +285,37 @@ export default function DocumentsPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
                     <p className="text-slate-500">Upload and manage PDFs, documents, and spreadsheets</p>
                 </div>
-                <button onClick={() => setShowUpload(true)} className="btn btn-primary">
-                    <Upload className="w-4 h-4" /> Upload Document
+                {canUpload && (
+                    <button onClick={() => setShowUpload(true)} className="btn btn-primary">
+                        <Upload className="w-4 h-4" /> Upload Document
+                    </button>
+                )}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 mb-4">
+                <button
+                    onClick={() => setActiveTab('my')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'my'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                    <FileText className="w-4 h-4 inline mr-2" />
+                    My Documents
+                </button>
+                <button
+                    onClick={() => setActiveTab('shared')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${activeTab === 'shared'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                    <Bell className="w-4 h-4" />
+                    Shared with Me
+                    {sharedDocuments.length > 0 && (
+                        <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                            {sharedDocuments.length}
+                        </span>
+                    )}
                 </button>
             </div>
 
@@ -252,52 +380,81 @@ export default function DocumentsPage() {
             ) : filteredDocuments.length === 0 ? (
                 <div className="text-center py-12">
                     <FileText className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                    <p className="text-slate-500">No documents found</p>
-                    <button onClick={() => setShowUpload(true)} className="btn btn-primary mt-4">Upload your first document</button>
+                    <p className="text-slate-500">{activeTab === 'shared' ? 'No documents shared with you' : 'No documents found'}</p>
+                    {activeTab === 'my' && canUpload && (
+                        <button onClick={() => setShowUpload(true)} className="btn btn-primary mt-4">Upload your first document</button>
+                    )}
                 </div>
             ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDocuments.map(doc => (
-                        <div key={doc.id} className="card p-4 hover:shadow-lg transition-shadow">
-                            <div className="flex items-start gap-3">
-                                <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-2xl flex-shrink-0">
-                                    {FILE_ICONS[doc.fileType] || FILE_ICONS.file}
+                    {filteredDocuments.map(item => {
+                        const doc = activeTab === 'my' ? item : item.document;
+                        const shareInfo = activeTab === 'shared' ? item : null;
+                        if (!doc) return null;
+                        return (
+                            <div key={doc.id + (shareInfo?.shareId || '')} className="card p-4 hover:shadow-lg transition-shadow">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-2xl flex-shrink-0">
+                                        {FILE_ICONS[doc.fileType] || FILE_ICONS.file}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-slate-900 truncate">{doc.name}</h3>
+                                        <p className="text-sm text-slate-500">{doc.fileType?.toUpperCase()} • {doc.fileSizeFormatted || ''}</p>
+                                        {doc.category && (
+                                            <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 capitalize">{doc.category}</span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-slate-900 truncate">{doc.name}</h3>
-                                    <p className="text-sm text-slate-500">{doc.fileType.toUpperCase()} • {doc.fileSizeFormatted}</p>
-                                    {doc.category && (
-                                        <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 capitalize">{doc.category}</span>
+
+                                {doc.description && (
+                                    <p className="text-sm text-slate-600 mt-3 line-clamp-2">{doc.description}</p>
+                                )}
+
+                                {/* Shared info for shared tab */}
+                                {shareInfo && (
+                                    <div className="mt-3 p-2 bg-blue-50 rounded-lg text-xs text-blue-700">
+                                        <div className="flex items-center gap-1">
+                                            <User className="w-3 h-3" />
+                                            Shared by {shareInfo.sharedBy?.firstName} {shareInfo.sharedBy?.lastName}
+                                        </div>
+                                        {shareInfo.message && (
+                                            <p className="mt-1 text-blue-600 italic">"{shareInfo.message}"</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2 mt-3 text-xs text-slate-400">
+                                    <Clock className="w-3 h-3" />
+                                    {formatDate(shareInfo ? shareInfo.sharedAt : doc.createdAt)}
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+                                    <button onClick={() => setViewingDoc(doc)} className="btn btn-secondary text-xs flex-1 py-1.5">
+                                        <Eye className="w-3 h-3" /> View
+                                    </button>
+                                    {activeTab === 'my' && canUpload && (
+                                        <>
+                                            <button onClick={() => handleEdit(doc)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded">
+                                                <Share2 className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => setDeleteDialog({ open: true, doc })} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </>
+                                    )}
+                                    {activeTab === 'shared' && (
+                                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn btn-primary text-xs flex-1 py-1.5">
+                                            <Download className="w-3 h-3" /> Download
+                                        </a>
                                     )}
                                 </div>
                             </div>
-
-                            {doc.description && (
-                                <p className="text-sm text-slate-600 mt-3 line-clamp-2">{doc.description}</p>
-                            )}
-
-                            <div className="flex items-center gap-2 mt-3 text-xs text-slate-400">
-                                <Clock className="w-3 h-3" />
-                                {formatDate(doc.createdAt)}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                                <button onClick={() => setViewingDoc(doc)} className="btn btn-secondary text-xs flex-1 py-1.5">
-                                    <Eye className="w-3 h-3" /> View
-                                </button>
-                                <button onClick={() => handleEdit(doc)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
-                                    <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded">
-                                    <Share2 className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => setDeleteDialog({ open: true, doc })} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : (
                 /* List View */
@@ -308,47 +465,71 @@ export default function DocumentsPage() {
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700">Name</th>
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Type</th>
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Size</th>
-                                <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Category</th>
-                                <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Uploaded</th>
+                                {activeTab === 'my' ? (
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Category</th>
+                                ) : (
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Shared By</th>
+                                )}
+                                <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">{activeTab === 'my' ? 'Uploaded' : 'Shared On'}</th>
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredDocuments.map(doc => (
-                                <tr key={doc.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xl">{FILE_ICONS[doc.fileType] || FILE_ICONS.file}</span>
-                                            <div>
-                                                <p className="font-medium text-slate-900">{doc.name}</p>
-                                                {doc.description && <p className="text-xs text-slate-500 truncate max-w-xs">{doc.description}</p>}
+                            {filteredDocuments.map(item => {
+                                const doc = activeTab === 'my' ? item : item.document;
+                                const shareInfo = activeTab === 'shared' ? item : null;
+                                if (!doc) return null;
+                                return (
+                                    <tr key={doc.id + (shareInfo?.shareId || '')} className="border-b border-slate-100 hover:bg-slate-50">
+                                        <td className="p-3">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xl">{FILE_ICONS[doc.fileType] || FILE_ICONS.file}</span>
+                                                <div>
+                                                    <p className="font-medium text-slate-900">{doc.name}</p>
+                                                    {doc.description && <p className="text-xs text-slate-500 truncate max-w-xs">{doc.description}</p>}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileType.toUpperCase()}</td>
-                                    <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileSizeFormatted}</td>
-                                    <td className="p-3 hidden lg:table-cell">
-                                        {doc.category && <span className="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 capitalize">{doc.category}</span>}
-                                    </td>
-                                    <td className="p-3 text-sm text-slate-500 hidden lg:table-cell">{formatDate(doc.createdAt)}</td>
-                                    <td className="p-3">
-                                        <div className="flex gap-1">
-                                            <button onClick={() => setViewingDoc(doc)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="View">
-                                                <Eye className="w-4 h-4" />
-                                            </button>
-                                            <button onClick={() => handleEdit(doc)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded" title="Share">
-                                                <Share2 className="w-4 h-4" />
-                                            </button>
-                                            <button onClick={() => setDeleteDialog({ open: true, doc })} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+                                        <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileType?.toUpperCase()}</td>
+                                        <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileSizeFormatted || ''}</td>
+                                        {activeTab === 'my' ? (
+                                            <td className="p-3 hidden lg:table-cell">
+                                                {doc.category && <span className="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 capitalize">{doc.category}</span>}
+                                            </td>
+                                        ) : (
+                                            <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">
+                                                {shareInfo?.sharedBy?.firstName} {shareInfo?.sharedBy?.lastName}
+                                            </td>
+                                        )}
+                                        <td className="p-3 text-sm text-slate-500 hidden lg:table-cell">{formatDate(shareInfo ? shareInfo.sharedAt : doc.createdAt)}</td>
+                                        <td className="p-3">
+                                            <div className="flex gap-1">
+                                                <button onClick={() => setViewingDoc(doc)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="View">
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
+                                                {activeTab === 'my' && canUpload && (
+                                                    <>
+                                                        <button onClick={() => handleEdit(doc)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded" title="Share">
+                                                            <Share2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => setDeleteDialog({ open: true, doc })} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {activeTab === 'shared' && (
+                                                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded" title="Download">
+                                                        <Download className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -521,49 +702,168 @@ export default function DocumentsPage() {
             {/* Share Modal */}
             {sharingDoc && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-sm w-full">
-                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                    <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+                        <div className="p-6 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
                             <h3 className="text-xl font-semibold">Share Document</h3>
                             <button onClick={() => setSharingDoc(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
                         </div>
-                        <div className="p-6 space-y-4">
-                            {!sharingDoc.isPublic ? (
-                                <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-lg">
-                                    <p className="font-medium">Document is not public</p>
-                                    <p className="text-sm mt-1">Enable "publicly shareable" to share</p>
-                                </div>
+
+                        {/* Share Mode Tabs */}
+                        <div className="flex border-b border-slate-200 px-6">
+                            <button
+                                onClick={() => setShareMode('link')}
+                                className={`py-3 px-4 text-sm font-medium border-b-2 transition ${shareMode === 'link' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500'}`}
+                            >
+                                <QrCode className="w-4 h-4 inline mr-2" />Public Link
+                            </button>
+                            <button
+                                onClick={() => setShareMode('target')}
+                                className={`py-3 px-4 text-sm font-medium border-b-2 transition ${shareMode === 'target' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500'}`}
+                            >
+                                <Users className="w-4 h-4 inline mr-2" />Share with...
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                            {shareMode === 'link' ? (
+                                <>
+                                    {!sharingDoc.isPublic ? (
+                                        <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-lg">
+                                            <p className="font-medium">Document is not public</p>
+                                            <p className="text-sm mt-1">Enable "publicly shareable" in edit to share via link</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {qrCodeUrl && (
+                                                <div className="text-center">
+                                                    <img src={qrCodeUrl} alt="QR Code" className="mx-auto rounded-lg" />
+                                                </div>
+                                            )}
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={`${window.location.origin}/view-document/${sharingDoc.id}`}
+                                                    readOnly
+                                                    className="input flex-1 text-sm"
+                                                />
+                                                <button onClick={copyShareLink} className="btn btn-primary">
+                                                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                            <a
+                                                href={sharingDoc.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn btn-secondary w-full"
+                                            >
+                                                <Download className="w-4 h-4" /> Direct Download Link
+                                            </a>
+                                        </>
+                                    )}
+                                </>
                             ) : (
                                 <>
-                                    {qrCodeUrl && (
-                                        <div className="text-center">
-                                            <img src={qrCodeUrl} alt="QR Code" className="mx-auto rounded-lg" />
+                                    {/* Classes Selection */}
+                                    {availableClasses.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                                                <UsersRound className="w-4 h-4" /> Share with Classes
+                                            </h4>
+                                            <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg">
+                                                {availableClasses.map(cls => (
+                                                    <label key={cls.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={shareTargets.some(t => t.type === 'class' && t.id === cls.id)}
+                                                            onChange={() => toggleShareTarget('class', cls.id)}
+                                                            className="rounded text-primary-600"
+                                                        />
+                                                        <span className="text-sm">{cls.name || `Grade ${cls.gradeLevel}-${cls.section}`}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={`${window.location.origin}/view-document/${sharingDoc.id}`}
-                                            readOnly
-                                            className="input flex-1 text-sm"
+
+                                    {/* Groups Selection (shown after class is selected) */}
+                                    {availableGroups.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                                                <Users className="w-4 h-4" /> Share with Groups
+                                            </h4>
+                                            <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg">
+                                                {availableGroups.map(grp => (
+                                                    <label key={grp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={shareTargets.some(t => t.type === 'group' && t.id === grp.id)}
+                                                            onChange={() => toggleShareTarget('group', grp.id)}
+                                                            className="rounded text-primary-600"
+                                                        />
+                                                        <span className="text-sm">{grp.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Instructors/Admins Selection */}
+                                    {availableInstructors.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                                                <User className="w-4 h-4" /> Share with Instructors/Admins
+                                            </h4>
+                                            <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg">
+                                                {availableInstructors.map(usr => (
+                                                    <label key={usr.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={shareTargets.some(t => (t.type === 'instructor' || t.type === 'admin') && t.id === usr.id)}
+                                                            onChange={() => toggleShareTarget(usr.role === 'admin' || usr.role === 'principal' ? 'admin' : 'instructor', usr.id)}
+                                                            className="rounded text-primary-600"
+                                                        />
+                                                        <span className="text-sm">{usr.firstName} {usr.lastName}</span>
+                                                        <span className="text-xs text-slate-400 capitalize">({usr.role})</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Message */}
+                                    <div>
+                                        <label className="label">Message (optional)</label>
+                                        <textarea
+                                            value={shareMessage}
+                                            onChange={(e) => setShareMessage(e.target.value)}
+                                            placeholder="Add a note to recipients..."
+                                            className="input w-full"
+                                            rows={2}
                                         />
-                                        <button onClick={copyShareLink} className="btn btn-primary">
-                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                        </button>
                                     </div>
-                                    <a
-                                        href={sharingDoc.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn btn-secondary w-full"
+
+                                    {/* Selected Count */}
+                                    {shareTargets.length > 0 && (
+                                        <p className="text-sm text-primary-600">
+                                            Selected {shareTargets.length} target(s)
+                                        </p>
+                                    )}
+
+                                    {/* Share Button */}
+                                    <button
+                                        onClick={handleShareSubmit}
+                                        disabled={shareTargets.length === 0 || sharingLoading}
+                                        className="btn btn-primary w-full"
                                     >
-                                        <Download className="w-4 h-4" /> Direct Download Link
-                                    </a>
+                                        {sharingLoading ? 'Sharing...' : 'Share Document'}
+                                    </button>
                                 </>
                             )}
                         </div>
                     </div>
                 </div>
             )}
+
 
             {/* Delete Confirm */}
             <ConfirmDialog

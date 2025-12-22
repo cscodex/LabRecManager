@@ -181,6 +181,8 @@ model User {
   importHistory      ImportHistory[]
   maintenanceRecords ItemMaintenanceHistory[] @relation("MaintenanceRecordedBy")
   documents          Document[] @relation("DocumentUploadedBy")
+  documentSharesSent DocumentShare[] @relation("DocumentSharedBy")
+  documentSharesReceived DocumentShare[] @relation("DocumentSharedToUser")
 
   @@map("users")
 }
@@ -271,6 +273,7 @@ model Class {
   feeStructures FeeStructure[]
   labAttendance LabAttendance[]
   finalLabMarks FinalLabMarks[]
+  documentShares DocumentShare[]
 
   @@index([academicYearId])
   @@index([schoolId, academicYearId])
@@ -317,6 +320,7 @@ model StudentGroup {
   members     GroupMember[]
   targets     AssignmentTarget[]
   submissions Submission[]
+  documentShares DocumentShare[]
 
   @@map("student_groups")
 }
@@ -499,8 +503,45 @@ model Document {
   // Relations
   school     School @relation(fields: [schoolId], references: [id])
   uploadedBy User   @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  shares     DocumentShare[]
 
   @@map("documents")
+}
+
+// Document share target type enum
+enum DocumentShareTargetType {
+  class
+  group
+  instructor
+  admin
+}
+
+// Document Shares - tracks who a document is shared with
+model DocumentShare {
+  id            String   @id @default(uuid())
+  documentId    String   @map("document_id")
+  sharedById    String   @map("shared_by_id")
+  targetType    DocumentShareTargetType @map("target_type")
+  targetClassId String?  @map("target_class_id")
+  targetGroupId String?  @map("target_group_id")
+  targetUserId  String?  @map("target_user_id")
+  message       String?
+  sharedAt      DateTime @default(now()) @map("shared_at")
+  expiresAt     DateTime? @map("expires_at")
+
+  // Relations
+  document    Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sharedBy    User          @relation("DocumentSharedBy", fields: [sharedById], references: [id])
+  targetClass Class?        @relation(fields: [targetClassId], references: [id])
+  targetGroup StudentGroup? @relation(fields: [targetGroupId], references: [id])
+  targetUser  User?         @relation("DocumentSharedToUser", fields: [targetUserId], references: [id])
+
+  @@index([documentId])
+  @@index([targetClassId])
+  @@index([targetGroupId])
+  @@index([targetUserId])
+  @@index([sharedAt])
+  @@map("document_shares")
 }
 
 // ==================== ASSIGNMENTS ====================
@@ -547,6 +588,11 @@ model Assignment {
   // Late submission policy (applied at target level)
   lateSubmissionAllowed Boolean   @default(true) @map("late_submission_allowed")
   latePenaltyPercent    Int       @default(10) @map("late_penalty_percent")
+  
+  // PDF attachment for assignment
+  pdfAttachmentUrl   String?  @map("pdf_attachment_url")
+  pdfAttachmentName  String?  @map("pdf_attachment_name")
+  pdfCloudinaryId    String?  @map("pdf_cloudinary_id")
   
   status            AssignmentStatus @default(draft)
   createdAt         DateTime         @default(now()) @map("created_at")

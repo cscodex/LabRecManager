@@ -1,10 +1,25 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const { body, query, validationResult } = require('express-validator');
 const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
 const { asyncHandler } = require('../middleware/errorHandler');
+const cloudinary = require('../services/cloudinary');
+
+// Configure multer for memory storage (for PDF uploads to Cloudinary)
+const pdfUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only PDF files are allowed'));
+        }
+    }
+});
 
 /**
  * @route   GET /api/assignments
@@ -776,6 +791,113 @@ router.post('/:id/files', authenticate, authorize('instructor', 'lab_assistant',
 }));
 
 /**
+ * @route   POST /api/assignments/:id/pdf
+ * @desc    Upload PDF attachment to assignment
+ * @access  Private (Owner or Admin)
+ */
+router.post('/:id/pdf', authenticate, authorize('instructor', 'lab_assistant', 'admin', 'principal'), pdfUpload.single('pdf'), asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No PDF file uploaded' });
+    }
+
+    const assignment = await prisma.assignment.findUnique({
+        where: { id: req.params.id }
+    });
+
+    if (!assignment) {
+        return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+
+    // Check ownership unless admin
+    if (req.user.role !== 'admin' && req.user.role !== 'principal' && assignment.createdById !== req.user.id) {
+        return res.status(403).json({ success: false, message: 'Not authorized to update this assignment' });
+    }
+
+    // Delete old PDF from Cloudinary if exists
+    if (assignment.pdfCloudinaryId) {
+        try {
+            await cloudinary.deleteFile(assignment.pdfCloudinaryId, 'raw');
+        } catch (err) {
+            console.error('Failed to delete old PDF:', err.message);
+        }
+    }
+
+    // Upload to Cloudinary
+    if (!cloudinary.isConfigured()) {
+        return res.status(503).json({ success: false, message: 'File storage not configured' });
+    }
+
+    const result = await cloudinary.uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+    );
+
+    // Update assignment with PDF info
+    const updated = await prisma.assignment.update({
+        where: { id: req.params.id },
+        data: {
+            pdfAttachmentUrl: result.secureUrl,
+            pdfAttachmentName: req.file.originalname,
+            pdfCloudinaryId: result.publicId
+        }
+    });
+
+    res.json({
+        success: true,
+        message: 'PDF uploaded successfully',
+        data: {
+            pdfAttachmentUrl: updated.pdfAttachmentUrl,
+            pdfAttachmentName: updated.pdfAttachmentName
+        }
+    });
+}));
+
+/**
+ * @route   DELETE /api/assignments/:id/pdf
+ * @desc    Remove PDF attachment from assignment
+ * @access  Private (Owner or Admin)
+ */
+router.delete('/:id/pdf', authenticate, authorize('instructor', 'lab_assistant', 'admin', 'principal'), asyncHandler(async (req, res) => {
+    const assignment = await prisma.assignment.findUnique({
+        where: { id: req.params.id }
+    });
+
+    if (!assignment) {
+        return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+
+    // Check ownership unless admin
+    if (req.user.role !== 'admin' && req.user.role !== 'principal' && assignment.createdById !== req.user.id) {
+        return res.status(403).json({ success: false, message: 'Not authorized to update this assignment' });
+    }
+
+    // Delete from Cloudinary if exists
+    if (assignment.pdfCloudinaryId) {
+        try {
+            await cloudinary.deleteFile(assignment.pdfCloudinaryId, 'raw');
+        } catch (err) {
+            console.error('Failed to delete PDF:', err.message);
+        }
+    }
+
+    // Clear PDF fields
+    await prisma.assignment.update({
+        where: { id: req.params.id },
+        data: {
+            pdfAttachmentUrl: null,
+            pdfAttachmentName: null,
+            pdfCloudinaryId: null
+        }
+    });
+
+    res.json({
+        success: true,
+        message: 'PDF removed successfully'
+    });
+}));
+
+/**
  * @route   DELETE /api/assignments/:id
  * @desc    Delete an assignment
  * @access  Private (Owner or Admin)
@@ -800,6 +922,15 @@ router.delete('/:id', authenticate, authorize('instructor', 'admin', 'principal'
             message: 'Cannot delete assignment with existing submissions. Archive it instead.',
             messageHindi: 'मौजूदा सबमिशन वाले असाइनमेंट को हटाया नहीं जा सकता। इसे संग्रहित करें।'
         });
+    }
+
+    // Delete PDF from Cloudinary if exists
+    if (assignment.pdfCloudinaryId) {
+        try {
+            await cloudinary.deleteFile(assignment.pdfCloudinaryId, 'raw');
+        } catch (err) {
+            console.error('Failed to delete PDF:', err.message);
+        }
     }
 
     await prisma.assignment.delete({

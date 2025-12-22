@@ -92,6 +92,11 @@ export const documentsAPI = {
     update: (id, data) => api.put(`/documents/${id}`, data),
     delete: (id) => api.delete(`/documents/${id}`),
     getPublic: (id) => api.get(`/documents/${id}/public`),
+    // Document sharing
+    share: (id, data) => api.post(`/documents/${id}/share`, data),
+    getShared: (params) => api.get('/documents/shared', { params }),
+    getShares: (id) => api.get(`/documents/${id}/shares`),
+    removeShare: (shareId) => api.delete(`/documents/shares/${shareId}`),
 };
 
 // Devices API - for camera, mic, speaker testing
@@ -119,6 +124,15 @@ export const assignmentsAPI = {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
     },
+    // PDF attachment
+    uploadPdf: (id, file) => {
+        const formData = new FormData();
+        formData.append('pdf', file);
+        return api.post(`/assignments/${id}/pdf`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+    removePdf: (id) => api.delete(`/assignments/${id}/pdf`),
     delete: (id) => api.delete(`/assignments/${id}`),
 };
 

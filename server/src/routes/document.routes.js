@@ -276,4 +276,250 @@ router.get('/:id/public', asyncHandler(async (req, res) => {
     });
 }));
 
+/**
+ * @route   POST /api/documents/:id/share
+ * @desc    Share a document with classes, groups, or users
+ * @access  Private (Admin/Principal/Lab Assistant)
+ */
+router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_assistant', 'instructor'), asyncHandler(async (req, res) => {
+    const { targets, message } = req.body;
+    // targets: [{ type: 'class'|'group'|'instructor'|'admin', id: 'uuid' }]
+
+    if (!targets || !Array.isArray(targets) || targets.length === 0) {
+        return res.status(400).json({ success: false, message: 'At least one target is required' });
+    }
+
+    const doc = await prisma.document.findFirst({
+        where: { id: req.params.id, schoolId: req.user.schoolId }
+    });
+
+    if (!doc) {
+        return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const shares = [];
+    const notifications = [];
+
+    for (const target of targets) {
+        let shareData = {
+            documentId: doc.id,
+            sharedById: req.user.id,
+            targetType: target.type,
+            message: message || null
+        };
+
+        // Set the appropriate target field based on type
+        if (target.type === 'class') {
+            shareData.targetClassId = target.id;
+
+            // Get all students in the class for notifications
+            const enrollments = await prisma.classEnrollment.findMany({
+                where: { classId: target.id, status: 'active' },
+                select: { studentId: true }
+            });
+            enrollments.forEach(e => {
+                if (!notifications.find(n => n.userId === e.studentId)) {
+                    notifications.push({
+                        userId: e.studentId,
+                        subject: 'Document Shared with You',
+                        body: `"${doc.name}" has been shared with your class.`,
+                        status: 'pending'
+                    });
+                }
+            });
+        } else if (target.type === 'group') {
+            shareData.targetGroupId = target.id;
+
+            // Get all members of the group for notifications
+            const members = await prisma.groupMember.findMany({
+                where: { groupId: target.id },
+                select: { studentId: true }
+            });
+            members.forEach(m => {
+                if (!notifications.find(n => n.userId === m.studentId)) {
+                    notifications.push({
+                        userId: m.studentId,
+                        subject: 'Document Shared with You',
+                        body: `"${doc.name}" has been shared with your group.`,
+                        status: 'pending'
+                    });
+                }
+            });
+        } else if (target.type === 'instructor' || target.type === 'admin') {
+            shareData.targetUserId = target.id;
+
+            notifications.push({
+                userId: target.id,
+                subject: 'Document Shared with You',
+                body: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`,
+                status: 'pending'
+            });
+        }
+
+        shares.push(shareData);
+    }
+
+    // Create all shares
+    const createdShares = await prisma.documentShare.createMany({
+        data: shares
+    });
+
+    // Create notifications for recipients
+    if (notifications.length > 0) {
+        await prisma.notification.createMany({
+            data: notifications
+        });
+    }
+
+    res.status(201).json({
+        success: true,
+        message: `Document shared with ${targets.length} target(s)`,
+        data: { sharesCreated: createdShares.count }
+    });
+}));
+
+/**
+ * @route   GET /api/documents/shared
+ * @desc    Get documents shared with the current user
+ * @access  Private
+ */
+router.get('/shared', authenticate, asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const schoolId = req.user.schoolId;
+
+    // Build query conditions based on user role
+    const orConditions = [];
+
+    // If user is a student, check class and group shares
+    if (userRole === 'student') {
+        // Get student's class IDs
+        const enrollments = await prisma.classEnrollment.findMany({
+            where: { studentId: userId, status: 'active' },
+            select: { classId: true }
+        });
+        const classIds = enrollments.map(e => e.classId);
+
+        // Get student's group IDs
+        const groupMembers = await prisma.groupMember.findMany({
+            where: { studentId: userId },
+            select: { groupId: true }
+        });
+        const groupIds = groupMembers.map(g => g.groupId);
+
+        if (classIds.length > 0) {
+            orConditions.push({ targetType: 'class', targetClassId: { in: classIds } });
+        }
+        if (groupIds.length > 0) {
+            orConditions.push({ targetType: 'group', targetGroupId: { in: groupIds } });
+        }
+    }
+
+    // Direct user shares (for instructors/admins)
+    orConditions.push({ targetUserId: userId });
+
+    if (orConditions.length === 0) {
+        return res.json({
+            success: true,
+            data: { documents: [] }
+        });
+    }
+
+    const shares = await prisma.documentShare.findMany({
+        where: {
+            OR: orConditions,
+            document: { schoolId }
+        },
+        include: {
+            document: {
+                include: {
+                    uploadedBy: { select: { id: true, firstName: true, lastName: true } }
+                }
+            },
+            sharedBy: { select: { id: true, firstName: true, lastName: true } },
+            targetClass: { select: { id: true, name: true } },
+            targetGroup: { select: { id: true, name: true } }
+        },
+        orderBy: { sharedAt: 'desc' }
+    });
+
+    // Format the response
+    const documents = shares.map(share => ({
+        shareId: share.id,
+        sharedAt: share.sharedAt,
+        message: share.message,
+        sharedBy: share.sharedBy,
+        targetType: share.targetType,
+        targetClass: share.targetClass,
+        targetGroup: share.targetGroup,
+        document: {
+            ...share.document,
+            fileSizeFormatted: formatSize(share.document.fileSize)
+        }
+    }));
+
+    res.json({
+        success: true,
+        data: { documents }
+    });
+}));
+
+/**
+ * @route   GET /api/documents/:id/shares
+ * @desc    Get all shares for a document
+ * @access  Private (Admin/Principal/Owner)
+ */
+router.get('/:id/shares', authenticate, asyncHandler(async (req, res) => {
+    const doc = await prisma.document.findFirst({
+        where: { id: req.params.id, schoolId: req.user.schoolId }
+    });
+
+    if (!doc) {
+        return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const shares = await prisma.documentShare.findMany({
+        where: { documentId: req.params.id },
+        include: {
+            sharedBy: { select: { id: true, firstName: true, lastName: true } },
+            targetClass: { select: { id: true, name: true } },
+            targetGroup: { select: { id: true, name: true } },
+            targetUser: { select: { id: true, firstName: true, lastName: true, role: true } }
+        },
+        orderBy: { sharedAt: 'desc' }
+    });
+
+    res.json({
+        success: true,
+        data: { shares }
+    });
+}));
+
+/**
+ * @route   DELETE /api/documents/shares/:shareId
+ * @desc    Remove a share
+ * @access  Private (Admin/Principal/Owner)
+ */
+router.delete('/shares/:shareId', authenticate, authorize('admin', 'principal', 'lab_assistant', 'instructor'), asyncHandler(async (req, res) => {
+    const share = await prisma.documentShare.findFirst({
+        where: { id: req.params.shareId },
+        include: {
+            document: { select: { schoolId: true } }
+        }
+    });
+
+    if (!share || share.document.schoolId !== req.user.schoolId) {
+        return res.status(404).json({ success: false, message: 'Share not found' });
+    }
+
+    await prisma.documentShare.delete({
+        where: { id: req.params.shareId }
+    });
+
+    res.json({
+        success: true,
+        message: 'Share removed successfully'
+    });
+}));
+
 module.exports = router;

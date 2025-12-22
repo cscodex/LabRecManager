@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Save, Upload, Zap, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, Upload, Zap, Calendar, FileText, X } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { assignmentsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -19,6 +19,8 @@ export default function CreateAssignmentPage() {
     const [subjects, setSubjects] = useState([]);
     const [labs, setLabs] = useState([]);
     const [classes, setClasses] = useState([]);
+    const [pdfFile, setPdfFile] = useState(null);
+    const [uploadingPdf, setUploadingPdf] = useState(false);
 
     const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm({
         defaultValues: {
@@ -67,17 +69,39 @@ export default function CreateAssignmentPage() {
             };
 
             const response = await assignmentsAPI.create(submitData);
+            const assignmentId = response.data.data.assignment.id;
+
+            // Upload PDF if selected
+            if (pdfFile) {
+                setUploadingPdf(true);
+                try {
+                    await assignmentsAPI.uploadPdf(assignmentId, pdfFile);
+                } catch (pdfError) {
+                    console.error('Failed to upload PDF:', pdfError);
+                    toast.error('Assignment created but PDF upload failed');
+                }
+                setUploadingPdf(false);
+            }
 
             if (publishNow) {
                 toast.success('Assignment created and published!');
             } else {
                 toast.success('Assignment created as draft!');
             }
-            router.push(`/assignments/${response.data.data.assignment.id}`);
+            router.push(`/assignments/${assignmentId}`);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to create assignment');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePdfSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file && file.type === 'application/pdf') {
+            setPdfFile(file);
+        } else {
+            toast.error('Please select a PDF file');
         }
     };
 
@@ -204,6 +228,38 @@ export default function CreateAssignmentPage() {
                                 <label className="label">Late Penalty %</label>
                                 <input type="number" className="input" {...register('latePenaltyPercent', { valueAsNumber: true })} />
                             </div>
+                        </div>
+                    </div>
+
+                    {/* PDF Attachment */}
+                    <div className="card p-6">
+                        <h2 className="text-lg font-semibold text-slate-900 mb-4">PDF Attachment (Optional)</h2>
+                        <p className="text-sm text-slate-500 mb-4">Attach a PDF file that students can preview and download for reference.</p>
+
+                        <div
+                            className={`border-2 border-dashed rounded-xl p-6 text-center ${pdfFile ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300'}`}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => { e.preventDefault(); handlePdfSelect({ target: { files: e.dataTransfer.files } }); }}
+                        >
+                            {pdfFile ? (
+                                <div className="flex items-center gap-3 justify-center">
+                                    <FileText className="w-8 h-8 text-emerald-600" />
+                                    <div className="text-left">
+                                        <p className="font-medium text-slate-900">{pdfFile.name}</p>
+                                        <p className="text-sm text-slate-500">{(pdfFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    </div>
+                                    <button type="button" onClick={() => setPdfFile(null)} className="text-red-500 hover:text-red-700">
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="cursor-pointer">
+                                    <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+                                    <p className="text-slate-600">Drag & drop or click to select PDF</p>
+                                    <p className="text-xs text-slate-400 mt-1">PDF files only • Max 50MB</p>
+                                    <input type="file" className="hidden" accept=".pdf,application/pdf" onChange={handlePdfSelect} />
+                                </label>
+                            )}
                         </div>
                     </div>
 

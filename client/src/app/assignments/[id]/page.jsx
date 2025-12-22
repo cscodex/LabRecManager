@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
     ArrowLeft, Calendar, FileText, Clock, CheckCircle,
-    Users, Award, Code, Upload, Eye, Trash2, UsersRound, User
+    Users, Award, Code, Upload, Eye, Trash2, UsersRound, User, Download, X
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { assignmentsAPI } from '@/lib/api';
@@ -22,6 +22,7 @@ export default function AssignmentDetailPage() {
     // Remove target confirmation dialog
     const [removeDialog, setRemoveDialog] = useState({ open: false, targetId: null, targetName: '' });
     const [removeLoading, setRemoveLoading] = useState(false);
+    const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -248,6 +249,40 @@ export default function AssignmentDetailPage() {
                                 </div>
                             </div>
                         )}
+
+                        {/* PDF Attachment */}
+                        {assignment.pdfAttachmentUrl && (
+                            <div className="card p-6">
+                                <h3 className="font-semibold text-slate-900 mb-3">📄 PDF Attachment</h3>
+                                <div className="p-4 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                                            <FileText className="w-6 h-6 text-red-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-medium text-slate-900">{assignment.pdfAttachmentName || 'Assignment PDF'}</p>
+                                            <p className="text-sm text-slate-500">PDF Document</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setPdfPreviewOpen(true)}
+                                                className="btn btn-secondary text-sm"
+                                            >
+                                                <Eye className="w-4 h-4" /> Preview
+                                            </button>
+                                            <a
+                                                href={assignment.pdfAttachmentUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn btn-primary text-sm"
+                                            >
+                                                <Download className="w-4 h-4" /> Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sidebar */}
@@ -346,6 +381,43 @@ export default function AssignmentDetailPage() {
                     </div>
                 </div>
             </main>
+
+            {/* PDF Preview Modal */}
+            {pdfPreviewOpen && assignment.pdfAttachmentUrl && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-red-500" />
+                                <h3 className="text-lg font-semibold">{assignment.pdfAttachmentName || 'PDF Preview'}</h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={assignment.pdfAttachmentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-secondary text-sm"
+                                >
+                                    <Download className="w-4 h-4" /> Download
+                                </a>
+                                <button
+                                    onClick={() => setPdfPreviewOpen(false)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <iframe
+                                src={`${assignment.pdfAttachmentUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                                className="w-full h-full"
+                                title="PDF Preview"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Remove Target Confirmation Dialog */}
             <ConfirmDialog
