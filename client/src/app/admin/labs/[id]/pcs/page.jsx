@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History, ArrowRightLeft } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History, ArrowRightLeft, Camera, Network, Volume2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI, filesAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -15,17 +15,30 @@ const ITEM_TYPES = {
     router: { label: 'WiFi Router', icon: Wifi, color: 'green', specFields: ['speed', 'frequency', 'ports'] },
     speaker: { label: 'Speaker', icon: Speaker, color: 'amber', specFields: ['power', 'channels'] },
     projector: { label: 'Projector', icon: Projector, color: 'red', specFields: ['resolution', 'lumens', 'connectivity'] },
+    smart_camera: { label: 'Smart Camera', icon: Camera, color: 'indigo', specFields: ['resolution', 'nightVision', 'storageType', 'connectivity', 'poe'] },
+    network_switch: { label: 'Network Switch', icon: Network, color: 'cyan', specFields: ['ports', 'speed', 'managedType', 'poe', 'rackMountable'] },
+    soundbar: { label: 'Soundbar', icon: Volume2, color: 'orange', specFields: ['power', 'channels', 'connectivity', 'bluetooth', 'subwoofer'] },
     chair: { label: 'Chair', icon: Armchair, color: 'slate', specFields: ['material', 'color'] },
     table: { label: 'Table', icon: Table, color: 'emerald', specFields: ['material', 'dimensions', 'color'] },
     other: { label: 'Other', icon: Package, color: 'gray', specFields: [] }
 };
 
 const SPEC_LABELS = {
+    // Computer
     processor: 'Processor', ram: 'RAM', storage: 'Storage', os: 'OS', monitor: 'Monitor Size',
+    // Printer
     printType: 'Print Type', paperSize: 'Paper Size', connectivity: 'Connectivity',
+    // Router
     speed: 'Speed', frequency: 'Frequency', ports: 'Ports',
-    power: 'Power', channels: 'Channels',
+    // Speaker & Soundbar
+    power: 'Power', channels: 'Channels', bluetooth: 'Bluetooth', subwoofer: 'Subwoofer',
+    // Projector
     resolution: 'Resolution', lumens: 'Lumens',
+    // Smart Camera
+    nightVision: 'Night Vision', storageType: 'Storage Type', poe: 'PoE Support',
+    // Network Switch
+    managedType: 'Managed Type', rackMountable: 'Rack Mountable',
+    // Furniture
     material: 'Material', dimensions: 'Dimensions', color: 'Color'
 };
 

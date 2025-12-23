@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -15,6 +15,9 @@ const ITEM_TYPE_ICONS = {
     router: { icon: Wifi, color: 'green' },
     speaker: { icon: Speaker, color: 'amber' },
     projector: { icon: Projector, color: 'red' },
+    smart_camera: { icon: Camera, color: 'indigo' },
+    network_switch: { icon: Network, color: 'cyan' },
+    soundbar: { icon: Volume2, color: 'orange' },
     chair: { icon: Armchair, color: 'slate' },
     table: { icon: Table, color: 'emerald' },
     other: { icon: Package, color: 'gray' }
@@ -195,6 +198,13 @@ export default function LabsPage() {
                                     {lab.roomNumber && <span>Room: {lab.roomNumber}</span>}
                                     <span>Capacity: {lab.capacity}</span>
                                 </div>
+                                {/* Lab Incharge */}
+                                {lab.incharge && (
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+                                        <User className="w-4 h-4 text-slate-400" />
+                                        <span>Incharge: <span className="font-medium text-slate-700">{lab.incharge.firstName} {lab.incharge.lastName}</span></span>
+                                    </div>
+                                )}
                                 {/* Item Counts by Type */}
                                 <div className="flex flex-wrap gap-2 mb-4">
                                     {lab.itemCounts && Object.entries(lab.itemCounts).map(([type, count]) => {
@@ -222,77 +232,80 @@ export default function LabsPage() {
                             </div>
                         ))}
                     </div>
-                )}
-            </main>
+                )
+                }
+            </main >
 
             {/* Create/Edit Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-md w-full">
-                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                            <h3 className="text-xl font-semibold text-slate-900">
-                                {editingLab ? 'Edit Lab' : 'Create Lab'}
-                            </h3>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Lab Name *</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="input"
-                                    placeholder="e.g., Computer Lab 1"
-                                    required
-                                />
+            {
+                showModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl max-w-md w-full">
+                            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                                <h3 className="text-xl font-semibold text-slate-900">
+                                    {editingLab ? 'Edit Lab' : 'Create Lab'}
+                                </h3>
+                                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Name (Hindi)</label>
-                                <input
-                                    type="text"
-                                    value={formData.nameHindi}
-                                    onChange={(e) => setFormData({ ...formData, nameHindi: e.target.value })}
-                                    className="input"
-                                    placeholder="कंप्यूटर लैब 1"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Room Number</label>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Lab Name *</label>
                                     <input
                                         type="text"
-                                        value={formData.roomNumber}
-                                        onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         className="input"
-                                        placeholder="e.g., CL-1"
+                                        placeholder="e.g., Computer Lab 1"
+                                        required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Capacity</label>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Name (Hindi)</label>
                                     <input
-                                        type="number"
-                                        value={formData.capacity}
-                                        onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 30 })}
+                                        type="text"
+                                        value={formData.nameHindi}
+                                        onChange={(e) => setFormData({ ...formData, nameHindi: e.target.value })}
                                         className="input"
-                                        min="1"
+                                        placeholder="कंप्यूटर लैब 1"
                                     />
                                 </div>
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">
-                                    Cancel
-                                </button>
-                                <button type="submit" className="btn btn-primary flex-1">
-                                    {editingLab ? 'Update' : 'Create'}
-                                </button>
-                            </div>
-                        </form>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Room Number</label>
+                                        <input
+                                            type="text"
+                                            value={formData.roomNumber}
+                                            onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+                                            className="input"
+                                            placeholder="e.g., CL-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Capacity</label>
+                                        <input
+                                            type="number"
+                                            value={formData.capacity}
+                                            onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 30 })}
+                                            className="input"
+                                            min="1"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex gap-3 pt-4">
+                                    <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="btn btn-primary flex-1">
+                                        {editingLab ? 'Update' : 'Create'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Delete Confirmation Dialog */}
             <ConfirmDialog
@@ -305,6 +318,6 @@ export default function LabsPage() {
                 type="danger"
                 loading={deleteLoading}
             />
-        </div>
+        </div >
     );
 }
