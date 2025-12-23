@@ -321,6 +321,17 @@ export default function DocumentsPage() {
         return true;
     });
 
+    // Filter out already-shared targets when editing shares
+    const alreadySharedClassIds = new Set((sharingDoc?.shareInfo || []).filter(s => s.type === 'class').map(s => s.targetId));
+    const alreadySharedGroupIds = new Set((sharingDoc?.shareInfo || []).filter(s => s.type === 'group').map(s => s.targetId));
+    const alreadySharedStudentIds = new Set((sharingDoc?.shareInfo || []).filter(s => s.type === 'student').map(s => s.targetId));
+    const alreadySharedInstructorIds = new Set((sharingDoc?.shareInfo || []).filter(s => s.type === 'instructor' || s.type === 'admin').map(s => s.targetId));
+
+    const unsharedClasses = availableClasses.filter(c => !alreadySharedClassIds.has(c.id));
+    const unsharedGroups = availableGroups.filter(g => !alreadySharedGroupIds.has(g.id));
+    const unsharedStudents = availableStudents.filter(s => !alreadySharedStudentIds.has(s.id));
+    const unsharedInstructors = availableInstructors.filter(i => !alreadySharedInstructorIds.has(i.id));
+
     // Check if user can upload (admin, principal, lab_assistant, instructor)
     const canUpload = ['admin', 'principal', 'lab_assistant', 'instructor'].includes(user?.role);
 
@@ -888,7 +899,7 @@ export default function DocumentsPage() {
                                                 >
                                                     <UsersRound className="w-8 h-8 mx-auto text-primary-600 mb-2" />
                                                     <span className="text-sm font-medium">Classes</span>
-                                                    <p className="text-xs text-slate-500 mt-1">{availableClasses.length} available</p>
+                                                    <p className="text-xs text-slate-500 mt-1">{unsharedClasses.length} available</p>
                                                 </button>
                                                 <button
                                                     onClick={() => setShareTargetType('group')}
@@ -896,7 +907,7 @@ export default function DocumentsPage() {
                                                 >
                                                     <Users className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
                                                     <span className="text-sm font-medium">Groups</span>
-                                                    <p className="text-xs text-slate-500 mt-1">{availableGroups.length} available</p>
+                                                    <p className="text-xs text-slate-500 mt-1">{unsharedGroups.length} available</p>
                                                 </button>
                                                 <button
                                                     onClick={() => setShareTargetType('student')}
@@ -904,7 +915,7 @@ export default function DocumentsPage() {
                                                 >
                                                     <GraduationCap className="w-8 h-8 mx-auto text-blue-600 mb-2" />
                                                     <span className="text-sm font-medium">Students</span>
-                                                    <p className="text-xs text-slate-500 mt-1">{availableStudents.length} available</p>
+                                                    <p className="text-xs text-slate-500 mt-1">{unsharedStudents.length} available</p>
                                                 </button>
                                                 <button
                                                     onClick={() => setShareTargetType('instructor')}
@@ -912,7 +923,7 @@ export default function DocumentsPage() {
                                                 >
                                                     <User className="w-8 h-8 mx-auto text-amber-600 mb-2" />
                                                     <span className="text-sm font-medium">Instructors</span>
-                                                    <p className="text-xs text-slate-500 mt-1">{availableInstructors.length} available</p>
+                                                    <p className="text-xs text-slate-500 mt-1">{unsharedInstructors.length} available</p>
                                                 </button>
                                             </div>
                                         </div>
@@ -946,7 +957,7 @@ export default function DocumentsPage() {
                                             {/* List based on type */}
                                             <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg">
                                                 {shareTargetType === 'class' && (
-                                                    availableClasses
+                                                    unsharedClasses
                                                         .filter(cls => {
                                                             const name = cls.name || `Grade ${cls.gradeLevel}-${cls.section}`;
                                                             return name.toLowerCase().includes(shareSearch.toLowerCase());
@@ -964,12 +975,12 @@ export default function DocumentsPage() {
                                                         ))
                                                 )}
                                                 {shareTargetType === 'group' && (
-                                                    availableGroups.length === 0 ? (
+                                                    unsharedGroups.length === 0 ? (
                                                         <div className="p-4 text-center text-slate-500 text-sm">
                                                             No groups found. Create groups in class settings first.
                                                         </div>
                                                     ) : (
-                                                        availableGroups
+                                                        unsharedGroups
                                                             .filter(grp => grp.name.toLowerCase().includes(shareSearch.toLowerCase()))
                                                             .map(grp => (
                                                                 <label key={grp.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
@@ -988,7 +999,7 @@ export default function DocumentsPage() {
                                                     )
                                                 )}
                                                 {shareTargetType === 'instructor' && (
-                                                    availableInstructors
+                                                    unsharedInstructors
                                                         .filter(usr => `${usr.firstName} ${usr.lastName}`.toLowerCase().includes(shareSearch.toLowerCase()))
                                                         .map(usr => (
                                                             <label key={usr.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
@@ -1004,12 +1015,12 @@ export default function DocumentsPage() {
                                                         ))
                                                 )}
                                                 {shareTargetType === 'student' && (
-                                                    availableStudents.length === 0 ? (
+                                                    unsharedStudents.length === 0 ? (
                                                         <div className="p-4 text-center text-slate-500 text-sm">
                                                             No students found.
                                                         </div>
                                                     ) : (
-                                                        availableStudents
+                                                        unsharedStudents
                                                             .filter(stu => `${stu.firstName} ${stu.lastName} ${stu.email || ''} ${stu.studentId || stu.admissionNumber || ''}`.toLowerCase().includes(shareSearch.toLowerCase()))
                                                             .map(stu => (
                                                                 <label key={stu.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
