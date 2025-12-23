@@ -681,26 +681,60 @@ router.post('/shift-requests', authenticate, authorize('admin', 'principal', 'la
  * @access  Private (Admin, Lab Assistant)
  */
 router.get('/shift-requests', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
-    console.log('[GET /labs/shift-requests] Start - ultra simple query');
+    const { status, labId } = req.query;
+    const schoolId = req.user.schoolId;
+
+    console.log('[GET /labs/shift-requests] schoolId:', schoolId, 'status:', status, 'labId:', labId);
 
     try {
-        // Ultra-minimal query - no includes, no filtering
-        const count = await prisma.equipmentShiftRequest.count();
-        console.log('[GET /labs/shift-requests] Count:', count);
+        let where = {};
 
-        const shiftRequests = await prisma.equipmentShiftRequest.findMany();
-        console.log('[GET /labs/shift-requests] Found', shiftRequests.length, 'raw requests');
+        if (status) {
+            where.status = status;
+        }
+
+        if (labId) {
+            where.OR = [{ fromLabId: labId }, { toLabId: labId }];
+        }
+
+        // Get labs for this school
+        const schoolLabs = await prisma.lab.findMany({
+            where: { schoolId },
+            select: { id: true }
+        });
+        const labIds = schoolLabs.map(l => l.id);
+
+        console.log('[GET /labs/shift-requests] Found', labIds.length, 'labs');
+
+        // Filter by school labs
+        if (!labId && labIds.length > 0) {
+            where.fromLabId = { in: labIds };
+        }
+
+        const shiftRequests = await prisma.equipmentShiftRequest.findMany({
+            where,
+            include: {
+                item: { select: { id: true, itemNumber: true, itemType: true, brand: true, modelNo: true } },
+                fromLab: { select: { id: true, name: true, roomNumber: true } },
+                toLab: { select: { id: true, name: true, roomNumber: true } },
+                requestedBy: { select: { id: true, firstName: true, lastName: true } },
+                approvedBy: { select: { id: true, firstName: true, lastName: true } }
+            },
+            orderBy: { requestedAt: 'desc' }
+        });
+
+        console.log('[GET /labs/shift-requests] Found', shiftRequests.length, 'requests');
 
         res.json({
             success: true,
             data: { shiftRequests }
         });
     } catch (error) {
-        console.error('[GET /labs/shift-requests] ERROR:', error.message, error.stack);
+        console.error('[GET /labs/shift-requests] ERROR:', error.message);
+        console.error('[GET /labs/shift-requests] STACK:', error.stack);
         res.status(500).json({
             success: false,
-            message: 'Failed to load shift requests: ' + error.message,
-            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+            message: 'Failed to load shift requests: ' + error.message
         });
     }
 }));
