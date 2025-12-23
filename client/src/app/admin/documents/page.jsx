@@ -46,7 +46,7 @@ export default function DocumentsPage() {
     const [categoryFilter, setCategoryFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+    const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list' - default to list
     const [activeTab, setActiveTab] = useState('my'); // 'my' or 'shared'
 
     // Upload modal state
@@ -61,6 +61,10 @@ export default function DocumentsPage() {
     // Edit modal
     const [editingDoc, setEditingDoc] = useState(null);
     const [editData, setEditData] = useState({ name: '', description: '', category: '', isPublic: false });
+    const [editFile, setEditFile] = useState(null); // New file for replacing document
+
+    // Share info popup for list view
+    const [shareInfoModal, setShareInfoModal] = useState(null); // { doc, anchorEl }
 
     // Share modal - advanced
     const [sharingDoc, setSharingDoc] = useState(null);
@@ -191,13 +195,30 @@ export default function DocumentsPage() {
     const handleEdit = (doc) => {
         setEditingDoc(doc);
         setEditData({ name: doc.name, description: doc.description || '', category: doc.category || '', isPublic: doc.isPublic });
+        setEditFile(null); // Reset file selection
     };
 
     const handleSaveEdit = async () => {
         try {
-            await documentsAPI.update(editingDoc.id, editData);
-            toast.success('Document updated');
+            // If there's a new file, upload it first
+            if (editFile) {
+                const formData = new FormData();
+                formData.append('file', editFile);
+                formData.append('name', editData.name);
+                formData.append('description', editData.description);
+                formData.append('category', editData.category);
+                formData.append('isPublic', editData.isPublic);
+
+                // Delete old and upload new
+                await documentsAPI.delete(editingDoc.id);
+                await documentsAPI.upload(formData);
+                toast.success('Document replaced successfully');
+            } else {
+                await documentsAPI.update(editingDoc.id, editData);
+                toast.success('Document updated');
+            }
             setEditingDoc(null);
+            setEditFile(null);
             loadDocuments();
         } catch (err) {
             toast.error('Update failed');
@@ -217,10 +238,20 @@ export default function DocumentsPage() {
 
     const handleShare = async (doc) => {
         setSharingDoc(doc);
-        setShareMode('link');
-        setShareTargets([]);
+        setShareMode('target'); // Default to target sharing mode
+        setShareTargetType(''); // Reset to show type selection first
         setShareMessage('');
-        setAvailableGroups([]);
+
+        // Preload existing shares as selected targets
+        const existingTargets = (doc.shareInfo || []).map(share => ({
+            type: share.type,
+            id: share.type === 'class' ? doc.shares?.find(s => s.targetType === share.type)?.targetClassId
+                : share.type === 'group' ? doc.shares?.find(s => s.targetType === share.type)?.targetGroupId
+                    : doc.shares?.find(s => s.targetType === share.type)?.targetUserId
+        })).filter(t => t.id); // Filter out any with undefined IDs
+
+        setShareTargets(existingTargets);
+
         const shareUrl = `${window.location.origin}/view-document/${doc.id}`;
         try {
             const qr = await QRCode.toDataURL(shareUrl, { width: 200 });
@@ -534,9 +565,13 @@ export default function DocumentsPage() {
                                                 </td>
                                                 <td className="p-3 hidden lg:table-cell">
                                                     {doc.shareCount > 0 ? (
-                                                        <span className="text-xs text-emerald-600">
-                                                            {doc.shareCount} recipient{doc.shareCount > 1 ? 's' : ''}
-                                                        </span>
+                                                        <button
+                                                            onClick={() => setShareInfoModal(doc)}
+                                                            className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded transition"
+                                                        >
+                                                            <Users className="w-3 h-3" />
+                                                            {doc.shareCount}
+                                                        </button>
                                                     ) : (
                                                         <span className="text-xs text-slate-400">—</span>
                                                     )}
@@ -732,13 +767,42 @@ export default function DocumentsPage() {
                                     {CATEGORIES.slice(1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                                 </select>
                             </div>
+
+                            {/* File replacement */}
+                            <div>
+                                <label className="label">Replace File (optional)</label>
+                                <div className="border-2 border-dashed border-slate-200 rounded-lg p-3 text-center">
+                                    {editFile ? (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-slate-700">{editFile.name}</span>
+                                            <button onClick={() => setEditFile(null)} className="text-red-500 hover:text-red-700">
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <label className="cursor-pointer">
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                onChange={(e) => setEditFile(e.target.files[0])}
+                                            />
+                                            <div className="text-slate-500 text-sm">
+                                                <Upload className="w-5 h-5 mx-auto mb-1" />
+                                                Click to select new file
+                                            </div>
+                                        </label>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">Current: {editingDoc?.fileName}</p>
+                            </div>
+
                             <label className="flex items-center gap-2">
                                 <input type="checkbox" checked={editData.isPublic} onChange={(e) => setEditData({ ...editData, isPublic: e.target.checked })} className="rounded" />
                                 <span className="text-sm text-slate-700">Make publicly shareable</span>
                             </label>
                             <div className="flex gap-3 pt-2">
                                 <button onClick={() => setEditingDoc(null)} className="btn btn-secondary flex-1">Cancel</button>
-                                <button onClick={handleSaveEdit} className="btn btn-primary flex-1">Save Changes</button>
+                                <button onClick={handleSaveEdit} className="btn btn-primary flex-1">{editFile ? 'Replace & Save' : 'Save Changes'}</button>
                             </div>
                         </div>
                     </div>
@@ -1035,6 +1099,44 @@ export default function DocumentsPage() {
                 </div>
             )}
 
+
+            {/* Share Info Popup Modal */}
+            {shareInfoModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShareInfoModal(null)}>
+                    <div className="bg-white rounded-2xl max-w-md w-full max-h-[60vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold">Shared With</h3>
+                            <button onClick={() => setShareInfoModal(null)} className="text-slate-400 hover:text-slate-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto max-h-[calc(60vh-80px)]">
+                            <p className="text-sm text-slate-600 mb-3">"{shareInfoModal.name}" is shared with:</p>
+                            <div className="space-y-2">
+                                {shareInfoModal.shareInfo?.map((share, i) => (
+                                    <div key={share.id || i} className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg">
+                                        <span className="text-lg">
+                                            {share.type === 'class' ? '📚' : share.type === 'group' ? '👥' : '👤'}
+                                        </span>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-slate-900">{share.targetName}</p>
+                                            <p className="text-xs text-slate-500 capitalize">{share.type}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(!shareInfoModal.shareInfo || shareInfoModal.shareInfo.length === 0) && (
+                                    <p className="text-sm text-slate-400 text-center py-4">No shares found</p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-200 bg-slate-50">
+                            <button onClick={() => { setShareInfoModal(null); handleShare(shareInfoModal); }} className="btn btn-primary w-full text-sm">
+                                <Share2 className="w-4 h-4" /> Edit Sharing
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Delete Confirm */}
             <ConfirmDialog
