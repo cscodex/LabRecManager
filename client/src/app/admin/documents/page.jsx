@@ -246,12 +246,10 @@ export default function DocumentsPage() {
         setShareTargetType(''); // Reset to show type selection first
         setShareMessage('');
 
-        // Preload existing shares as selected targets
+        // Preload existing shares as selected targets from shareInfo
         const existingTargets = (doc.shareInfo || []).map(share => ({
             type: share.type,
-            id: share.type === 'class' ? doc.shares?.find(s => s.targetType === share.type)?.targetClassId
-                : share.type === 'group' ? doc.shares?.find(s => s.targetType === share.type)?.targetGroupId
-                    : doc.shares?.find(s => s.targetType === share.type)?.targetUserId
+            id: share.targetId // Use targetId directly from backend
         })).filter(t => t.id); // Filter out any with undefined IDs
 
         setShareTargets(existingTargets);
@@ -1080,7 +1078,11 @@ export default function DocumentsPage() {
                                             <div className="mt-2 text-xs text-slate-500 max-h-20 overflow-y-auto">
                                                 {shareTargets.map((t, i) => {
                                                     let name = '';
-                                                    if (t.type === 'class') {
+                                                    // First check shareInfo for already-shared items (has the name already)
+                                                    const existingShare = sharingDoc?.shareInfo?.find(s => s.type === t.type && s.targetId === t.id);
+                                                    if (existingShare) {
+                                                        name = existingShare.targetName;
+                                                    } else if (t.type === 'class') {
                                                         const cls = availableClasses.find(c => c.id === t.id);
                                                         name = cls ? (cls.name || `Grade ${cls.gradeLevel}-${cls.section}`) : t.id;
                                                     } else if (t.type === 'group') {
