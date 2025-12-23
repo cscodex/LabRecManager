@@ -630,7 +630,7 @@ router.post('/:id/publish', authenticate, authorize('instructor', 'lab_assistant
             where: { id: req.params.id },
             data: {
                 status: 'published',
-                publishDate: new Date()
+                publish_date: new Date()
             }
         });
 

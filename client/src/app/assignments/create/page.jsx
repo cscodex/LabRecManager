@@ -45,15 +45,20 @@ export default function CreateAssignmentPage() {
             router.push('/login');
             return;
         }
-        loadFormData();
 
-        // Check for edit mode
-        const editParam = searchParams.get('edit');
-        if (editParam) {
-            setEditId(editParam);
-            setIsEditMode(true);
-            loadExistingAssignment(editParam);
-        }
+        const initForm = async () => {
+            // Load form data first (subjects, classes) then load existing assignment if in edit mode
+            await loadFormData();
+
+            // Check for edit mode after form data is loaded
+            const editParam = searchParams.get('edit');
+            if (editParam) {
+                setEditId(editParam);
+                setIsEditMode(true);
+                loadExistingAssignment(editParam);
+            }
+        };
+        initForm();
     }, [isAuthenticated, _hasHydrated, searchParams]);
 
     const loadFormData = async () => {
