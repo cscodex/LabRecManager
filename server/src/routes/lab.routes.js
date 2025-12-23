@@ -681,40 +681,11 @@ router.post('/shift-requests', authenticate, authorize('admin', 'principal', 'la
  * @access  Private (Admin, Lab Assistant)
  */
 router.get('/shift-requests', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
-    const { status, labId } = req.query;
-    const schoolId = req.user.schoolId;
-
-    console.log('[GET /labs/shift-requests] User schoolId:', schoolId, 'status:', status, 'labId:', labId);
+    console.log('[GET /labs/shift-requests] Start');
 
     try {
-        let where = {};
-
-        // Filter by status
-        if (status) {
-            where.status = status;
-        }
-
-        // Filter by lab (either from or to)
-        if (labId) {
-            where.OR = [{ fromLabId: labId }, { toLabId: labId }];
-        }
-
-        // Get labs belonging to the school for filtering
-        const schoolLabs = await prisma.lab.findMany({
-            where: { schoolId },
-            select: { id: true }
-        });
-        const labIds = schoolLabs.map(l => l.id);
-
-        console.log('[GET /labs/shift-requests] Found', labIds.length, 'labs for school');
-
-        // Only show requests for labs in this school
-        if (!labId && labIds.length > 0) {
-            where.fromLabId = { in: labIds };
-        }
-
+        // Simplified query - get all shift requests
         const shiftRequests = await prisma.equipmentShiftRequest.findMany({
-            where,
             include: {
                 item: { select: { id: true, itemNumber: true, itemType: true, brand: true, modelNo: true } },
                 fromLab: { select: { id: true, name: true, roomNumber: true } },
@@ -725,7 +696,7 @@ router.get('/shift-requests', authenticate, authorize('admin', 'principal', 'lab
             orderBy: { requestedAt: 'desc' }
         });
 
-        console.log('[GET /labs/shift-requests] Found', shiftRequests.length, 'shift requests');
+        console.log('[GET /labs/shift-requests] Found', shiftRequests.length, 'requests');
 
         res.json({
             success: true,
@@ -733,7 +704,10 @@ router.get('/shift-requests', authenticate, authorize('admin', 'principal', 'lab
         });
     } catch (error) {
         console.error('[GET /labs/shift-requests] ERROR:', error.message);
-        throw error;
+        res.status(500).json({
+            success: false,
+            message: 'Failed to load shift requests: ' + error.message
+        });
     }
 }));
 
