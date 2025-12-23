@@ -787,9 +787,9 @@ router.put('/shift-requests/:id/approve', authenticate, authorize('admin', 'prin
     await prisma.notification.create({
         data: {
             userId: shiftRequest.requestedById,
-            subject: 'Shift Request Approved',
-            body: `Your request to move ${updated.item.itemNumber} from ${updated.fromLab.name} to ${updated.toLab.name} has been approved. Please complete the physical move.`,
-            status: 'pending'
+            title: 'Shift Request Approved',
+            message: `Your request to move ${updated.item.itemNumber} from ${updated.fromLab.name} to ${updated.toLab.name} has been approved. Please complete the physical move.`,
+            is_read: false
         }
     });
 
@@ -839,9 +839,9 @@ router.put('/shift-requests/:id/reject', authenticate, authorize('admin', 'princ
     await prisma.notification.create({
         data: {
             userId: shiftRequest.requestedById,
-            subject: 'Shift Request Rejected',
-            body: `Your request to move ${updated.item.itemNumber} from ${updated.fromLab.name} to ${updated.toLab.name} has been rejected.${adminNotes ? ' Reason: ' + adminNotes : ''}`,
-            status: 'pending'
+            title: 'Shift Request Rejected',
+            message: `Your request to move ${updated.item.itemNumber} from ${updated.fromLab.name} to ${updated.toLab.name} has been rejected.${adminNotes ? ' Reason: ' + adminNotes : ''}`,
+            is_read: false
         }
     });
 

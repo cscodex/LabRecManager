@@ -15,7 +15,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     try {
         const where = { userId: req.user.id };
         if (unreadOnly === 'true') {
-            where.status = 'pending'; // Use status field instead of isRead
+            where.is_read = false;
         }
 
         const notifications = await prisma.notification.findMany({
@@ -26,16 +26,20 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
             select: {
                 id: true,
                 userId: true,
-                subject: true,
-                body: true,
-                status: true,
+                title: true,
+                title_hindi: true,
+                message: true,
+                message_hindi: true,
+                type: true,
+                is_read: true,
                 createdAt: true,
-                readAt: true
+                readAt: true,
+                action_url: true
             }
         });
 
         const unreadCount = await prisma.notification.count({
-            where: { userId: req.user.id, status: { in: ['pending', 'sent', 'delivered'] } }
+            where: { userId: req.user.id, is_read: false }
         });
 
         res.json({
@@ -43,7 +47,10 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
             data: {
                 notifications: notifications.map(n => ({
                     ...n,
-                    isRead: n.status === 'read'
+                    // Keep backward compatibility - map fields
+                    subject: n.title,
+                    body: n.message,
+                    isRead: n.is_read
                 })),
                 unreadCount
             }
@@ -69,7 +76,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
 router.get('/unread-count', authenticate, asyncHandler(async (req, res) => {
     try {
         const count = await prisma.notification.count({
-            where: { userId: req.user.id, status: { in: ['pending', 'sent', 'delivered'] } }
+            where: { userId: req.user.id, is_read: false }
         });
 
         res.json({
@@ -97,7 +104,7 @@ router.put('/:id/read', authenticate, asyncHandler(async (req, res) => {
                 userId: req.user.id
             },
             data: {
-                status: 'read',
+                is_read: true,
                 readAt: new Date()
             }
         });
@@ -124,10 +131,10 @@ router.put('/read-all', authenticate, asyncHandler(async (req, res) => {
         await prisma.notification.updateMany({
             where: {
                 userId: req.user.id,
-                status: { in: ['pending', 'sent', 'delivered'] }
+                is_read: false
             },
             data: {
-                status: 'read',
+                is_read: true,
                 readAt: new Date()
             }
         });
