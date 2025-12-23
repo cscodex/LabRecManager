@@ -292,8 +292,15 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
  * @route   GET /api/labs/:id
  * @desc    Get lab by ID with all items
  * @access  Private
+ * @note    Must validate UUID format to avoid matching paths like /shift-requests
  */
-router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+router.get('/:id', authenticate, asyncHandler(async (req, res, next) => {
+    // Skip this route if id doesn't look like a UUID (allows /shift-requests etc to match later)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(req.params.id)) {
+        return next();
+    }
+
     const lab = await prisma.lab.findFirst({
         where: { id: req.params.id, schoolId: req.user.schoolId },
         include: {
