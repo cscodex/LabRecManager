@@ -548,7 +548,7 @@ router.put('/:id', authenticate, authorize('instructor', 'lab_assistant', 'admin
         const updateData = {};
         const allowedFields = [
             'title', 'titleHindi', 'description', 'descriptionHindi',
-            'experimentNumber', 'assignmentType', 'subjectId', 'labId',
+            'experimentNumber', 'assignmentType',
             'aim', 'aimHindi', 'theory', 'theoryHindi', 'procedure', 'procedureHindi',
             'expectedOutput', 'referenceCode', 'programmingLanguage',
             'maxMarks', 'passingMarks', 'vivaMarks', 'practicalMarks', 'outputMarks',
@@ -561,12 +561,20 @@ router.put('/:id', authenticate, authorize('instructor', 'lab_assistant', 'admin
             }
         }
 
-        // Handle date fields specially
+        // Handle relation field (subjectId connects to subject relation)
+        if (req.body.subjectId) {
+            updateData.subject = { connect: { id: req.body.subjectId } };
+        }
+        if (req.body.labId) {
+            updateData.lab = { connect: { id: req.body.labId } };
+        }
+
+        // Handle date fields - use snake_case as per schema
         if (req.body.publishDate) {
-            updateData.publishDate = new Date(req.body.publishDate);
+            updateData.publish_date = new Date(req.body.publishDate);
         }
         if (req.body.dueDate) {
-            updateData.dueDate = new Date(req.body.dueDate);
+            updateData.due_date = new Date(req.body.dueDate);
         }
         updateData.updatedAt = new Date();
 
