@@ -681,32 +681,26 @@ router.post('/shift-requests', authenticate, authorize('admin', 'principal', 'la
  * @access  Private (Admin, Lab Assistant)
  */
 router.get('/shift-requests', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
-    console.log('[GET /labs/shift-requests] Start');
+    console.log('[GET /labs/shift-requests] Start - ultra simple query');
 
     try {
-        // Simplified query - get all shift requests
-        const shiftRequests = await prisma.equipmentShiftRequest.findMany({
-            include: {
-                item: { select: { id: true, itemNumber: true, itemType: true, brand: true, modelNo: true } },
-                fromLab: { select: { id: true, name: true, roomNumber: true } },
-                toLab: { select: { id: true, name: true, roomNumber: true } },
-                requestedBy: { select: { id: true, firstName: true, lastName: true } },
-                approvedBy: { select: { id: true, firstName: true, lastName: true } }
-            },
-            orderBy: { requestedAt: 'desc' }
-        });
+        // Ultra-minimal query - no includes, no filtering
+        const count = await prisma.equipmentShiftRequest.count();
+        console.log('[GET /labs/shift-requests] Count:', count);
 
-        console.log('[GET /labs/shift-requests] Found', shiftRequests.length, 'requests');
+        const shiftRequests = await prisma.equipmentShiftRequest.findMany();
+        console.log('[GET /labs/shift-requests] Found', shiftRequests.length, 'raw requests');
 
         res.json({
             success: true,
             data: { shiftRequests }
         });
     } catch (error) {
-        console.error('[GET /labs/shift-requests] ERROR:', error.message);
+        console.error('[GET /labs/shift-requests] ERROR:', error.message, error.stack);
         res.status(500).json({
             success: false,
-            message: 'Failed to load shift requests: ' + error.message
+            message: 'Failed to load shift requests: ' + error.message,
+            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
         });
     }
 }));
