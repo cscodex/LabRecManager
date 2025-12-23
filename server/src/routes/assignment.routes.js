@@ -450,13 +450,16 @@ router.post('/', authenticate, authorize('instructor', 'lab_assistant', 'admin',
         status
     } = req.body;
 
+    // Use X-Academic-Session header as fallback for academicYearId
+    const sessionId = academicYearId || req.headers['x-academic-session'];
+
     const assignment = await prisma.assignment.create({
         data: {
             schoolId: req.user.schoolId,
             createdById: req.user.id,
             subjectId,
             labId,
-            academicYearId,
+            academicYearId: sessionId,
             title,
             titleHindi,
             titleRegional,
