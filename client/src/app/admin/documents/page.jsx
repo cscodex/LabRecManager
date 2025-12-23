@@ -422,6 +422,26 @@ export default function DocumentsPage() {
                                     <p className="text-sm text-slate-600 mt-3 line-clamp-2">{doc.description}</p>
                                 )}
 
+                                {/* Share info for my documents */}
+                                {activeTab === 'my' && doc.shareCount > 0 && (
+                                    <div className="mt-3 p-2 bg-emerald-50 rounded-lg text-xs">
+                                        <div className="flex items-center gap-1 text-emerald-700 font-medium">
+                                            <Share2 className="w-3 h-3" />
+                                            Shared with {doc.shareCount} recipient{doc.shareCount > 1 ? 's' : ''}
+                                        </div>
+                                        <div className="mt-1 text-emerald-600 flex flex-wrap gap-1">
+                                            {doc.shareInfo?.slice(0, 3).map((share, i) => (
+                                                <span key={share.id} className="inline-flex items-center px-1.5 py-0.5 bg-emerald-100 rounded text-emerald-700">
+                                                    {share.type === 'class' ? '📚' : share.type === 'group' ? '👥' : '👤'} {share.targetName}
+                                                </span>
+                                            ))}
+                                            {doc.shareInfo?.length > 3 && (
+                                                <span className="text-emerald-500">+{doc.shareInfo.length - 3} more</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Shared info for shared tab */}
                                 {shareInfo && (
                                     <div className="mt-3 p-2 bg-blue-50 rounded-lg text-xs text-blue-700">
@@ -478,7 +498,10 @@ export default function DocumentsPage() {
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Type</th>
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Size</th>
                                 {activeTab === 'my' ? (
-                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Category</th>
+                                    <>
+                                        <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Category</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Shared With</th>
+                                    </>
                                 ) : (
                                     <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Shared By</th>
                                 )}
@@ -505,9 +528,20 @@ export default function DocumentsPage() {
                                         <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileType?.toUpperCase()}</td>
                                         <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileSizeFormatted || ''}</td>
                                         {activeTab === 'my' ? (
-                                            <td className="p-3 hidden lg:table-cell">
-                                                {doc.category && <span className="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 capitalize">{doc.category}</span>}
-                                            </td>
+                                            <>
+                                                <td className="p-3 hidden lg:table-cell">
+                                                    {doc.category && <span className="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 capitalize">{doc.category}</span>}
+                                                </td>
+                                                <td className="p-3 hidden lg:table-cell">
+                                                    {doc.shareCount > 0 ? (
+                                                        <span className="text-xs text-emerald-600">
+                                                            {doc.shareCount} recipient{doc.shareCount > 1 ? 's' : ''}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400">—</span>
+                                                    )}
+                                                </td>
+                                            </>
                                         ) : (
                                             <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">
                                                 {shareInfo?.sharedBy?.firstName} {shareInfo?.sharedBy?.lastName}

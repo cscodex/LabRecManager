@@ -80,7 +80,15 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     const documents = await prisma.document.findMany({
         where,
         include: {
-            uploadedBy: { select: { id: true, firstName: true, lastName: true } }
+            uploadedBy: { select: { id: true, firstName: true, lastName: true } },
+            shares: {
+                include: {
+                    targetClass: { select: { id: true, name: true, gradeLevel: true, section: true } },
+                    targetGroup: { select: { id: true, name: true } },
+                    targetUser: { select: { id: true, firstName: true, lastName: true, role: true } }
+                },
+                orderBy: { sharedAt: 'desc' }
+            }
         },
         orderBy: { createdAt: 'desc' }
     });
@@ -90,7 +98,18 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
         data: {
             documents: documents.map(d => ({
                 ...d,
-                fileSizeFormatted: formatSize(d.fileSize)
+                fileSizeFormatted: formatSize(d.fileSize),
+                shareCount: d.shares?.length || 0,
+                shareInfo: d.shares?.map(s => ({
+                    id: s.id,
+                    type: s.targetType,
+                    targetName: s.targetType === 'class'
+                        ? (s.targetClass?.name || `Grade ${s.targetClass?.gradeLevel}-${s.targetClass?.section}`)
+                        : s.targetType === 'group'
+                            ? s.targetGroup?.name
+                            : `${s.targetUser?.firstName} ${s.targetUser?.lastName}`,
+                    sharedAt: s.sharedAt
+                })) || []
             }))
         }
     });
