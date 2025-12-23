@@ -462,10 +462,15 @@ router.post('/bulk', authenticate, authorize('admin', 'principal'), asyncHandler
         }
     }
 
-    // Create profile extras for all created students
+    // Create profile extras for all created students (non-blocking - don't fail import if this fails)
     const createdStudents = results.created.filter(u => (u.role || 'student') === 'student');
     if (createdStudents.length > 0) {
-        await createBulkProfileExtras(createdStudents, req.user.schoolId, req.user.id);
+        try {
+            await createBulkProfileExtras(createdStudents, req.user.schoolId, req.user.id);
+        } catch (profileError) {
+            console.error('Profile extras creation failed (import succeeded):', profileError.message);
+            // Don't throw - import was successful, just profile extras failed
+        }
     }
 
     res.status(201).json({
