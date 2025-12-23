@@ -331,8 +331,7 @@ router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_ass
                     notifications.push({
                         userId: e.studentId,
                         title: 'Document Shared with You',
-                        message: `"${doc.name}" has been shared with your class.`,
-                        status: 'pending'
+                        message: `"${doc.name}" has been shared with your class.`
                     });
                 }
             });
@@ -349,8 +348,7 @@ router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_ass
                     notifications.push({
                         userId: m.studentId,
                         title: 'Document Shared with You',
-                        message: `"${doc.name}" has been shared with your group.`,
-                        status: 'pending'
+                        message: `"${doc.name}" has been shared with your group.`
                     });
                 }
             });
@@ -360,8 +358,7 @@ router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_ass
             notifications.push({
                 userId: target.id,
                 title: 'Document Shared with You',
-                message: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`,
-                status: 'pending'
+                message: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`
             });
         } else if (target.type === 'student') {
             shareData.targetUserId = target.id;
@@ -369,8 +366,7 @@ router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_ass
             notifications.push({
                 userId: target.id,
                 title: 'Document Shared with You',
-                message: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`,
-                status: 'pending'
+                message: `"${doc.name}" has been shared with you by ${req.user.firstName} ${req.user.lastName}.`
             });
         }
 
