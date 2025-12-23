@@ -369,22 +369,32 @@ router.post('/:id/share', authenticate, authorize('admin', 'principal', 'lab_ass
     }
 
     // Create all shares
-    const createdShares = await prisma.documentShare.createMany({
-        data: shares
-    });
+    try {
+        const createdShares = await prisma.documentShare.createMany({
+            data: shares
+        });
 
-    // Create notifications for recipients
-    if (notifications.length > 0) {
-        await prisma.notification.createMany({
-            data: notifications
+        // Create notifications for recipients
+        if (notifications.length > 0) {
+            await prisma.notification.createMany({
+                data: notifications
+            });
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Document shared with ${targets.length} target(s)`,
+            data: { sharesCreated: createdShares.count }
+        });
+    } catch (dbError) {
+        console.error('Document share error:', dbError);
+        console.error('Share data:', JSON.stringify(shares, null, 2));
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to share document. Check if target type is supported.',
+            error: dbError.message
         });
     }
-
-    res.status(201).json({
-        success: true,
-        message: `Document shared with ${targets.length} target(s)`,
-        data: { sharesCreated: createdShares.count }
-    });
 }));
 
 /**
