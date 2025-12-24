@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import AppLayout from './AppLayout';
 import { useThemeStore } from '@/lib/store';
+import WhiteboardNotificationListener from './WhiteboardNotificationListener';
 
 function ThemeInitializer() {
     const { theme, initializeTheme } = useThemeStore();
@@ -43,6 +44,7 @@ export function Providers({ children }) {
             <AppLayout>
                 {children}
             </AppLayout>
+            <WhiteboardNotificationListener />
         </QueryClientProvider>
     );
 }

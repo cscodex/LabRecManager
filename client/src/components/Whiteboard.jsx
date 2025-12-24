@@ -46,8 +46,9 @@ export default function Whiteboard({
     const [startPos, setStartPos] = useState({ x: 0, y: 0 });
     const [currentPos, setCurrentPos] = useState({ x: 0, y: 0 });
 
-    // Canvas dimensions
-    const [canvasSize, setCanvasSize] = useState({ width, height });
+    // Canvas dimensions - keep fixed to prevent content loss
+    const canvasWidth = width;
+    const canvasHeight = height;
 
     // Initialize canvas
     useEffect(() => {
@@ -61,23 +62,6 @@ export default function Whiteboard({
         // Save initial state
         saveToHistory();
     }, []);
-
-    // Handle resize
-    useEffect(() => {
-        const handleResize = () => {
-            if (containerRef.current && isFullscreen) {
-                const rect = containerRef.current.getBoundingClientRect();
-                setCanvasSize({
-                    width: Math.min(rect.width - 32, window.innerWidth - 100),
-                    height: Math.min(rect.height - 100, window.innerHeight - 200)
-                });
-            }
-        };
-
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [isFullscreen]);
 
     // Save current state to history
     const saveToHistory = useCallback(() => {
@@ -571,13 +555,18 @@ export default function Whiteboard({
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 overflow-auto p-4 bg-slate-100 flex items-center justify-center">
+            <div className={`flex-1 overflow-auto p-4 bg-slate-100 flex items-center justify-center ${isFullscreen ? 'h-full' : ''}`}>
                 <canvas
                     ref={canvasRef}
-                    width={isFullscreen ? canvasSize.width : width}
-                    height={isFullscreen ? canvasSize.height : height}
+                    width={canvasWidth}
+                    height={canvasHeight}
                     className="bg-white rounded-lg shadow-lg cursor-crosshair touch-none"
-                    style={{ maxWidth: '100%', maxHeight: '100%' }}
+                    style={{
+                        maxWidth: isFullscreen ? '95vw' : '100%',
+                        maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '100%',
+                        width: isFullscreen ? 'auto' : undefined,
+                        height: isFullscreen ? 'auto' : undefined
+                    }}
                     onMouseDown={startDrawing}
                     onMouseMove={draw}
                     onMouseUp={stopDrawing}
