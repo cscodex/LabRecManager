@@ -31,6 +31,7 @@ export default function SharedDocumentsPage() {
     const [loading, setLoading] = useState(true);
     const [viewingDoc, setViewingDoc] = useState(null);
     const [downloading, setDownloading] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -117,6 +118,20 @@ export default function SharedDocumentsPage() {
                 icon={<Share2 className="w-8 h-8 text-primary-500" />}
             />
 
+            {/* Search Bar */}
+            <div className="mb-6">
+                <div className="relative max-w-md">
+                    <input
+                        type="text"
+                        placeholder="Search documents by name, shared by, or message..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="input pl-10 w-full"
+                    />
+                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                </div>
+            </div>
+
             {loading ? (
                 <div className="text-center py-16 text-slate-500">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-500 border-t-transparent mx-auto mb-4"></div>
@@ -128,136 +143,154 @@ export default function SharedDocumentsPage() {
                     <h3 className="text-xl font-semibold text-slate-700 mb-2">No Documents Shared</h3>
                     <p className="text-slate-500">Documents shared with you by instructors or admins will appear here.</p>
                 </div>
-            ) : (
-                <>
-                    {/* Mobile Card View */}
-                    <div className="md:hidden space-y-3">
-                        {documents.map(item => (
-                            <div key={item.shareId} className="card p-4">
-                                <div className="flex items-start gap-3 mb-3">
-                                    <span className="text-3xl">{getIcon(item)}</span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-slate-900 truncate">{item.document?.name || 'Untitled'}</p>
-                                        <p className="text-sm text-slate-500">
-                                            {item.document?.fileSizeFormatted || '-'} • {item.document?.fileType?.toUpperCase() || 'File'}
-                                        </p>
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            Shared by {item.sharedBy?.firstName} {item.sharedBy?.lastName} • {formatDate(item.sharedAt)}
-                                        </p>
+            ) : (() => {
+                // Filter documents by search query
+                const filteredDocs = documents.filter(item => {
+                    if (!searchQuery.trim()) return true;
+                    const query = searchQuery.toLowerCase();
+                    const docName = item.document?.name?.toLowerCase() || '';
+                    const sharedBy = `${item.sharedBy?.firstName || ''} ${item.sharedBy?.lastName || ''}`.toLowerCase();
+                    const message = item.message?.toLowerCase() || '';
+                    return docName.includes(query) || sharedBy.includes(query) || message.includes(query);
+                });
+
+                return filteredDocs.length === 0 ? (
+                    <div className="card p-12 text-center">
+                        <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-slate-700 mb-2">No Results</h3>
+                        <p className="text-slate-500">No documents match "{searchQuery}"</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Mobile Card View */}
+                        <div className="md:hidden space-y-3">
+                            {filteredDocs.map(item => (
+                                <div key={item.shareId} className="card p-4">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        <span className="text-3xl">{getIcon(item)}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-slate-900 truncate">{item.document?.name || 'Untitled'}</p>
+                                            <p className="text-sm text-slate-500">
+                                                {item.document?.fileSizeFormatted || '-'} • {item.document?.fileType?.toUpperCase() || 'File'}
+                                            </p>
+                                            <p className="text-xs text-slate-400 mt-1">
+                                                Shared by {item.sharedBy?.firstName} {item.sharedBy?.lastName} • {formatDate(item.sharedAt)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleView(item)}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-100 text-blue-600 font-medium"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                            Preview
+                                        </button>
+                                        <button
+                                            onClick={() => handleDownload(item)}
+                                            disabled={downloading === item.shareId}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-100 text-green-600 font-medium disabled:opacity-50"
+                                        >
+                                            {downloading === item.shareId ? (
+                                                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Download className="w-4 h-4" />
+                                            )}
+                                            Download
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleView(item)}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-100 text-blue-600 font-medium"
-                                    >
-                                        <Eye className="w-4 h-4" />
-                                        Preview
-                                    </button>
-                                    <button
-                                        onClick={() => handleDownload(item)}
-                                        disabled={downloading === item.shareId}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-100 text-green-600 font-medium disabled:opacity-50"
-                                    >
-                                        {downloading === item.shareId ? (
-                                            <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                                        ) : (
-                                            <Download className="w-4 h-4" />
-                                        )}
-                                        Download
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
 
-                    {/* Desktop Table View */}
-                    <div className="hidden md:block card overflow-hidden">
-                        <table className="w-full">
-                            <thead className="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="text-left py-3 px-4 font-semibold text-slate-600">Document</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-slate-600">Shared By</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-slate-600">Shared On</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-slate-600">Source</th>
-                                    <th className="text-right py-3 px-4 font-semibold text-slate-600">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {documents.map(item => (
-                                    <tr key={item.shareId} className="hover:bg-slate-50 transition">
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-2xl">{getIcon(item)}</span>
-                                                <div>
-                                                    <p className="font-medium text-slate-900">{item.document?.name || 'Untitled'}</p>
-                                                    <p className="text-sm text-slate-500">
-                                                        {item.document?.fileSizeFormatted || '-'} • {item.document?.fileType?.toUpperCase() || 'File'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center gap-2">
-                                                <User className="w-4 h-4 text-slate-400" />
-                                                <span className="text-slate-700">
-                                                    {item.sharedBy?.firstName} {item.sharedBy?.lastName}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="w-4 h-4 text-slate-400" />
-                                                <span className="text-slate-600">{formatDate(item.sharedAt)}</span>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            {item.targetClass ? (
-                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs">
-                                                    Class: {item.targetClass.name}
-                                                </span>
-                                            ) : item.targetGroup ? (
-                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs">
-                                                    Group: {item.targetGroup.name}
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs">
-                                                    Direct
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="py-4 px-4 text-right">
-                                            <div className="flex items-center gap-2 justify-end">
-                                                <button
-                                                    onClick={() => handleView(item)}
-                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 transition font-medium text-sm"
-                                                    title="Preview"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                    Preview
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDownload(item)}
-                                                    disabled={downloading === item.shareId}
-                                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-100 hover:bg-green-200 text-green-600 transition font-medium text-sm disabled:opacity-50"
-                                                    title="Download"
-                                                >
-                                                    {downloading === item.shareId ? (
-                                                        <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                                                    ) : (
-                                                        <Download className="w-4 h-4" />
-                                                    )}
-                                                    Download
-                                                </button>
-                                            </div>
-                                        </td>
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block card overflow-hidden">
+                            <table className="w-full">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                    <tr>
+                                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Document</th>
+                                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Shared By</th>
+                                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Shared On</th>
+                                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Source</th>
+                                        <th className="text-right py-3 px-4 font-semibold text-slate-600">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
-            )}
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {filteredDocs.map(item => (
+                                        <tr key={item.shareId} className="hover:bg-slate-50 transition">
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-2xl">{getIcon(item)}</span>
+                                                    <div>
+                                                        <p className="font-medium text-slate-900">{item.document?.name || 'Untitled'}</p>
+                                                        <p className="text-sm text-slate-500">
+                                                            {item.document?.fileSizeFormatted || '-'} • {item.document?.fileType?.toUpperCase() || 'File'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <User className="w-4 h-4 text-slate-400" />
+                                                    <span className="text-slate-700">
+                                                        {item.sharedBy?.firstName} {item.sharedBy?.lastName}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <Clock className="w-4 h-4 text-slate-400" />
+                                                    <span className="text-slate-600">{formatDate(item.sharedAt)}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                {item.targetClass ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs">
+                                                        Class: {item.targetClass.name}
+                                                    </span>
+                                                ) : item.targetGroup ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs">
+                                                        Group: {item.targetGroup.name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs">
+                                                        Direct
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="py-4 px-4 text-right">
+                                                <div className="flex items-center gap-2 justify-end">
+                                                    <button
+                                                        onClick={() => handleView(item)}
+                                                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 transition font-medium text-sm"
+                                                        title="Preview"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                        Preview
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDownload(item)}
+                                                        disabled={downloading === item.shareId}
+                                                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-100 hover:bg-green-200 text-green-600 transition font-medium text-sm disabled:opacity-50"
+                                                        title="Download"
+                                                    >
+                                                        {downloading === item.shareId ? (
+                                                            <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <Download className="w-4 h-4" />
+                                                        )}
+                                                        Download
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                );
+            })()}
 
             {/* Document Preview Modal */}
             {viewingDoc && (

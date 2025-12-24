@@ -27,13 +27,32 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
                 }
             }),
             prisma.submission.count({ where: { studentId: userId } }),
-            prisma.vivaSession.count({ where: { studentId: userId, status: { in: ['scheduled', 'in_progress'] } } })
+            prisma.vivaSession.count({ where: { studentId: userId, status: { in: ['scheduled', 'in_progress'] } } }),
+            // Get grades for avg score calculation
+            prisma.grade.findMany({
+                where: {
+                    submission: { studentId: userId },
+                    isPublished: true
+                },
+                select: { finalMarks: true, maxMarks: true }
+            })
         ]);
+
+        // Calculate average score percentage
+        let avgScore = null;
+        if (grades.length > 0) {
+            const totalMarks = grades.reduce((sum, g) => sum + (g.finalMarks || 0), 0);
+            const totalMax = grades.reduce((sum, g) => sum + (g.maxMarks || 100), 0);
+            avgScore = totalMax > 0 ? Math.round((totalMarks / totalMax) * 100) : 0;
+        }
+
         stats = {
             assignedToMe: assignedCount,
             mySubmissions: submissionCount,
             pendingVivas,
-            completedVivas: await prisma.vivaSession.count({ where: { studentId: userId, status: 'completed' } })
+            completedVivas: await prisma.vivaSession.count({ where: { studentId: userId, status: 'completed' } }),
+            avgScore,
+            totalGrades: grades.length
         };
     } else if (role === 'instructor' || role === 'lab_assistant') {
         const [assignmentCount, pendingGrading, scheduledVivas, totalStudents] = await Promise.all([
@@ -137,14 +156,46 @@ router.get('/deadlines', authenticate, asyncHandler(async (req, res) => {
         }
     });
 
-    // Format the response to match expected format
-    const upcomingDeadlines = targets.map(t => ({
-        id: t.assignment.id,
-        title: t.assignment.title,
-        titleHindi: t.assignment.titleHindi,
-        dueDate: t.dueDate,
-        subject: t.assignment.subject
-    }));
+    // For students, get their submissions to check completion status
+    let studentSubmissions = [];
+    if (role === 'student') {
+        const assignmentIds = [...new Set(targets.map(t => t.assignment.id))];
+        studentSubmissions = await prisma.submission.findMany({
+            where: {
+                studentId: userId,
+                assignmentId: { in: assignmentIds }
+            },
+            select: {
+                assignmentId: true,
+                status: true,
+                grade: { select: { finalMarks: true, isPublished: true } }
+            }
+        });
+    }
+
+    // Format the response to match expected format with status
+    const submissionMap = new Map(studentSubmissions.map(s => [s.assignmentId, s]));
+
+    const upcomingDeadlines = targets.map(t => {
+        const submission = submissionMap.get(t.assignment.id);
+        let status = 'pending';
+        if (submission) {
+            if (submission.grade?.isPublished) status = 'graded';
+            else if (submission.status === 'submitted' || submission.status === 'under_review') status = 'submitted';
+            else if (submission.status === 'needs_revision') status = 'needs_revision';
+            else status = 'in_progress';
+        }
+        return {
+            id: t.assignment.id,
+            title: t.assignment.title,
+            titleHindi: t.assignment.titleHindi,
+            dueDate: t.dueDate,
+            subject: t.assignment.subject,
+            status,
+            isCompleted: ['submitted', 'graded', 'under_review'].includes(status),
+            grade: submission?.grade
+        };
+    });
 
     res.json({ success: true, data: { upcomingDeadlines } });
 }));

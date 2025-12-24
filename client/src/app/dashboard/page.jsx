@@ -85,7 +85,7 @@ export default function DashboardPage() {
                         <StatCard icon={FileText} label="Assigned to Me" value={stats.assignedToMe || 0} color="bg-primary-500" />
                         <StatCard icon={Upload} label="My Submissions" value={stats.mySubmissions || 0} color="bg-emerald-500" />
                         <StatCard icon={Video} label="Pending Vivas" value={stats.pendingVivas || 0} color="bg-amber-500" />
-                        <StatCard icon={Award} label="Avg. Score" value="--" color="bg-accent-500" />
+                        <StatCard icon={Award} label="Avg. Score" value={stats.avgScore !== null ? `${stats.avgScore}%` : '--'} color="bg-accent-500" trend={stats.totalGrades > 0 ? `${stats.totalGrades} graded` : null} />
                     </>
                 )}
                 {(user?.role === 'instructor' || user?.role === 'lab_assistant') && (
@@ -255,25 +255,55 @@ export default function DashboardPage() {
                             <p>No upcoming deadlines</p>
                         </div>
                     ) : (
-                        deadlines.slice(0, 5).map((item, i) => (
-                            <Link key={i} href={`/assignments/${item.id}`} className="p-4 flex items-center justify-between hover:bg-slate-50 transition block">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                                        <FileText className="w-5 h-5 text-primary-600" />
+                        deadlines.slice(0, 5).map((item, i) => {
+                            const dueDate = new Date(item.dueDate);
+                            const now = new Date();
+                            const timeLeft = dueDate - now;
+                            const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+                            const daysLeft = Math.floor(hoursLeft / 24);
+                            const timeLeftText = daysLeft > 0 ? `${daysLeft}d ${hoursLeft % 24}h left` : hoursLeft > 0 ? `${hoursLeft}h left` : 'Due soon!';
+
+                            const statusColors = {
+                                graded: 'bg-emerald-100 text-emerald-700',
+                                submitted: 'bg-blue-100 text-blue-700',
+                                needs_revision: 'bg-amber-100 text-amber-700',
+                                pending: 'bg-slate-100 text-slate-600'
+                            };
+                            const statusLabels = {
+                                graded: '✓ Graded',
+                                submitted: '✓ Submitted',
+                                needs_revision: '! Revision',
+                                pending: 'Pending'
+                            };
+
+                            return (
+                                <Link key={i} href={`/assignments/${item.id}`} className={`p-4 flex items-center justify-between hover:bg-slate-50 transition block ${item.isCompleted ? 'border-l-4 border-emerald-500' : ''}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.isCompleted ? 'bg-emerald-100' : 'bg-primary-100'}`}>
+                                            {item.isCompleted ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <FileText className="w-5 h-5 text-primary-600" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-slate-900">{item.title}</p>
+                                            <p className="text-sm text-slate-500">{item.subject?.name}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-medium text-slate-900">{item.title}</p>
-                                        <p className="text-sm text-slate-500">{item.subject?.name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs px-2 py-1 rounded-full ${statusColors[item.status] || statusColors.pending}`}>
+                                            {statusLabels[item.status] || 'Pending'}
+                                        </span>
+                                        <div className="text-right">
+                                            <span className="badge badge-warning text-xs">
+                                                {dueDate.toLocaleDateString()}
+                                            </span>
+                                            <p className={`text-xs mt-0.5 ${hoursLeft < 24 ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
+                                                {timeLeftText}
+                                            </p>
+                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-slate-400" />
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="badge badge-warning">
-                                        {new Date(item.dueDate).toLocaleDateString()}
-                                    </span>
-                                    <ChevronRight className="w-5 h-5 text-slate-400" />
-                                </div>
-                            </Link>
-                        ))
+                                </Link>
+                            );
+                        })
                     )}
                 </div>
             </div>
