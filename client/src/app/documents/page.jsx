@@ -48,7 +48,8 @@ export default function SharedDocumentsPage() {
             setDocuments(res.data.data.documents || []);
         } catch (err) {
             console.error('Failed to load shared documents:', err);
-            toast.error('Failed to load documents');
+            const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+            toast.error(`Failed to load documents: ${errorMessage}`);
         } finally {
             setLoading(false);
         }
