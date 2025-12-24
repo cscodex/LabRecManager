@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -38,6 +38,11 @@ export default function LabsPage() {
     // Delete confirmation state
     const [deleteDialog, setDeleteDialog] = useState({ open: false, lab: null });
     const [deleteLoading, setDeleteLoading] = useState(false);
+
+    // Maintenance modal state
+    const [maintenanceModal, setMaintenanceModal] = useState({ open: false, lab: null });
+    const [maintenanceData, setMaintenanceData] = useState({ reason: '', endDate: '' });
+    const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -104,6 +109,33 @@ export default function LabsPage() {
         } finally {
             setDeleteLoading(false);
             setDeleteDialog({ open: false, lab: null });
+        }
+    };
+
+    const handleMaintenanceToggle = (lab) => {
+        setMaintenanceModal({ open: true, lab });
+        setMaintenanceData({
+            reason: lab.maintenanceReason || '',
+            endDate: lab.maintenanceEndDate ? new Date(lab.maintenanceEndDate).toISOString().split('T')[0] : ''
+        });
+    };
+
+    const submitMaintenanceStatus = async (newStatus) => {
+        if (!maintenanceModal.lab) return;
+        setMaintenanceLoading(true);
+        try {
+            await labsAPI.updateStatus(maintenanceModal.lab.id, {
+                status: newStatus,
+                maintenanceReason: maintenanceData.reason,
+                maintenanceEndDate: maintenanceData.endDate || null
+            });
+            toast.success(newStatus === 'maintenance' ? 'Lab set to maintenance mode' : 'Lab activated');
+            setMaintenanceModal({ open: false, lab: null });
+            loadLabs();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to update status');
+        } finally {
+            setMaintenanceLoading(false);
         }
     };
 
@@ -178,12 +210,15 @@ export default function LabsPage() {
                 ) : (
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredLabs.map((lab) => (
-                            <div key={lab.id} className="card p-6 hover:shadow-lg transition">
+                            <div key={lab.id} className={`card p-6 hover:shadow-lg transition ${lab.status === 'maintenance' ? 'border-l-4 border-amber-500 bg-amber-50/50' : lab.status === 'closed' ? 'border-l-4 border-red-500 bg-red-50/50' : ''}`}>
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white">
                                         <Monitor className="w-6 h-6" />
                                     </div>
                                     <div className="flex gap-1">
+                                        <button onClick={() => handleMaintenanceToggle(lab)} className={`p-2 rounded ${lab.status === 'maintenance' ? 'text-amber-600 bg-amber-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`} title="Set Maintenance">
+                                            <Wrench className="w-4 h-4" />
+                                        </button>
                                         <button onClick={() => handleEdit(lab)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
                                             <Edit2 className="w-4 h-4" />
                                         </button>
@@ -192,6 +227,14 @@ export default function LabsPage() {
                                         </button>
                                     </div>
                                 </div>
+                                {/* Status Badge */}
+                                {lab.status && lab.status !== 'active' && (
+                                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs mb-2 ${lab.status === 'maintenance' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                        {lab.status === 'maintenance' ? <Wrench className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                        {lab.status.charAt(0).toUpperCase() + lab.status.slice(1)}
+                                        {lab.maintenanceReason && <span className="ml-1">• {lab.maintenanceReason}</span>}
+                                    </div>
+                                )}
                                 <h3 className="text-lg font-semibold text-slate-900 mb-1">{lab.name}</h3>
                                 {lab.nameHindi && <p className="text-sm text-slate-500 mb-2">{lab.nameHindi}</p>}
                                 <div className="flex items-center gap-4 text-sm text-slate-600 mb-4">
@@ -318,6 +361,84 @@ export default function LabsPage() {
                 type="danger"
                 loading={deleteLoading}
             />
+
+            {/* Maintenance Modal */}
+            {maintenanceModal.open && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-slate-900">
+                                {maintenanceModal.lab?.status === 'maintenance' ? 'Lab Maintenance' : 'Set Maintenance Mode'}
+                            </h3>
+                            <button onClick={() => setMaintenanceModal({ open: false, lab: null })} className="p-2 hover:bg-slate-100 rounded-lg">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-600">
+                                Lab: <span className="font-semibold">{maintenanceModal.lab?.name}</span>
+                                {maintenanceModal.lab?.status === 'maintenance' && (
+                                    <span className="ml-2 text-amber-600">(Currently in maintenance)</span>
+                                )}
+                            </p>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Maintenance</label>
+                                <input
+                                    type="text"
+                                    value={maintenanceData.reason}
+                                    onChange={(e) => setMaintenanceData({ ...maintenanceData, reason: e.target.value })}
+                                    className="input"
+                                    placeholder="e.g., Deep cleaning, Renovation, Electrical work"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Expected End Date (Optional)</label>
+                                <input
+                                    type="date"
+                                    value={maintenanceData.endDate}
+                                    onChange={(e) => setMaintenanceData({ ...maintenanceData, endDate: e.target.value })}
+                                    className="input"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                {maintenanceModal.lab?.status === 'maintenance' ? (
+                                    <>
+                                        <button
+                                            onClick={() => submitMaintenanceStatus('active')}
+                                            disabled={maintenanceLoading}
+                                            className="btn btn-primary flex-1 gap-2"
+                                        >
+                                            <CheckCircle className="w-4 h-4" /> Activate Lab
+                                        </button>
+                                        <button
+                                            onClick={() => setMaintenanceModal({ open: false, lab: null })}
+                                            className="btn btn-secondary flex-1"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={() => submitMaintenanceStatus('maintenance')}
+                                            disabled={maintenanceLoading || !maintenanceData.reason}
+                                            className="btn btn-warning flex-1 gap-2"
+                                        >
+                                            <Wrench className="w-4 h-4" /> Set Maintenance
+                                        </button>
+                                        <button
+                                            onClick={() => setMaintenanceModal({ open: false, lab: null })}
+                                            className="btn btn-secondary flex-1"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

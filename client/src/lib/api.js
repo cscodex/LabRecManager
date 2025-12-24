@@ -232,6 +232,7 @@ export const labsAPI = {
     getById: (id) => api.get(`/labs/${id}`),
     create: (data) => api.post('/labs', data),
     update: (id, data) => api.put(`/labs/${id}`, data),
+    updateStatus: (id, data) => api.put(`/labs/${id}/status`, data),
     delete: (id) => api.delete(`/labs/${id}`),
     // Item types
     getItemTypes: () => api.get('/labs/item-types'),
