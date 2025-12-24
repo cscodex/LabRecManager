@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -43,6 +43,11 @@ export default function LabsPage() {
     const [maintenanceModal, setMaintenanceModal] = useState({ open: false, lab: null });
     const [maintenanceData, setMaintenanceData] = useState({ reason: '', endDate: '' });
     const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+
+    // Maintenance history modal
+    const [historyModal, setHistoryModal] = useState({ open: false, lab: null });
+    const [maintenanceHistory, setMaintenanceHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -139,6 +144,20 @@ export default function LabsPage() {
         }
     };
 
+    const loadMaintenanceHistory = async (lab) => {
+        setHistoryModal({ open: true, lab });
+        setHistoryLoading(true);
+        try {
+            const res = await labsAPI.getMaintenanceHistory(lab.id);
+            setMaintenanceHistory(res.data.data.history || []);
+        } catch (error) {
+            toast.error('Failed to load maintenance history');
+            setMaintenanceHistory([]);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     const filteredLabs = labs.filter(l =>
         l.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         l.roomNumber?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -218,6 +237,9 @@ export default function LabsPage() {
                                     <div className="flex gap-1">
                                         <button onClick={() => handleMaintenanceToggle(lab)} className={`p-2 rounded ${lab.status === 'maintenance' ? 'text-amber-600 bg-amber-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`} title="Set Maintenance">
                                             <Wrench className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => loadMaintenanceHistory(lab)} className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="View History">
+                                            <Clock className="w-4 h-4" />
                                         </button>
                                         <button onClick={() => handleEdit(lab)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
                                             <Edit2 className="w-4 h-4" />
@@ -435,6 +457,68 @@ export default function LabsPage() {
                                     </>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Maintenance History Modal */}
+            {historyModal.open && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">Maintenance History</h3>
+                                <p className="text-sm text-slate-500">{historyModal.lab?.name}</p>
+                            </div>
+                            <button onClick={() => setHistoryModal({ open: false, lab: null })} className="p-2 hover:bg-slate-100 rounded-lg">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto max-h-[60vh]">
+                            {historyLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full"></div>
+                                </div>
+                            ) : maintenanceHistory.length === 0 ? (
+                                <div className="text-center py-8 text-slate-500">
+                                    <Clock className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                                    <p>No maintenance history yet</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {maintenanceHistory.map((entry) => (
+                                        <div key={entry.id} className="border-l-4 border-purple-500 pl-4 py-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.action === 'started' ? 'bg-amber-100 text-amber-700' :
+                                                        entry.action === 'ended' ? 'bg-emerald-100 text-emerald-700' :
+                                                            'bg-purple-100 text-purple-700'
+                                                    }`}>
+                                                    {entry.action.toUpperCase()}
+                                                </span>
+                                                <span className="text-xs text-slate-400">
+                                                    {entry.previousStatus} → {entry.newStatus}
+                                                </span>
+                                            </div>
+                                            {entry.reason && (
+                                                <p className="text-sm text-slate-700 mb-1">Reason: {entry.reason}</p>
+                                            )}
+                                            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                                                <span>📅 {new Date(entry.createdAt).toLocaleString('en-IN', {
+                                                    day: 'numeric', month: 'short', year: 'numeric',
+                                                    hour: '2-digit', minute: '2-digit'
+                                                })}</span>
+                                                {entry.expectedEndDate && (
+                                                    <span>⏰ Expected: {new Date(entry.expectedEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                                                )}
+                                                {entry.performedBy && (
+                                                    <span>👤 {entry.performedBy.firstName} {entry.performedBy.lastName}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
