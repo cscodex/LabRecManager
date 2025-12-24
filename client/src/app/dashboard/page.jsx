@@ -121,7 +121,7 @@ export default function DashboardPage() {
                         <StatCard icon={Users} label="Total Users" value={stats.totalUsers || 0} color="bg-primary-500" />
                         <StatCard icon={BookOpen} label="Total Classes" value={stats.totalClasses || 0} color="bg-emerald-500" />
                         <StatCard icon={FileText} label="Assignments" value={stats.totalAssignments || 0} color="bg-amber-500" />
-                        <StatCard icon={TrendingUp} label="Active Labs" value="--" color="bg-accent-500" />
+                        <StatCard icon={TrendingUp} label="Active Labs" value={stats.activeLabs ?? '--'} color="bg-accent-500" trend={stats.maintenanceLabs > 0 ? `${stats.maintenanceLabs} maintenance` : null} />
                     </>
                 )}
             </div>

@@ -198,8 +198,17 @@ export default function AssignmentCalendar() {
                                                 {item.status.replace('_', ' ')}
                                             </span>
                                         </div>
+                                        <div className="mt-2 text-xs text-slate-500 space-y-0.5">
+                                            <p>📅 Due: {new Date(item.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                            {item.submittedAt && (
+                                                <p className="text-blue-600">📤 Submitted: {new Date(item.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                            )}
+                                            {item.gradedAt && (
+                                                <p className="text-emerald-600">✓ Graded: {new Date(item.gradedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                            )}
+                                        </div>
                                         {item.grade?.isPublished && (
-                                            <p className="text-xs text-emerald-600 mt-1">
+                                            <p className="text-xs text-emerald-600 mt-1 font-semibold">
                                                 Score: {item.grade.finalMarks}/{item.grade.maxMarks}
                                             </p>
                                         )}

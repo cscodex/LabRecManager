@@ -85,14 +85,16 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
         };
     } else {
         // Admin/Principal - school-wide stats
-        const [totalUsers, totalStudents, totalInstructors, totalClasses, totalAssignments, totalSubmissions, totalVivas] = await Promise.all([
+        const [totalUsers, totalStudents, totalInstructors, totalClasses, totalAssignments, totalSubmissions, totalVivas, activeLabs, maintenanceLabs] = await Promise.all([
             prisma.user.count({ where: { schoolId, isActive: true } }),
             prisma.user.count({ where: { schoolId, role: 'student', isActive: true } }),
             prisma.user.count({ where: { schoolId, role: 'instructor', isActive: true } }),
             prisma.class.count({ where: { schoolId } }),
             prisma.assignment.count(),
             prisma.submission.count(),
-            prisma.vivaSession.count()
+            prisma.vivaSession.count(),
+            prisma.lab.count({ where: { schoolId, status: 'active' } }),
+            prisma.lab.count({ where: { schoolId, status: 'maintenance' } })
         ]);
         stats = {
             totalUsers,
@@ -102,6 +104,8 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
             totalAssignments,
             totalSubmissions,
             totalVivas,
+            activeLabs,
+            maintenanceLabs,
             pendingGrading: await prisma.submission.count({ where: { status: { in: ['submitted', 'under_review'] } } })
         };
     }
@@ -255,7 +259,8 @@ router.get('/calendar', authenticate, asyncHandler(async (req, res) => {
             select: {
                 assignmentId: true,
                 status: true,
-                grade: { select: { finalMarks: true, maxMarks: true, isPublished: true } }
+                submittedAt: true,
+                grade: { select: { finalMarks: true, maxMarks: true, isPublished: true, gradedAt: true } }
             }
         });
     }
@@ -283,6 +288,8 @@ router.get('/calendar', authenticate, asyncHandler(async (req, res) => {
             title: t.assignment.title,
             titleHindi: t.assignment.titleHindi,
             dueDate: t.dueDate,
+            submittedAt: submission?.submittedAt,
+            gradedAt: submission?.grade?.gradedAt,
             subject: t.assignment.subject,
             status,
             isPast,
