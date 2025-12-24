@@ -6,36 +6,33 @@ import { usePathname } from 'next/navigation';
 import {
     Home, BookOpen, FileText, Award, Users, GraduationCap,
     Video, BarChart3, Settings, LogOut, Menu, X, ChevronLeft,
-    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen
+    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 
 const navItems = {
     admin: [
         { href: '/dashboard', label: 'Dashboard', labelHindi: 'डैशबोर्ड', icon: Home },
-        { href: '/admin/students', label: 'Manage Students', labelHindi: 'छात्र प्रबंधन', icon: UserPlus },
         { href: '/classes', label: 'Classes', labelHindi: 'कक्षाएं', icon: Users },
-        { href: '/users', label: 'Users', labelHindi: 'उपयोगकर्ता', icon: GraduationCap },
+        { href: '/admin/users', label: 'Manage Users', labelHindi: 'उपयोगकर्ता प्रबंधन', icon: UserPlus },
         { href: '/admin/labs', label: 'Labs & PCs', labelHindi: 'लैब और पीसी', icon: Monitor },
-        { href: '/admin/documents', label: 'Documents', labelHindi: 'दस्तावेज़', icon: FolderOpen },
         { href: '/assignments', label: 'Assignments', labelHindi: 'असाइनमेंट', icon: BookOpen },
         { href: '/assigned-work', label: 'Assigned Work', labelHindi: 'सौंपा गया कार्य', icon: ListChecks },
-        { href: '/submissions', label: 'Submissions', labelHindi: 'प्रस्तुतियाँ', icon: FileText },
+        { href: '/submissions', label: 'Submissions', labelHindi: 'प्रस्तुतियाँ', icon: ClipboardList },
+        { href: '/admin/documents', label: 'Documents', labelHindi: 'दस्तावेज़', icon: FolderOpen },
         { href: '/grades', label: 'Grades', labelHindi: 'ग्रेड', icon: Award },
-        { href: '/viva', label: 'Viva', labelHindi: 'मौखिक परीक्षा', icon: Video },
+        { href: '/viva', label: 'Viva', labelHindi: 'मौखिक', icon: Video },
+        { href: '/whiteboard', label: 'Whiteboard', labelHindi: 'व्हाइटबोर्ड', icon: Pencil },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
     principal: [
         { href: '/dashboard', label: 'Dashboard', labelHindi: 'डैशबोर्ड', icon: Home },
-        { href: '/admin/students', label: 'Manage Students', labelHindi: 'छात्र प्रबंधन', icon: UserPlus },
         { href: '/classes', label: 'Classes', labelHindi: 'कक्षाएं', icon: Users },
-        { href: '/users', label: 'Users', labelHindi: 'उपयोगकर्ता', icon: GraduationCap },
+        { href: '/admin/users', label: 'Manage Users', labelHindi: 'उपयोगकर्ता प्रबंधन', icon: UserPlus },
         { href: '/admin/documents', label: 'Documents', labelHindi: 'दस्तावेज़', icon: FolderOpen },
-        { href: '/assignments', label: 'Assignments', labelHindi: 'असाइनमेंट', icon: BookOpen },
-        { href: '/assigned-work', label: 'Assigned Work', labelHindi: 'सौंपा गया कार्य', icon: ListChecks },
-        { href: '/viva', label: 'Viva', labelHindi: 'मौखिक परीक्षा', icon: Video },
+        { href: '/grades', label: 'Grades', labelHindi: 'ग्रेड', icon: Award },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
@@ -49,6 +46,7 @@ const navItems = {
         { href: '/documents', label: 'Shared Docs', labelHindi: 'साझा दस्तावेज़', icon: FolderOpen },
         { href: '/grades', label: 'Grades', labelHindi: 'ग्रेड', icon: Award },
         { href: '/viva', label: 'Viva', labelHindi: 'मौखिक', icon: Video },
+        { href: '/whiteboard', label: 'Whiteboard', labelHindi: 'व्हाइटबोर्ड', icon: Pencil },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
@@ -71,6 +69,7 @@ const navItems = {
         { href: '/documents', label: 'Shared Docs', labelHindi: 'साझा दस्तावेज़', icon: FolderOpen },
         { href: '/grades', label: 'My Grades', labelHindi: 'मेरे ग्रेड', icon: Award },
         { href: '/viva', label: 'Viva', labelHindi: 'मौखिक', icon: Video },
+        { href: '/live-board', label: 'Live Board', labelHindi: 'लाइव बोर्ड', icon: Pencil },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
 };

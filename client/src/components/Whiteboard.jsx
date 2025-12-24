@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 
 const COLORS = [
-    '#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e',
-    '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'
+    '#000000', '#1e293b', '#475569',
+    '#ef4444', '#f97316', '#eab308',
+    '#22c55e', '#3b82f6', '#8b5cf6',
+    '#ec4899', '#ffffff', '#94a3b8'
 ];
 
 const STROKE_WIDTHS = [2, 4, 6, 8, 12];
@@ -353,7 +355,6 @@ export default function Whiteboard({
     }, [getBlob]);
 
     const tools = [
-        { id: 'select', icon: MousePointer2, label: 'Select' },
         { id: 'pen', icon: Pencil, label: 'Pen' },
         { id: 'eraser', icon: Eraser, label: 'Eraser' },
         { id: 'line', icon: Minus, label: 'Line' },
@@ -361,6 +362,12 @@ export default function Whiteboard({
         { id: 'circle', icon: Circle, label: 'Circle' },
         { id: 'text', icon: Type, label: 'Text' },
     ];
+
+    // Get cursor based on tool
+    const getCursor = () => {
+        if (tool === 'eraser') return `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="${strokeWidth * 2}" height="${strokeWidth * 2}" viewBox="0 0 ${strokeWidth * 2} ${strokeWidth * 2}"><rect width="${strokeWidth * 2}" height="${strokeWidth * 2}" fill="white" stroke="black" stroke-width="1"/></svg>') ${strokeWidth} ${strokeWidth}, auto`;
+        return 'crosshair';
+    };
 
     return (
         <div
@@ -622,7 +629,7 @@ export default function Whiteboard({
                     ref={canvasRef}
                     width={canvasWidth}
                     height={canvasHeight}
-                    className="rounded-lg shadow-lg cursor-crosshair touch-none"
+                    className="rounded-lg shadow-lg touch-none"
                     style={{
                         maxWidth: isFullscreen ? '95vw' : '100%',
                         maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '100%',
@@ -636,7 +643,10 @@ export default function Whiteboard({
                                 : bgPattern === 'lined'
                                     ? 'linear-gradient(#e5e5e5 1px, transparent 1px)'
                                     : 'none',
-                        backgroundSize: bgPattern === 'dotted' ? '20px 20px' : bgPattern === 'grid' ? '20px 20px' : '100% 25px'
+                        backgroundSize: bgPattern === 'dotted' ? '20px 20px' : bgPattern === 'grid' ? '20px 20px' : '100% 25px',
+                        cursor: getCursor(),
+                        border: '2px solid #e2e8f0',
+                        outline: '1px solid #cbd5e1'
                     }}
                     onMouseDown={startDrawing}
                     onMouseMove={draw}
