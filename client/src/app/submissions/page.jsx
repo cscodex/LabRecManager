@@ -41,7 +41,9 @@ export default function SubmissionsPage() {
             }
             setSubmissions(res.data.data.submissions || []);
         } catch (error) {
-            toast.error('Failed to load submissions');
+            console.error('Failed to load submissions:', error);
+            const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+            toast.error(`Failed to load submissions: ${errorMessage}`);
         } finally {
             setLoading(false);
         }
