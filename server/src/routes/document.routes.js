@@ -483,11 +483,12 @@ router.get('/shared', authenticate, asyncHandler(async (req, res) => {
             if (groupIds.length > 0) {
                 orConditions.push({ targetType: 'group', targetGroupId: { in: groupIds } });
             }
-            // Direct user shares for students
-            orConditions.push({ targetType: 'user', targetUserId: userId });
+            // Direct user shares for students - enum value is 'student'
+            orConditions.push({ targetType: 'student', targetUserId: userId });
         } else {
-            // For non-students (instructors, admins), show documents they shared OR were shared with them directly
-            orConditions.push({ targetType: 'user', targetUserId: userId });
+            // For non-students, use their role as targetType
+            const targetTypeForUser = userRole; // 'instructor', 'admin', etc.
+            orConditions.push({ targetType: targetTypeForUser, targetUserId: userId });
             orConditions.push({ sharedById: userId });
         }
 
