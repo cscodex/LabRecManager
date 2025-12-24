@@ -187,23 +187,25 @@ export default function SharedDocumentsPage() {
                                             {/* View/Preview Button */}
                                             <button
                                                 onClick={() => handleView(item)}
-                                                className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+                                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 transition font-medium text-sm"
                                                 title={canPreview(item.document) ? "Preview" : "View"}
                                             >
                                                 <Eye className="w-4 h-4" />
+                                                <span className="hidden sm:inline">Preview</span>
                                             </button>
                                             {/* Download Button */}
                                             <button
                                                 onClick={() => handleDownload(item)}
                                                 disabled={downloading === item.shareId}
-                                                className="p-2 rounded-lg bg-primary-100 hover:bg-primary-200 text-primary-600 transition disabled:opacity-50"
+                                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-100 hover:bg-green-200 text-green-600 transition font-medium text-sm disabled:opacity-50"
                                                 title="Download"
                                             >
                                                 {downloading === item.shareId ? (
-                                                    <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                                                    <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
                                                 ) : (
                                                     <Download className="w-4 h-4" />
                                                 )}
+                                                <span className="hidden sm:inline">Download</span>
                                             </button>
                                         </div>
                                     </td>
