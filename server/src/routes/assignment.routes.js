@@ -853,9 +853,8 @@ router.put('/targets/:targetId', authenticate, authorize('instructor', 'lab_assi
                 where: { id: targetId },
                 data: safeUpdateData,
                 include: {
-                    targetClass: { select: { id: true, name: true, gradeLevel: true, section: true } },
                     targetGroup: { select: { id: true, name: true } },
-                    targetStudent: { select: { id: true, firstName: true, lastName: true, studentId: true } }
+                    assignment: { select: { id: true, title: true } }
                 }
             });
 
@@ -879,9 +878,8 @@ router.put('/targets/:targetId', authenticate, authorize('instructor', 'lab_assi
                     where: { id: targetId },
                     data: safeUpdateData,
                     include: {
-                        targetClass: { select: { id: true, name: true, gradeLevel: true, section: true } },
                         targetGroup: { select: { id: true, name: true } },
-                        targetStudent: { select: { id: true, firstName: true, lastName: true, studentId: true } }
+                        assignment: { select: { id: true, title: true } }
                     }
                 });
 
