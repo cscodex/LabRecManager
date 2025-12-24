@@ -1,7 +1,7 @@
 const express = require('express');
 const { prisma } = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const asyncHandler = require('../utils/asyncHandler');
+const { asyncHandler } = require('../middleware/errorHandler');
 
 const router = express.Router();
 
