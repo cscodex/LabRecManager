@@ -75,8 +75,18 @@ export default function DashboardPage() {
         <div className="p-4 lg:p-6 space-y-6">
             {/* Welcome banner */}
             <div className="card p-6 bg-gradient-to-r from-primary-500 to-accent-500 text-white">
-                <h2 className="text-2xl font-bold">Welcome back, {user?.firstName}! 👋</h2>
-                <p className="text-white/80 mt-1">Here's what's happening with your lab activities.</p>
+                <div className="flex items-start justify-between">
+                    <div>
+                        <h2 className="text-2xl font-bold">Welcome back, {user?.firstName}! 👋</h2>
+                        <p className="text-white/80 mt-1">Here's what's happening with your lab activities.</p>
+                    </div>
+                    {(user?.role === 'admin' || user?.role === 'principal') && (
+                        <div className="text-right text-xs text-white/70">
+                            <p>Last Updated</p>
+                            <p className="font-mono">Dec 24, 2024 • v1.5.0</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Stats grid */}
