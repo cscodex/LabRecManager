@@ -200,6 +200,107 @@ router.get('/deadlines', authenticate, asyncHandler(async (req, res) => {
     res.json({ success: true, data: { upcomingDeadlines } });
 }));
 
+// Calendar view - assignments for current month (past + upcoming)
+router.get('/calendar', authenticate, asyncHandler(async (req, res) => {
+    const { role, id: userId } = req.user;
+    const { month, year } = req.query;
+
+    // Calculate date range (current month or specified month)
+    const now = new Date();
+    const targetYear = year ? parseInt(year) : now.getFullYear();
+    const targetMonth = month ? parseInt(month) : now.getMonth();
+
+    const startOfMonth = new Date(targetYear, targetMonth, 1);
+    const endOfMonth = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+
+    // Get the user's class enrollments if student
+    let classIds = [];
+    if (role === 'student') {
+        const enrollments = await prisma.classEnrollment.findMany({
+            where: { studentId: userId, status: 'active' },
+            select: { classId: true }
+        });
+        classIds = enrollments.map(e => e.classId);
+    }
+
+    // Query assignment targets for the month
+    const targets = await prisma.assignmentTarget.findMany({
+        where: {
+            dueDate: { gte: startOfMonth, lte: endOfMonth },
+            assignment: { status: 'published' },
+            ...(role === 'student' && classIds.length > 0 && {
+                OR: [
+                    { targetStudentId: userId },
+                    { targetClassId: { in: classIds } }
+                ]
+            })
+        },
+        orderBy: { dueDate: 'asc' },
+        include: {
+            assignment: {
+                select: { id: true, title: true, titleHindi: true, subject: true }
+            }
+        }
+    });
+
+    // For students, get their submissions to check completion status
+    let studentSubmissions = [];
+    if (role === 'student') {
+        const assignmentIds = [...new Set(targets.map(t => t.assignment.id))];
+        studentSubmissions = await prisma.submission.findMany({
+            where: {
+                studentId: userId,
+                assignmentId: { in: assignmentIds }
+            },
+            select: {
+                assignmentId: true,
+                status: true,
+                grade: { select: { finalMarks: true, maxMarks: true, isPublished: true } }
+            }
+        });
+    }
+
+    const submissionMap = new Map(studentSubmissions.map(s => [s.assignmentId, s]));
+    const now2 = new Date();
+
+    const calendarItems = targets.map(t => {
+        const submission = submissionMap.get(t.assignment.id);
+        let status = 'pending';
+        const dueDate = new Date(t.dueDate);
+        const isPast = dueDate < now2;
+
+        if (submission) {
+            if (submission.grade?.isPublished) status = 'graded';
+            else if (submission.status === 'submitted' || submission.status === 'under_review') status = 'submitted';
+            else if (submission.status === 'needs_revision') status = 'needs_revision';
+            else status = 'in_progress';
+        } else if (isPast) {
+            status = 'overdue';
+        }
+
+        return {
+            id: t.assignment.id,
+            title: t.assignment.title,
+            titleHindi: t.assignment.titleHindi,
+            dueDate: t.dueDate,
+            subject: t.assignment.subject,
+            status,
+            isPast,
+            isCompleted: ['submitted', 'graded', 'under_review'].includes(status),
+            grade: submission?.grade
+        };
+    });
+
+    res.json({
+        success: true,
+        data: {
+            calendarItems,
+            month: targetMonth,
+            year: targetYear
+        }
+    });
+}));
+
 // Database health check - public endpoint
 router.get('/health', asyncHandler(async (req, res) => {
     const startTime = Date.now();

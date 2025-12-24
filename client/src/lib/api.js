@@ -284,6 +284,7 @@ export const dashboardAPI = {
     getActivity: () => api.get('/dashboard/activity'),
     getDeadlines: () => api.get('/dashboard/deadlines'),
     getHealth: () => api.get('/dashboard/health'),
+    getCalendar: (month, year) => api.get('/dashboard/calendar', { params: { month, year } }),
 };
 
 // Reports API

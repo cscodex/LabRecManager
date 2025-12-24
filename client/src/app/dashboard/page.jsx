@@ -85,7 +85,7 @@ export default function DashboardPage() {
                         <StatCard icon={FileText} label="Assigned to Me" value={stats.assignedToMe || 0} color="bg-primary-500" />
                         <StatCard icon={Upload} label="My Submissions" value={stats.mySubmissions || 0} color="bg-emerald-500" />
                         <StatCard icon={Video} label="Pending Vivas" value={stats.pendingVivas || 0} color="bg-amber-500" />
-                        <StatCard icon={Award} label="Avg. Score" value={stats.avgScore !== null ? `${stats.avgScore}%` : '--'} color="bg-accent-500" trend={stats.totalGrades > 0 ? `${stats.totalGrades} graded` : null} />
+                        <StatCard icon={Award} label="Avg. Score" value={stats.avgScore != null ? `${stats.avgScore}%` : '--'} color="bg-accent-500" trend={stats.totalGrades > 0 ? `${stats.totalGrades} graded` : null} />
                     </>
                 )}
                 {(user?.role === 'instructor' || user?.role === 'lab_assistant') && (
