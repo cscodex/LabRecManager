@@ -174,66 +174,7 @@ export default function AssignmentDetailPage() {
                             </div>
                         )}
 
-                        {/* Assigned Targets - only for instructors */}
-                        {isInstructor && assignment.targets && assignment.targets.length > 0 && (
-                            <div className="card p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-semibold text-slate-900">Assigned To</h3>
-                                    <Link
-                                        href={`/assignments/assign?assignmentId=${assignment.id}`}
-                                        className="text-sm text-primary-600 hover:underline"
-                                    >
-                                        + Add More
-                                    </Link>
-                                </div>
-                                <div className="space-y-2">
-                                    {assignment.targets.map((target) => (
-                                        <div
-                                            key={target.id}
-                                            className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
-                                                    {getTargetIcon(target.targetType)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-slate-900">
-                                                        {getTargetDisplayName(target)}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500 capitalize">{target.targetType}</p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => handleRemoveTargetClick(target.id, getTargetDisplayName(target))}
-                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
-                                                title="Remove assignment from this target"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
-                        {/* No targets message */}
-                        {isInstructor && (!assignment.targets || assignment.targets.length === 0) && (
-                            <div className="card p-6">
-                                <div className="text-center py-6">
-                                    <Users className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                                    <h3 className="font-medium text-slate-700 mb-1">Not Assigned Yet</h3>
-                                    <p className="text-sm text-slate-500 mb-4">
-                                        This assignment hasn't been assigned to any class, group, or student.
-                                    </p>
-                                    <Link
-                                        href={`/assignments/assign?assignmentId=${assignment.id}`}
-                                        className="btn btn-primary"
-                                    >
-                                        Assign Now
-                                    </Link>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Attached Files */}
                         {assignment.files?.length > 0 && (
@@ -298,17 +239,7 @@ export default function AssignmentDetailPage() {
                         <div className="card p-6">
                             <h3 className="font-semibold text-slate-900 mb-4">Assignment Details</h3>
                             <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
-                                        <Calendar className="w-5 h-5 text-primary-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-slate-500">Due Date</p>
-                                        <p className="font-medium text-slate-900">
-                                            {assignment.dueDate ? new Date(assignment.dueDate).toLocaleString() : 'No deadline'}
-                                        </p>
-                                    </div>
-                                </div>
+
 
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
@@ -356,10 +287,7 @@ export default function AssignmentDetailPage() {
                                     <span className="text-slate-600">Output</span>
                                     <span className="font-medium">{assignment.outputMarks}</span>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-600">Viva</span>
-                                    <span className="font-medium">{assignment.vivaMarks}</span>
-                                </div>
+
                                 <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
                                     <span className="text-slate-900 font-medium">Total</span>
                                     <span className="font-bold text-primary-600">{assignment.maxMarks}</span>

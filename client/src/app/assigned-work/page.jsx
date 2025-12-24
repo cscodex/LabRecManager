@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     ListChecks, Search, Users, UsersRound, User, BookOpen, Calendar,
-    CheckCircle, ChevronRight, Filter, Eye, MoreVertical, Trash2, Edit2, Lock, Unlock, X, Save
+    CheckCircle, ChevronRight, Filter, Eye, MoreVertical, Trash2, Edit2, Lock, Unlock, X, Save, FileText, Award, Code, Download
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -36,6 +36,9 @@ export default function AssignedWorkPage() {
     const [editModal, setEditModal] = useState({ open: false, target: null });
     const [editForm, setEditForm] = useState({ assignmentId: '', targetType: '', targetId: '', dueDate: '' });
     const [editLoading, setEditLoading] = useState(false);
+
+    // View modal state
+    const [viewModal, setViewModal] = useState({ open: false, target: null });
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -220,6 +223,11 @@ export default function AssignedWorkPage() {
         }
     };
 
+    // View handlers
+    const handleViewClick = (target) => {
+        setViewModal({ open: true, target });
+    };
+
     // Filter and search
     let filteredWork = assignedWork;
 
@@ -363,15 +371,15 @@ export default function AssignedWorkPage() {
                                             <BookOpen className="w-5 h-5 text-primary-600" />
                                         </div>
                                         <div>
-                                            <Link
-                                                href={`/assignments/${assignment.id}`}
-                                                className="font-semibold text-slate-900 hover:text-primary-600"
+                                            <button
+                                                onClick={() => handleViewClick(targets[0])}
+                                                className="font-semibold text-slate-900 hover:text-primary-600 text-left"
                                             >
                                                 {assignment.experimentNumber && (
                                                     <span className="text-primary-600">{assignment.experimentNumber}: </span>
                                                 )}
                                                 {assignment.title}
-                                            </Link>
+                                            </button>
                                             <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
                                                 <span className={`px-2 py-0.5 rounded ${assignment.status === 'published'
                                                     ? 'bg-green-100 text-green-700'
@@ -379,21 +387,13 @@ export default function AssignedWorkPage() {
                                                     }`}>
                                                     {assignment.status}
                                                 </span>
+                                                <span>Max: {assignment.maxMarks} marks</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Link
-                                            href={`/assignments/${assignment.id}`}
-                                            className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition"
-                                            title="View Assignment"
-                                        >
-                                            <Eye className="w-4 h-4" />
-                                        </Link>
-                                        <span className="text-sm text-slate-500">
-                                            {targets.length} target{targets.length !== 1 && 's'}
-                                        </span>
-                                    </div>
+                                    <span className="text-sm text-slate-500">
+                                        {targets.length} target{targets.length !== 1 && 's'}
+                                    </span>
                                 </div>
 
                                 {/* Targets List */}
@@ -430,13 +430,13 @@ export default function AssignedWorkPage() {
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 {/* View Icon */}
-                                                <Link
-                                                    href={`/assignments/${assignment.id}`}
+                                                <button
+                                                    onClick={() => handleViewClick(target)}
                                                     className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition"
-                                                    title="View Assignment"
+                                                    title="View Details"
                                                 >
                                                     <Eye className="w-4 h-4" />
-                                                </Link>
+                                                </button>
                                                 {/* Edit Icon */}
                                                 <button
                                                     onClick={() => handleEditClick(target)}
@@ -473,6 +473,163 @@ export default function AssignedWorkPage() {
                     </div>
                 )}
             </main>
+
+            {/* View Modal - Shows assignment + target details */}
+            {viewModal.open && viewModal.target && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewModal({ open: false, target: null })}>
+                    <div className="bg-white rounded-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                                    <BookOpen className="w-5 h-5 text-primary-600" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-slate-900">
+                                        {viewModal.target.assignment.experimentNumber && (
+                                            <span className="text-primary-600">{viewModal.target.assignment.experimentNumber}: </span>
+                                        )}
+                                        {viewModal.target.assignment.title}
+                                    </h3>
+                                    <p className="text-sm text-slate-500">{viewModal.target.assignment.assignmentType}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setViewModal({ open: false, target: null })} className="p-2 hover:bg-slate-200 rounded-lg">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-auto p-4 space-y-4">
+                            {/* Target Info */}
+                            <div className="bg-slate-50 rounded-lg p-4">
+                                <h4 className="font-medium text-slate-700 mb-3">Assigned To</h4>
+                                <div className="flex items-center gap-3">
+                                    {getTargetIcon(viewModal.target.targetType)}
+                                    <div>
+                                        <p className="font-medium text-slate-900">{getTargetName(viewModal.target)}</p>
+                                        <p className="text-sm text-slate-500 capitalize">{viewModal.target.targetType}</p>
+                                    </div>
+                                    {viewModal.target.isLocked && (
+                                        <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs">
+                                            <Lock className="w-3 h-3" /> Locked
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                    {viewModal.target.dueDate && (
+                                        <div className="flex items-center gap-2">
+                                            <Calendar className="w-4 h-4 text-amber-500" />
+                                            <span>Due: {new Date(viewModal.target.dueDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                        </div>
+                                    )}
+                                    {viewModal.target.assignedAt && (
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle className="w-4 h-4 text-green-500" />
+                                            <span>Assigned: {new Date(viewModal.target.assignedAt).toLocaleDateString()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Assignment Details */}
+                            <div className="grid md:grid-cols-3 gap-3">
+                                <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                                    <Award className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                                    <p className="text-xs text-slate-500">Max Marks</p>
+                                    <p className="font-semibold text-slate-900">{viewModal.target.assignment.maxMarks}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3 text-center">
+                                    <FileText className="w-5 h-5 text-amber-600 mx-auto mb-1" />
+                                    <p className="text-xs text-slate-500">Type</p>
+                                    <p className="font-semibold text-slate-900 capitalize">{viewModal.target.assignment.assignmentType}</p>
+                                </div>
+                                {viewModal.target.assignment.programmingLanguage && (
+                                    <div className="bg-purple-50 rounded-lg p-3 text-center">
+                                        <Code className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+                                        <p className="text-xs text-slate-500">Language</p>
+                                        <p className="font-semibold text-slate-900">{viewModal.target.assignment.programmingLanguage}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Description */}
+                            {viewModal.target.assignment.description && (
+                                <div>
+                                    <h4 className="font-medium text-slate-700 mb-2">Description</h4>
+                                    <p className="text-slate-600 text-sm whitespace-pre-wrap">{viewModal.target.assignment.description}</p>
+                                </div>
+                            )}
+
+                            {/* Aim */}
+                            {viewModal.target.assignment.aim && (
+                                <div>
+                                    <h4 className="font-medium text-slate-700 mb-2">Aim / Objective</h4>
+                                    <p className="text-slate-600 text-sm">{viewModal.target.assignment.aim}</p>
+                                </div>
+                            )}
+
+                            {/* PDF Attachment */}
+                            {viewModal.target.assignment.pdfAttachmentUrl && (
+                                <div className="bg-red-50 rounded-lg p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <FileText className="w-6 h-6 text-red-600" />
+                                            <div>
+                                                <p className="font-medium text-slate-900">{viewModal.target.assignment.pdfAttachmentName || 'PDF Attachment'}</p>
+                                                <p className="text-xs text-slate-500">PDF Document</p>
+                                            </div>
+                                        </div>
+                                        <a
+                                            href={viewModal.target.assignment.pdfAttachmentUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn btn-secondary text-sm py-1.5"
+                                        >
+                                            <Download className="w-4 h-4" /> Download
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Marks Breakdown */}
+                            <div>
+                                <h4 className="font-medium text-slate-700 mb-2">Marks Breakdown</h4>
+                                <div className="grid grid-cols-3 gap-2 text-sm">
+                                    <div className="bg-slate-100 rounded p-2 text-center">
+                                        <p className="text-slate-500 text-xs">Practical</p>
+                                        <p className="font-semibold">{viewModal.target.assignment.practicalMarks}</p>
+                                    </div>
+                                    <div className="bg-slate-100 rounded p-2 text-center">
+                                        <p className="text-slate-500 text-xs">Output</p>
+                                        <p className="font-semibold">{viewModal.target.assignment.outputMarks}</p>
+                                    </div>
+                                    <div className="bg-slate-100 rounded p-2 text-center">
+                                        <p className="text-slate-500 text-xs">Passing</p>
+                                        <p className="font-semibold">{viewModal.target.assignment.passingMarks}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-slate-200 flex justify-end gap-2">
+                            <button
+                                onClick={() => { setViewModal({ open: false, target: null }); handleEditClick(viewModal.target); }}
+                                className="btn btn-secondary"
+                            >
+                                <Edit2 className="w-4 h-4" /> Edit Target
+                            </button>
+                            <button
+                                onClick={() => setViewModal({ open: false, target: null })}
+                                className="btn btn-primary"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Edit Modal */}
             {editModal.open && editModal.target && (
