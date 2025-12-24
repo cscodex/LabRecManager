@@ -7,12 +7,13 @@ import {
     ArrowLeft, Video, VideoOff, Mic, MicOff, Phone,
     MessageSquare, Clock, User, Send, AlertCircle,
     CheckCircle, XCircle, Maximize2, Minimize2, Circle, Square, Download, Save,
-    Volume2, VolumeX, Settings, Sliders, PictureInPicture2
+    Volume2, VolumeX, Settings, Sliders, PictureInPicture2, Pencil
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { vivaAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import io from 'socket.io-client';
+import Whiteboard from '@/components/Whiteboard';
 
 export default function VivaRoomPage() {
     const router = useRouter();
@@ -56,6 +57,11 @@ export default function VivaRoomPage() {
     const [showChat, setShowChat] = useState(false);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+
+    // Whiteboard state
+    const [showWhiteboard, setShowWhiteboard] = useState(false);
+    const [whiteboardFullscreen, setWhiteboardFullscreen] = useState(false);
+    const [savedWhiteboardImage, setSavedWhiteboardImage] = useState(null);
 
     // Grading state (for instructors)
     const [showGradingPanel, setShowGradingPanel] = useState(false);
@@ -1229,8 +1235,21 @@ export default function VivaRoomPage() {
                                 ? 'bg-primary-500 text-white'
                                 : 'bg-slate-700 hover:bg-slate-600 text-white'
                                 }`}
+                            title="Chat"
                         >
                             <MessageSquare className="w-6 h-6" />
+                        </button>
+
+                        {/* Whiteboard Toggle Button */}
+                        <button
+                            onClick={() => setShowWhiteboard(!showWhiteboard)}
+                            className={`w-14 h-14 rounded-full flex items-center justify-center transition ${showWhiteboard
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-slate-700 hover:bg-slate-600 text-white'
+                                }`}
+                            title="Whiteboard"
+                        >
+                            <Pencil className="w-6 h-6" />
                         </button>
 
                         <button
@@ -1792,6 +1811,32 @@ export default function VivaRoomPage() {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Whiteboard Modal */}
+            {showWhiteboard && (
+                <div className={`fixed z-50 ${whiteboardFullscreen ? 'inset-0' : 'inset-4 md:inset-8 lg:inset-12'} flex items-center justify-center`}>
+                    <div
+                        className="absolute inset-0 bg-black/50"
+                        onClick={() => !whiteboardFullscreen && setShowWhiteboard(false)}
+                    />
+                    <div className={`relative z-10 ${whiteboardFullscreen ? 'w-full h-full' : 'w-full max-w-4xl max-h-[80vh]'}`}>
+                        <Whiteboard
+                            width={800}
+                            height={500}
+                            isFullscreen={whiteboardFullscreen}
+                            onToggleFullscreen={() => setWhiteboardFullscreen(!whiteboardFullscreen)}
+                            onClose={() => {
+                                setShowWhiteboard(false);
+                                setWhiteboardFullscreen(false);
+                            }}
+                            onSave={(imageData) => {
+                                setSavedWhiteboardImage(imageData);
+                                toast.success('Whiteboard saved! It will be included when session ends.');
+                            }}
+                        />
+                    </div>
                 </div>
             )}
         </div>
