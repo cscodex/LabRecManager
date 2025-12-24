@@ -198,8 +198,8 @@ export default function WhiteboardShareModal({
                                         <button
                                             onClick={() => { setTargetType('class'); setSelectedTargets([selectedClass]); }}
                                             className={`p-3 rounded-xl border-2 transition text-center ${targetType === 'class'
-                                                    ? 'border-amber-500 bg-amber-50'
-                                                    : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-amber-500 bg-amber-50'
+                                                : 'border-slate-200 hover:border-slate-300'
                                                 }`}
                                         >
                                             <Users className={`w-6 h-6 mx-auto mb-1 ${targetType === 'class' ? 'text-amber-500' : 'text-slate-400'}`} />
@@ -209,8 +209,8 @@ export default function WhiteboardShareModal({
                                         <button
                                             onClick={() => { setTargetType('group'); setSelectedTargets([]); }}
                                             className={`p-3 rounded-xl border-2 transition text-center ${targetType === 'group'
-                                                    ? 'border-amber-500 bg-amber-50'
-                                                    : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-amber-500 bg-amber-50'
+                                                : 'border-slate-200 hover:border-slate-300'
                                                 }`}
                                             disabled={groups.length === 0}
                                         >
@@ -221,8 +221,8 @@ export default function WhiteboardShareModal({
                                         <button
                                             onClick={() => { setTargetType('student'); setSelectedTargets([]); }}
                                             className={`p-3 rounded-xl border-2 transition text-center ${targetType === 'student'
-                                                    ? 'border-amber-500 bg-amber-50'
-                                                    : 'border-slate-200 hover:border-slate-300'
+                                                ? 'border-amber-500 bg-amber-50'
+                                                : 'border-slate-200 hover:border-slate-300'
                                                 }`}
                                         >
                                             <User className={`w-6 h-6 mx-auto mb-1 ${targetType === 'student' ? 'text-amber-500' : 'text-slate-400'}`} />
@@ -245,12 +245,12 @@ export default function WhiteboardShareModal({
                                                 key={group.id}
                                                 onClick={() => handleTargetSelect(group.id)}
                                                 className={`p-3 rounded-lg border transition text-left ${selectedTargets.includes(group.id)
-                                                        ? 'border-amber-500 bg-amber-50'
-                                                        : 'border-slate-200 hover:border-slate-300'
+                                                    ? 'border-amber-500 bg-amber-50'
+                                                    : 'border-slate-200 hover:border-slate-300'
                                                     }`}
                                             >
                                                 <p className="font-medium text-slate-900">{group.name}</p>
-                                                <p className="text-xs text-slate-500">{group._count?.students || 0} students</p>
+                                                <p className="text-xs text-slate-500">{group._count?.students || group.members?.length || 0} students</p>
                                             </button>
                                         ))}
                                     </div>
@@ -278,8 +278,8 @@ export default function WhiteboardShareModal({
                                                 key={student.id}
                                                 onClick={() => handleTargetSelect(student.id)}
                                                 className={`p-2 rounded-lg border transition text-left ${selectedTargets.includes(student.id)
-                                                        ? 'border-amber-500 bg-amber-50'
-                                                        : 'border-slate-200 hover:border-slate-300'
+                                                    ? 'border-amber-500 bg-amber-50'
+                                                    : 'border-slate-200 hover:border-slate-300'
                                                     }`}
                                             >
                                                 <p className="font-medium text-slate-900 text-sm">

@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import {
     Pencil, Eraser, Circle, Square, Minus, Type, Undo2, Redo2, Trash2, Download, Save,
-    Palette, ChevronDown, X, Maximize2, Minimize2, Share2
+    Palette, ChevronDown, X, Maximize2, Minimize2, Share2, MousePointer2
 } from 'lucide-react';
 
 const COLORS = [
@@ -37,6 +37,11 @@ export default function Whiteboard({
     const [strokeWidth, setStrokeWidth] = useState(4);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showStrokePicker, setShowStrokePicker] = useState(false);
+
+    // Background options
+    const [bgPattern, setBgPattern] = useState('plain'); // plain, dotted, grid, lined
+    const [bgColor, setBgColor] = useState('#ffffff');
+    const [showBgPicker, setShowBgPicker] = useState(false);
 
     // History for undo/redo
     const [history, setHistory] = useState([]);
@@ -348,11 +353,13 @@ export default function Whiteboard({
     }, [getBlob]);
 
     const tools = [
+        { id: 'select', icon: MousePointer2, label: 'Select' },
         { id: 'pen', icon: Pencil, label: 'Pen' },
         { id: 'eraser', icon: Eraser, label: 'Eraser' },
         { id: 'line', icon: Minus, label: 'Line' },
         { id: 'rectangle', icon: Square, label: 'Rectangle' },
         { id: 'circle', icon: Circle, label: 'Circle' },
+        { id: 'text', icon: Type, label: 'Text' },
     ];
 
     return (
@@ -483,6 +490,61 @@ export default function Whiteboard({
                     )}
                 </div>
 
+                {/* Background Options */}
+                <div className="relative">
+                    <button
+                        onClick={() => { setShowBgPicker(!showBgPicker); setShowColorPicker(false); setShowStrokePicker(false); }}
+                        className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition"
+                        title="Background"
+                    >
+                        <div
+                            className="w-5 h-5 rounded border-2 border-slate-300"
+                            style={{
+                                backgroundColor: bgColor,
+                                backgroundImage: bgPattern === 'dotted'
+                                    ? 'radial-gradient(circle, #999 1px, transparent 1px)'
+                                    : bgPattern === 'grid'
+                                        ? 'linear-gradient(#ddd 1px, transparent 1px), linear-gradient(90deg, #ddd 1px, transparent 1px)'
+                                        : 'none',
+                                backgroundSize: bgPattern === 'dotted' ? '8px 8px' : '10px 10px'
+                            }}
+                        />
+                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                    </button>
+                    {showBgPicker && (
+                        <div className="absolute top-full left-0 mt-1 p-3 bg-white rounded-lg shadow-lg border border-slate-200 z-10 w-48">
+                            <p className="text-xs font-medium text-slate-500 mb-2">Pattern</p>
+                            <div className="grid grid-cols-4 gap-1 mb-3">
+                                {[
+                                    { id: 'plain', label: 'Plain' },
+                                    { id: 'dotted', label: 'Dots' },
+                                    { id: 'grid', label: 'Grid' },
+                                    { id: 'lined', label: 'Lines' }
+                                ].map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => setBgPattern(p.id)}
+                                        className={`p-2 rounded border text-xs ${bgPattern === p.id ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-xs font-medium text-slate-500 mb-2">Color</p>
+                            <div className="grid grid-cols-5 gap-1">
+                                {['#ffffff', '#f8fafc', '#fef3c7', '#dcfce7', '#dbeafe', '#fce7f3', '#1e293b'].map(c => (
+                                    <button
+                                        key={c}
+                                        onClick={() => setBgColor(c)}
+                                        className={`w-6 h-6 rounded border-2 ${bgColor === c ? 'border-primary-500' : 'border-slate-200'}`}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 <div className="w-px h-8 bg-slate-200" />
 
                 {/* Undo/Redo */}
@@ -560,12 +622,21 @@ export default function Whiteboard({
                     ref={canvasRef}
                     width={canvasWidth}
                     height={canvasHeight}
-                    className="bg-white rounded-lg shadow-lg cursor-crosshair touch-none"
+                    className="rounded-lg shadow-lg cursor-crosshair touch-none"
                     style={{
                         maxWidth: isFullscreen ? '95vw' : '100%',
                         maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '100%',
                         width: isFullscreen ? 'auto' : undefined,
-                        height: isFullscreen ? 'auto' : undefined
+                        height: isFullscreen ? 'auto' : undefined,
+                        backgroundColor: bgColor,
+                        backgroundImage: bgPattern === 'dotted'
+                            ? 'radial-gradient(circle, #ccc 1px, transparent 1px)'
+                            : bgPattern === 'grid'
+                                ? 'linear-gradient(#e5e5e5 1px, transparent 1px), linear-gradient(90deg, #e5e5e5 1px, transparent 1px)'
+                                : bgPattern === 'lined'
+                                    ? 'linear-gradient(#e5e5e5 1px, transparent 1px)'
+                                    : 'none',
+                        backgroundSize: bgPattern === 'dotted' ? '20px 20px' : bgPattern === 'grid' ? '20px 20px' : '100% 25px'
                     }}
                     onMouseDown={startDrawing}
                     onMouseMove={draw}

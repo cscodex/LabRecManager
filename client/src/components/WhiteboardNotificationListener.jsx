@@ -5,7 +5,9 @@ import { useAuthStore } from '@/lib/store';
 import io from 'socket.io-client';
 import toast from 'react-hot-toast';
 import SharedWhiteboardViewer from './SharedWhiteboardViewer';
-import { Pencil, X } from 'lucide-react';
+import { Pencil, X, Minimize2 } from 'lucide-react';
+
+const STORAGE_KEY = 'active_whiteboard_session';
 
 export default function WhiteboardNotificationListener() {
     const { user, isAuthenticated, _hasHydrated } = useAuthStore();
@@ -14,9 +16,40 @@ export default function WhiteboardNotificationListener() {
     // Notification state
     const [sharedSession, setSharedSession] = useState(null);
     const [showViewer, setShowViewer] = useState(false);
-    const [showNotification, setShowNotification] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
 
     const isStudent = user?.role === 'student';
+
+    // Load persisted session on mount
+    useEffect(() => {
+        if (!_hasHydrated || !isStudent) return;
+
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const session = JSON.parse(saved);
+                // Check if session is still valid (within 2 hours)
+                if (session && session.timestamp && (Date.now() - session.timestamp < 2 * 60 * 60 * 1000)) {
+                    setSharedSession(session);
+                    setIsMinimized(true); // Show minimized badge
+                } else {
+                    localStorage.removeItem(STORAGE_KEY);
+                }
+            }
+        } catch (e) {
+            localStorage.removeItem(STORAGE_KEY);
+        }
+    }, [_hasHydrated, isStudent]);
+
+    // Save session to localStorage when it changes
+    useEffect(() => {
+        if (sharedSession) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...sharedSession,
+                timestamp: Date.now()
+            }));
+        }
+    }, [sharedSession]);
 
     useEffect(() => {
         if (!_hasHydrated || !isAuthenticated || !isStudent) return;
@@ -53,7 +86,8 @@ export default function WhiteboardNotificationListener() {
         socketRef.current.on('whiteboard:shared-with-you', (data) => {
             console.log('[WhiteboardListener] Whiteboard shared:', data);
             setSharedSession(data);
-            setShowNotification(true);
+            setIsMinimized(false);
+            setShowViewer(true);
 
             // Show toast notification
             toast.custom((t) => (
@@ -80,6 +114,7 @@ export default function WhiteboardNotificationListener() {
                             onClick={() => {
                                 toast.dismiss(t.id);
                                 setShowViewer(true);
+                                setIsMinimized(false);
                             }}
                             className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-amber-600 hover:text-amber-500 focus:outline-none"
                         >
@@ -98,6 +133,10 @@ export default function WhiteboardNotificationListener() {
             console.log('[WhiteboardListener] Whiteboard ended:', data);
             if (sharedSession?.sessionId === data.sessionId) {
                 toast('Whiteboard session ended', { icon: '✅' });
+                setSharedSession(null);
+                setShowViewer(false);
+                setIsMinimized(false);
+                localStorage.removeItem(STORAGE_KEY);
             }
         });
 
@@ -108,16 +147,30 @@ export default function WhiteboardNotificationListener() {
         };
     }, [isAuthenticated, _hasHydrated, isStudent, user]);
 
+    // Handle minimize (X button minimizes, doesn't close)
+    const handleMinimize = () => {
+        setShowViewer(false);
+        setIsMinimized(true);
+    };
+
+    // Handle full close (only when instructor ends sharing)
+    const handleClose = () => {
+        setShowViewer(false);
+        setIsMinimized(false);
+        setSharedSession(null);
+        localStorage.removeItem(STORAGE_KEY);
+    };
+
     // Only render for students
     if (!isStudent) return null;
 
     return (
         <>
-            {/* Floating notification badge */}
-            {showNotification && sharedSession && !showViewer && (
+            {/* Floating notification badge - shows when minimized or session active but viewer closed */}
+            {sharedSession && (isMinimized || !showViewer) && (
                 <div className="fixed bottom-4 right-4 z-50">
                     <button
-                        onClick={() => setShowViewer(true)}
+                        onClick={() => { setShowViewer(true); setIsMinimized(false); }}
                         className="flex items-center gap-3 px-4 py-3 bg-amber-500 text-white rounded-xl shadow-lg hover:bg-amber-600 transition animate-bounce"
                     >
                         <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
@@ -135,11 +188,7 @@ export default function WhiteboardNotificationListener() {
             {/* Shared whiteboard viewer */}
             <SharedWhiteboardViewer
                 isOpen={showViewer}
-                onClose={() => {
-                    setShowViewer(false);
-                    setShowNotification(false);
-                    setSharedSession(null);
-                }}
+                onClose={handleMinimize}
                 instructorName={sharedSession?.instructorName || 'Instructor'}
                 socket={socketRef.current}
                 sessionId={sharedSession?.sessionId}
@@ -147,3 +196,4 @@ export default function WhiteboardNotificationListener() {
         </>
     );
 }
+
