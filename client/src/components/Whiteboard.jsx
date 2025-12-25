@@ -822,12 +822,96 @@ export default function Whiteboard({
                         onTouchMove={draw}
                         onTouchEnd={stopDrawing}
                     />
-                    {/* Text Input Popup */}
+
+                    {/* Live Preview Overlay - Shows dotted shape preview while drawing */}
+                    {isDrawing && (tool === 'line' || tool === 'rectangle' || tool === 'circle' || tool === 'select') && (
+                        <svg
+                            className="absolute top-0 left-0 pointer-events-none"
+                            width={canvasWidth}
+                            height={canvasHeight}
+                            style={{
+                                maxWidth: isFullscreen ? '95vw' : '100%',
+                                maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '100%',
+                            }}
+                            viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+                        >
+                            {tool === 'line' && (
+                                <line
+                                    x1={startPos.x}
+                                    y1={startPos.y}
+                                    x2={currentPos.x}
+                                    y2={currentPos.y}
+                                    stroke={color}
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray="5,5"
+                                    strokeLinecap="round"
+                                />
+                            )}
+                            {tool === 'rectangle' && (
+                                <rect
+                                    x={Math.min(startPos.x, currentPos.x)}
+                                    y={Math.min(startPos.y, currentPos.y)}
+                                    width={Math.abs(currentPos.x - startPos.x)}
+                                    height={Math.abs(currentPos.y - startPos.y)}
+                                    stroke={color}
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray="5,5"
+                                    fill="none"
+                                />
+                            )}
+                            {tool === 'circle' && (
+                                <ellipse
+                                    cx={startPos.x + (currentPos.x - startPos.x) / 2}
+                                    cy={startPos.y + (currentPos.y - startPos.y) / 2}
+                                    rx={Math.abs(currentPos.x - startPos.x) / 2}
+                                    ry={Math.abs(currentPos.y - startPos.y) / 2}
+                                    stroke={color}
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray="5,5"
+                                    fill="none"
+                                />
+                            )}
+                            {tool === 'select' && (
+                                <rect
+                                    x={Math.min(startPos.x, currentPos.x)}
+                                    y={Math.min(startPos.y, currentPos.y)}
+                                    width={Math.abs(currentPos.x - startPos.x)}
+                                    height={Math.abs(currentPos.y - startPos.y)}
+                                    stroke="#3b82f6"
+                                    strokeWidth={2}
+                                    strokeDasharray="6,4"
+                                    fill="rgba(59, 130, 246, 0.1)"
+                                />
+                            )}
+                        </svg>
+                    )}
+
+                    {/* Text Input Popup - Draggable */}
                     {showTextInput && (
                         <div
-                            className="absolute bg-white rounded-lg shadow-xl border border-slate-200 p-2 z-10"
+                            className="absolute bg-white rounded-lg shadow-xl border-2 border-primary-400 p-2 z-10 cursor-move"
                             style={{ left: textPos.x, top: textPos.y }}
+                            draggable
+                            onDragStart={(e) => {
+                                e.dataTransfer.setDragImage(new Image(), 0, 0); // Hide default drag image
+                            }}
+                            onDrag={(e) => {
+                                if (e.clientX === 0 && e.clientY === 0) return; // Ignore end event
+                                const canvas = canvasRef.current;
+                                if (!canvas) return;
+                                const rect = canvas.getBoundingClientRect();
+                                const scaleX = canvas.width / rect.width;
+                                const scaleY = canvas.height / rect.height;
+                                const newX = (e.clientX - rect.left) * scaleX;
+                                const newY = (e.clientY - rect.top) * scaleY;
+                                if (newX > 0 && newY > 0) {
+                                    setTextPos({ x: newX, y: newY });
+                                }
+                            }}
                         >
+                            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1">
+                                <span>⊞</span> Drag to move
+                            </div>
                             <input
                                 type="text"
                                 value={textValue}
