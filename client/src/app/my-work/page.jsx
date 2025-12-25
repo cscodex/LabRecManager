@@ -306,13 +306,28 @@ export default function MyAssignedWorkPage() {
 
                                         {/* Right - Actions */}
                                         <div className="flex items-center gap-2">
-                                            <Link
-                                                href={`/assignments/${assignment.id}`}
-                                                className="btn btn-ghost p-2"
-                                                title="View Details"
-                                            >
-                                                <Eye className="w-5 h-5" />
-                                            </Link>
+                                            {/* If submitted, show View Submission button */}
+                                            {assignment.hasSubmitted && !assignment.needsRevision && (
+                                                <Link
+                                                    href={`/assignments/${assignment.id}`}
+                                                    className="btn btn-ghost flex items-center gap-1"
+                                                    title="View Assignment & Submission"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                    <span className="text-sm">View</span>
+                                                </Link>
+                                            )}
+                                            {/* If not submitted, show View Assignment */}
+                                            {!assignment.hasSubmitted && (
+                                                <Link
+                                                    href={`/assignments/${assignment.id}`}
+                                                    className="btn btn-ghost flex items-center gap-1"
+                                                    title="View Assignment Details"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                    <span className="text-sm">Details</span>
+                                                </Link>
+                                            )}
                                             {/* Show Submit button only if not submitted OR if revision requested */}
                                             {(!assignment.hasSubmitted || assignment.needsRevision) && (
                                                 <Link
