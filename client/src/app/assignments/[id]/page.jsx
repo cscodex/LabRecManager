@@ -120,10 +120,22 @@ export default function AssignmentDetailPage() {
                         </Link>
                     )}
                     {user?.role === 'student' && assignment.status === 'published' && (
-                        <Link href={`/assignments/${assignment.id}/submit`} className="btn btn-primary">
-                            <Upload className="w-4 h-4" />
-                            Submit
-                        </Link>
+                        <>
+                            {/* Show Submit only if not submitted OR revision requested */}
+                            {(!assignment.userSubmission || assignment.userSubmission.status === 'revision_requested') && (
+                                <Link href={`/assignments/${assignment.id}/submit`} className={`btn ${assignment.userSubmission?.status === 'revision_requested' ? 'btn-warning' : 'btn-primary'}`}>
+                                    <Upload className="w-4 h-4" />
+                                    {assignment.userSubmission?.status === 'revision_requested' ? 'Revise' : 'Submit'}
+                                </Link>
+                            )}
+                            {/* Show View Submission if submitted and not needing revision */}
+                            {assignment.userSubmission && assignment.userSubmission.status !== 'revision_requested' && (
+                                <Link href={`/submissions/${assignment.userSubmission.id}`} className="btn btn-secondary">
+                                    <Eye className="w-4 h-4" />
+                                    View Submission
+                                </Link>
+                            )}
+                        </>
                     )}
                 </div>
             </header>
