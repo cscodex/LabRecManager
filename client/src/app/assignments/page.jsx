@@ -180,13 +180,13 @@ export default function AssignmentsPage() {
                                             {assignment.status === 'published' && (
                                                 <span className="flex items-center gap-1 text-emerald-600">
                                                     <CheckCircle className="w-4 h-4" />
-                                                    Published: {assignment.publishDate ? new Date(assignment.publishDate).toLocaleDateString() : 'Now'}
+                                                    Published: {assignment.publishDate ? new Date(assignment.publishDate).toLocaleString() : new Date(assignment.createdAt).toLocaleString()}
                                                 </span>
                                             )}
                                             {!assignment.publishDate && assignment.status === 'draft' && (
                                                 <span className="flex items-center gap-1">
                                                     <Calendar className="w-4 h-4" />
-                                                    Created: {new Date(assignment.createdAt).toLocaleDateString()}
+                                                    Created: {new Date(assignment.createdAt).toLocaleString()}
                                                 </span>
                                             )}
                                             <span className="flex items-center gap-1">

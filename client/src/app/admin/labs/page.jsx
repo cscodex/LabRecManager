@@ -414,9 +414,9 @@ export default function LabsPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Expected End Date (Optional)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Expected End Date & Time (Optional)</label>
                                 <input
-                                    type="date"
+                                    type="datetime-local"
                                     value={maintenanceData.endDate}
                                     onChange={(e) => setMaintenanceData({ ...maintenanceData, endDate: e.target.value })}
                                     className="input"
@@ -491,8 +491,8 @@ export default function LabsPage() {
                                         <div key={entry.id} className="border-l-4 border-purple-500 pl-4 py-2">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.action === 'started' ? 'bg-amber-100 text-amber-700' :
-                                                        entry.action === 'ended' ? 'bg-emerald-100 text-emerald-700' :
-                                                            'bg-purple-100 text-purple-700'
+                                                    entry.action === 'ended' ? 'bg-emerald-100 text-emerald-700' :
+                                                        'bg-purple-100 text-purple-700'
                                                     }`}>
                                                     {entry.action.toUpperCase()}
                                                 </span>
