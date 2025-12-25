@@ -173,6 +173,11 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                                 {user.firstName} {user.lastName}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user.role?.replace('_', ' ')}</p>
+                            {(user.studentId || user.admissionNumber || user.employeeId) && (
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                                    ID: {user.studentId || user.admissionNumber || user.employeeId}
+                                </p>
+                            )}
                         </div>
                     </Link>
                 )}

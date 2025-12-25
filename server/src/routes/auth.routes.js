@@ -140,6 +140,9 @@ router.post('/login', loginValidation, asyncHandler(async (req, res) => {
                 lastName: user.lastName,
                 lastNameHindi: user.lastNameHindi,
                 role: user.role,
+                studentId: user.studentId,
+                admissionNumber: user.admissionNumber,
+                employeeId: user.employeeId,
                 preferredLanguage: user.preferredLanguage,
                 profileImageUrl: user.profileImageUrl,
                 school: user.school
@@ -292,6 +295,7 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
             lastName: true,
             lastNameHindi: true,
             role: true,
+            studentId: true,
             admissionNumber: true,
             employeeId: true,
             profileImageUrl: true,
