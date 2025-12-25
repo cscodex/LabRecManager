@@ -168,15 +168,19 @@ router.get('/my', authenticate, authorize('student'), asyncHandler(async (req, r
  * @desc    Get pending submissions for review (Instructors)
  * @access  Private (Instructor)
  */
-router.get('/pending', authenticate, authorize('instructor', 'lab_assistant', 'admin'), asyncHandler(async (req, res) => {
+router.get('/pending', authenticate, authorize('instructor', 'lab_assistant', 'admin', 'principal'), asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    let where = {
-        assignment: {
+    // Admin/Principal can see all submissions, instructors see only their assignments' submissions
+    let where = {};
+
+    if (req.user.role === 'instructor' || req.user.role === 'lab_assistant') {
+        where.assignment = {
             createdById: req.user.id
-        }
-    };
+        };
+    }
+    // For admin and principal, no filter - they see all submissions
 
     if (status) {
         where.status = status;
