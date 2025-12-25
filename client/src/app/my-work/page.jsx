@@ -247,6 +247,14 @@ export default function MyAssignedWorkPage() {
                                                         {dueInfo?.text}
                                                     </span>
                                                 )}
+                                                {assignment.dueDate && (
+                                                    <span className="flex items-center gap-1 text-xs text-slate-400">
+                                                        📅 {new Date(assignment.dueDate).toLocaleString('en-IN', {
+                                                            day: 'numeric', month: 'short', year: 'numeric',
+                                                            hour: '2-digit', minute: '2-digit'
+                                                        })}
+                                                    </span>
+                                                )}
                                                 <span>Max: {assignment.maxMarks} marks</span>
                                                 {/* Show grade if graded */}
                                                 {assignment.isGraded && assignment.grade && (
