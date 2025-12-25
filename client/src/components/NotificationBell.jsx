@@ -181,7 +181,7 @@ export default function NotificationBell() {
                     {/* Footer */}
                     <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
                         <Link
-                            href="/settings?tab=notifications"
+                            href="/notifications"
                             onClick={() => setIsOpen(false)}
                             className="text-sm text-primary-600 hover:underline font-medium"
                         >

@@ -65,7 +65,6 @@ const navItems = {
     student: [
         { href: '/dashboard', label: 'Dashboard', labelHindi: 'डैशबोर्ड', icon: Home },
         { href: '/my-work', label: 'Assigned Work', labelHindi: 'सौंपा गया कार्य', icon: ClipboardCheck },
-        { href: '/assignments', label: 'All Assignments', labelHindi: 'सभी असाइनमेंट', icon: BookOpen },
         { href: '/submissions', label: 'My Submissions', labelHindi: 'मेरी प्रस्तुतियाँ', icon: FileText },
         { href: '/documents', label: 'Shared Docs', labelHindi: 'साझा दस्तावेज़', icon: FolderOpen },
         { href: '/grades', label: 'My Grades', labelHindi: 'मेरे ग्रेड', icon: Award },

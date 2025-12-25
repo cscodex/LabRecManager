@@ -248,6 +248,17 @@ export default function MyAssignedWorkPage() {
                                                     </span>
                                                 )}
                                                 <span>Max: {assignment.maxMarks} marks</span>
+                                                {/* Show grade if graded */}
+                                                {assignment.isGraded && assignment.grade && (
+                                                    <span className="flex items-center gap-2 px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium">
+                                                        📊 {assignment.grade.totalMarks}/{assignment.maxMarks}
+                                                        {assignment.grade.gradeLetter && (
+                                                            <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded text-xs">
+                                                                {assignment.grade.gradeLetter}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
@@ -269,9 +280,9 @@ export default function MyAssignedWorkPage() {
                                                     Submit
                                                 </Link>
                                             )}
-                                            {assignment.hasSubmitted && assignment.gradeId && (
+                                            {assignment.hasSubmitted && assignment.isGraded && (
                                                 <Link
-                                                    href={`/grades/${assignment.gradeId}`}
+                                                    href="/grades"
                                                     className="btn btn-secondary"
                                                 >
                                                     View Grade
