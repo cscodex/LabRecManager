@@ -527,11 +527,20 @@ export default function ClassDetailPage() {
                                                             >
                                                                 <option value="">Select PC...</option>
                                                                 <option value="">-- Unassign --</option>
-                                                                {allPCs.map(pc => (
-                                                                    <option key={pc.id} value={pc.id}>
-                                                                        {pc.itemNumber} ({pc.lab?.name})
-                                                                    </option>
-                                                                ))}
+                                                                {allPCs
+                                                                    .filter(pc => {
+                                                                        // Get all PC IDs assigned to other groups in this class
+                                                                        const assignedPcIds = classData.groups
+                                                                            ?.filter(g => g.id !== group.id && g.assignedPc)
+                                                                            .map(g => g.assignedPc.id) || [];
+                                                                        // Allow this PC if it's not assigned to another group, or if it's the current group's PC
+                                                                        return !assignedPcIds.includes(pc.id) || group.assignedPc?.id === pc.id;
+                                                                    })
+                                                                    .map(pc => (
+                                                                        <option key={pc.id} value={pc.id}>
+                                                                            {pc.itemNumber} ({pc.lab?.name})
+                                                                        </option>
+                                                                    ))}
                                                             </select>
                                                             <button onClick={() => setAssigningPcToGroup(null)} className="text-slate-400 hover:text-slate-600">
                                                                 <X className="w-3 h-3" />
