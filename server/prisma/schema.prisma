@@ -380,11 +380,11 @@ model LabMaintenanceHistory {
   startedAt    DateTime? @map("started_at") @db.Timestamp(6)
   endedAt      DateTime? @map("ended_at") @db.Timestamp(6)
   expectedEndDate DateTime? @map("expected_end_date") @db.Timestamp(6)
-  performedById String   @map("performed_by_id") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  performedById String?   @map("performed_by_id") @db.Uuid
+  createdAt    DateTime?  @default(now()) @map("created_at") @db.Timestamp(6)
   
   lab          Lab       @relation(fields: [labId], references: [id], onDelete: Cascade)
-  performedBy  User      @relation("LabMaintenancePerformer", fields: [performedById], references: [id])
+  performedBy  User?     @relation("LabMaintenancePerformer", fields: [performedById], references: [id])
   
   @@map("lab_maintenance_history")
 }
