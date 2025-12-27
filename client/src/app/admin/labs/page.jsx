@@ -491,32 +491,60 @@ export default function LabsPage() {
                             ) : (
                                 <div className="space-y-4">
                                     {maintenanceHistory.map((entry) => (
-                                        <div key={entry.id} className="border-l-4 border-purple-500 pl-4 py-2">
-                                            <div className="flex items-center gap-2 mb-1">
+                                        <div key={entry.id} className="border-l-4 border-purple-500 pl-4 py-3 bg-slate-50 rounded-r-lg">
+                                            {/* ID and Action Badge */}
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-mono text-slate-400">#{entry.id.slice(0, 8)}</span>
                                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.action === 'started' ? 'bg-amber-100 text-amber-700' :
                                                     entry.action === 'ended' ? 'bg-emerald-100 text-emerald-700' :
                                                         'bg-purple-100 text-purple-700'
                                                     }`}>
                                                     {entry.action.toUpperCase()}
                                                 </span>
-                                                <span className="text-xs text-slate-400">
+                                            </div>
+
+                                            {/* Status Change */}
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-sm font-medium text-slate-700">
                                                     {entry.previousStatus} → {entry.newStatus}
                                                 </span>
                                             </div>
+
+                                            {/* Start / End Dates */}
+                                            <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                                                <div className="bg-white rounded p-2 border">
+                                                    <p className="text-slate-400 mb-1">Started</p>
+                                                    <p className="font-medium text-slate-700">
+                                                        {entry.startedAt ? new Date(entry.startedAt).toLocaleString('en-IN', {
+                                                            day: 'numeric', month: 'short', year: 'numeric',
+                                                            hour: '2-digit', minute: '2-digit'
+                                                        }) : '—'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white rounded p-2 border">
+                                                    <p className="text-slate-400 mb-1">Ended</p>
+                                                    <p className="font-medium text-slate-700">
+                                                        {entry.endedAt ? new Date(entry.endedAt).toLocaleString('en-IN', {
+                                                            day: 'numeric', month: 'short', year: 'numeric',
+                                                            hour: '2-digit', minute: '2-digit'
+                                                        }) : '—'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
                                             {entry.reason && (
-                                                <p className="text-sm text-slate-700 mb-1">Reason: {entry.reason}</p>
+                                                <p className="text-sm text-slate-600 mb-2">💬 {entry.reason}</p>
                                             )}
                                             <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                                                <span>📅 {new Date(entry.createdAt).toLocaleString('en-IN', {
-                                                    day: 'numeric', month: 'short', year: 'numeric',
-                                                    hour: '2-digit', minute: '2-digit'
-                                                })}</span>
                                                 {entry.expectedEndDate && (
-                                                    <span>⏰ Expected: {new Date(entry.expectedEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                                                    <span>⏰ Expected: {new Date(entry.expectedEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                                 )}
                                                 {entry.performedBy && (
                                                     <span>👤 {entry.performedBy.firstName} {entry.performedBy.lastName}</span>
                                                 )}
+                                                <span className="text-slate-400">📅 Created: {new Date(entry.createdAt).toLocaleString('en-IN', {
+                                                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                                                })}</span>
                                             </div>
                                         </div>
                                     ))}
