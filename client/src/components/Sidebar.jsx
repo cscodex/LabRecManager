@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
     Home, BookOpen, FileText, Award, Users, GraduationCap,
     Video, BarChart3, Settings, LogOut, Menu, X, ChevronLeft,
-    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil
+    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil, Ticket
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 
@@ -25,6 +25,7 @@ const navItems = {
         { href: '/whiteboard', label: 'Whiteboard', labelHindi: 'व्हाइटबोर्ड', icon: Pencil },
         { href: '/admin/whiteboards', label: 'Live Sessions', labelHindi: 'लाइव सत्र', icon: Video },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
+        { href: '/tickets', label: 'Tickets', labelHindi: 'टिकट', icon: Ticket },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
@@ -35,6 +36,7 @@ const navItems = {
         { href: '/admin/documents', label: 'Documents', labelHindi: 'दस्तावेज़', icon: FolderOpen },
         { href: '/grades', label: 'Grades', labelHindi: 'ग्रेड', icon: Award },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
+        { href: '/tickets', label: 'Tickets', labelHindi: 'टिकट', icon: Ticket },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
@@ -49,6 +51,7 @@ const navItems = {
         { href: '/viva', label: 'Viva', labelHindi: 'मौखिक', icon: Video },
         { href: '/whiteboard', label: 'Whiteboard', labelHindi: 'व्हाइटबोर्ड', icon: Pencil },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
+        { href: '/tickets', label: 'Tickets', labelHindi: 'टिकट', icon: Ticket },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
@@ -60,6 +63,7 @@ const navItems = {
         { href: '/assigned-work', label: 'Assigned Work', labelHindi: 'सौंपा गया कार्य', icon: ListChecks },
         { href: '/submissions', label: 'Review Submissions', labelHindi: 'समीक्षा प्रस्तुतियाँ', icon: FileText },
         { href: '/documents', label: 'Shared Docs', labelHindi: 'साझा दस्तावेज़', icon: FolderOpen },
+        { href: '/tickets', label: 'Tickets', labelHindi: 'टिकट', icon: Ticket },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
     student: [
@@ -70,6 +74,7 @@ const navItems = {
         { href: '/grades', label: 'My Grades', labelHindi: 'मेरे ग्रेड', icon: Award },
         { href: '/viva', label: 'Viva', labelHindi: 'मौखिक', icon: Video },
         { href: '/live-board', label: 'Live Board', labelHindi: 'लाइव बोर्ड', icon: Pencil },
+        { href: '/tickets', label: 'Report Issue', labelHindi: 'समस्या दर्ज करें', icon: Ticket },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
 };
