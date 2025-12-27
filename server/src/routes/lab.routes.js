@@ -32,68 +32,77 @@ router.get('/item-types', authenticate, asyncHandler(async (req, res) => {
  * @desc    Debug endpoint to test maintenance history queries (PUBLIC - NO AUTH for debugging)
  * @access  Public (TEMPORARY - for debugging only)
  */
-router.get('/debug-maintenance/:labId', asyncHandler(async (req, res) => {
-    const labId = req.params.labId;
-    const results = {
-        labId: labId,
-        prismaQuery: null,
-        prismaError: null,
-        rawSqlQuery: null,
-        rawSqlError: null,
-        tableCheck: null
-    };
-
-    // Test 1: Check if table exists and columns
+router.get('/debug-maintenance/:labId', async (req, res) => {
     try {
-        const tableInfo = await prisma.$queryRaw`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'lab_maintenance_history'
-            ORDER BY ordinal_position
-        `;
-        results.tableCheck = tableInfo;
-    } catch (e) {
-        results.tableCheck = 'ERROR: ' + e.message;
-    }
+        const labId = req.params.labId;
+        const results = {
+            labId: labId,
+            prismaQuery: null,
+            prismaError: null,
+            rawSqlQuery: null,
+            rawSqlError: null,
+            tableCheck: null,
+            rawSqlCount: null
+        };
 
-    // Test 2: Raw SQL count
-    try {
-        const rawCount = await prisma.$queryRaw`
-            SELECT COUNT(*) as count FROM lab_maintenance_history WHERE lab_id = ${labId}::uuid
-        `;
-        results.rawSqlCount = rawCount;
-    } catch (e) {
-        results.rawSqlError = 'Count failed: ' + e.message;
-    }
+        // Test 1: Check if table exists and columns
+        try {
+            const tableInfo = await prisma.$queryRaw`
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'lab_maintenance_history'
+                ORDER BY ordinal_position
+            `;
+            results.tableCheck = tableInfo;
+        } catch (e) {
+            results.tableCheck = 'ERROR: ' + e.message;
+        }
 
-    // Test 3: Raw SQL query with data
-    try {
-        const rawData = await prisma.$queryRaw`
-            SELECT id, lab_id, action, reason, new_status, created_at 
-            FROM lab_maintenance_history 
-            WHERE lab_id = ${labId}::uuid
-            ORDER BY id DESC
-            LIMIT 10
-        `;
-        results.rawSqlQuery = rawData;
-    } catch (e) {
-        results.rawSqlError = e.message;
-    }
+        // Test 2: Raw SQL count
+        try {
+            const rawCount = await prisma.$queryRaw`
+                SELECT COUNT(*) as count FROM lab_maintenance_history WHERE lab_id = ${labId}::uuid
+            `;
+            results.rawSqlCount = rawCount;
+        } catch (e) {
+            results.rawSqlError = 'Count failed: ' + e.message;
+        }
 
-    // Test 4: Prisma query
-    try {
-        const prismaData = await prisma.labMaintenanceHistory.findMany({
-            where: { labId: labId },
-            orderBy: { id: 'desc' },
-            take: 10
+        // Test 3: Raw SQL query with data
+        try {
+            const rawData = await prisma.$queryRaw`
+                SELECT id, lab_id, action, reason, new_status, created_at 
+                FROM lab_maintenance_history 
+                WHERE lab_id = ${labId}::uuid
+                ORDER BY id DESC
+                LIMIT 10
+            `;
+            results.rawSqlQuery = rawData;
+        } catch (e) {
+            results.rawSqlError = e.message;
+        }
+
+        // Test 4: Prisma query
+        try {
+            const prismaData = await prisma.labMaintenanceHistory.findMany({
+                where: { labId: labId },
+                orderBy: { id: 'desc' },
+                take: 10
+            });
+            results.prismaQuery = prismaData;
+        } catch (e) {
+            results.prismaError = e.message;
+        }
+
+        res.json({ success: true, debug: results });
+    } catch (globalError) {
+        res.status(500).json({
+            success: false,
+            error: globalError.message,
+            stack: globalError.stack
         });
-        results.prismaQuery = prismaData;
-    } catch (e) {
-        results.prismaError = e.message;
     }
-
-    res.json({ success: true, debug: results });
-}));
+});
 
 /**
  * @route   POST /api/labs/upload-image
