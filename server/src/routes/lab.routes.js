@@ -58,12 +58,12 @@ router.get('/debug-maintenance/:labId', async (req, res) => {
             results.tableCheck = 'ERROR: ' + e.message;
         }
 
-        // Test 2: Raw SQL count
+        // Test 2: Raw SQL count (cast to text to avoid BigInt)
         try {
             const rawCount = await prisma.$queryRaw`
-                SELECT COUNT(*) as count FROM lab_maintenance_history WHERE lab_id = ${labId}::uuid
+                SELECT COUNT(*)::text as count FROM lab_maintenance_history WHERE lab_id = ${labId}::uuid
             `;
-            results.rawSqlCount = rawCount;
+            results.rawSqlCount = rawCount[0]?.count || '0';
         } catch (e) {
             results.rawSqlError = 'Count failed: ' + e.message;
         }
@@ -71,7 +71,7 @@ router.get('/debug-maintenance/:labId', async (req, res) => {
         // Test 3: Raw SQL query with data
         try {
             const rawData = await prisma.$queryRaw`
-                SELECT id, lab_id, action, reason, new_status, created_at 
+                SELECT id::text, lab_id::text, action, reason, new_status, created_at::text 
                 FROM lab_maintenance_history 
                 WHERE lab_id = ${labId}::uuid
                 ORDER BY id DESC
@@ -94,7 +94,12 @@ router.get('/debug-maintenance/:labId', async (req, res) => {
             results.prismaError = e.message;
         }
 
-        res.json({ success: true, debug: results });
+        // Custom JSON serializer to handle any remaining BigInt
+        const jsonString = JSON.stringify({ success: true, debug: results }, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        );
+        res.setHeader('Content-Type', 'application/json');
+        res.send(jsonString);
     } catch (globalError) {
         res.status(500).json({
             success: false,
