@@ -639,26 +639,65 @@ router.put('/:id/status', authenticate, authorize('admin', 'principal'), asyncHa
             }
         });
 
-        // Log maintenance history
-        const historyAction = status === 'maintenance' ? 'started' :
-            lab.status === 'maintenance' && status === 'active' ? 'ended' : 'changed';
+        // Log maintenance history - handle start vs end differently
+        if (status === 'maintenance') {
+            // STARTING maintenance - create new record
+            await prisma.labMaintenanceHistory.create({
+                data: {
+                    labId: lab.id,
+                    action: 'started',
+                    reason: maintenanceReason || null,
+                    previousStatus: lab.status || 'active',
+                    newStatus: 'maintenance',
+                    startedAt: new Date(),
+                    endedAt: null,
+                    expectedEndDate: maintenanceEndDate ? new Date(maintenanceEndDate) : null,
+                    performedById: req.user.id
+                }
+            });
+            console.log('[Lab Status Update] Created new maintenance history record (started)');
+        } else if (lab.status === 'maintenance' && status === 'active') {
+            // ENDING maintenance - find and update existing record
+            const existingRecord = await prisma.labMaintenanceHistory.findFirst({
+                where: {
+                    labId: lab.id,
+                    action: 'started',
+                    endedAt: null
+                },
+                orderBy: { createdAt: 'desc' }
+            });
 
-        await prisma.labMaintenanceHistory.create({
-            data: {
-                labId: lab.id,
-                action: historyAction,
-                reason: maintenanceReason || null,
-                previousStatus: lab.status || 'active',
-                newStatus: status,
-                startedAt: status === 'maintenance' ? new Date() : null,
-                endedAt: historyAction === 'ended' ? new Date() : null,
-                expectedEndDate: maintenanceEndDate ? new Date(maintenanceEndDate) : null,
-                performedById: req.user.id
+            if (existingRecord) {
+                // Update existing record with end time
+                await prisma.labMaintenanceHistory.update({
+                    where: { id: existingRecord.id },
+                    data: {
+                        action: 'ended',
+                        endedAt: new Date(),
+                        newStatus: 'active'
+                    }
+                });
+                console.log('[Lab Status Update] Updated existing maintenance record (ended):', existingRecord.id);
+            } else {
+                // Fallback: create new record if no existing one found
+                await prisma.labMaintenanceHistory.create({
+                    data: {
+                        labId: lab.id,
+                        action: 'ended',
+                        reason: lab.maintenanceReason || null,
+                        previousStatus: 'maintenance',
+                        newStatus: 'active',
+                        startedAt: lab.maintenanceStartDate || null,
+                        endedAt: new Date(),
+                        expectedEndDate: lab.maintenanceEndDate || null,
+                        performedById: req.user.id
+                    }
+                });
+                console.log('[Lab Status Update] Created new maintenance record (ended) - no existing record found');
             }
-        });
+        }
 
         console.log('[Lab Status Update] Success! New status:', updated.status);
-        console.log('[Lab Status Update] History logged:', historyAction);
 
         res.json({
             success: true,
