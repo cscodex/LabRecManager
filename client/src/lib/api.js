@@ -224,6 +224,7 @@ export const classesAPI = {
     addGroupMember: (classId, groupId, studentId) => api.post(`/classes/${classId}/groups/${groupId}/members`, { studentId }),
     removeGroupMember: (classId, groupId, studentId) => api.delete(`/classes/${classId}/groups/${groupId}/members/${studentId}`),
     getUngroupedStudents: (classId) => api.get(`/classes/${classId}/ungrouped-students`),
+    setGroupLeader: (classId, groupId, studentId) => api.put(`/classes/${classId}/groups/${groupId}/leader`, { studentId }),
 };
 
 // Labs API

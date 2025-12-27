@@ -165,12 +165,25 @@ export default function ClassDetailPage() {
         }
     };
 
-    // Load all PCs when showing PC assignment dropdown
+    // Load all PCs when showing PC assignment dropdown (filter out already assigned ones)
     const handleShowAssignPc = async (groupId) => {
         setAssigningPcToGroup(groupId);
         try {
             const res = await labsAPI.getAllPCs();
-            setAllPCs(res.data.data.pcs || []);
+            const allPCsData = res.data.data.pcs || [];
+
+            // Get PCs already assigned to other groups in this class
+            const assignedPcIds = groups
+                .filter(g => g.id !== groupId && g.assignedPcId)
+                .map(g => g.assignedPcId);
+
+            // Filter out assigned PCs (but keep the one currently assigned to this group)
+            const currentGroup = groups.find(g => g.id === groupId);
+            const availablePCs = allPCsData.filter(pc =>
+                !assignedPcIds.includes(pc.id) || pc.id === currentGroup?.assignedPcId
+            );
+
+            setAllPCs(availablePCs);
         } catch (error) {
             toast.error('Failed to load PCs');
         }
@@ -581,17 +594,36 @@ export default function ClassDetailPage() {
                                                     <div key={member.student.id} className="flex items-center justify-between py-1 px-2 bg-slate-50 rounded">
                                                         <span className="text-sm text-slate-700">
                                                             {member.student.firstName} {member.student.lastName}
-                                                            {member.role === 'leader' && <span className="ml-1 text-xs text-amber-600">(Leader)</span>}
+                                                            {member.role === 'leader' && <span className="ml-1 text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded">★ Leader</span>}
                                                         </span>
-                                                        {(isAdmin || isInstructor) && (
-                                                            <button
-                                                                onClick={() => handleRemoveMember(group.id, member.student.id)}
-                                                                className="p-1 text-red-400 hover:text-red-600"
-                                                                title="Remove from group"
-                                                            >
-                                                                <UserMinus className="w-4 h-4" />
-                                                            </button>
-                                                        )}
+                                                        <div className="flex items-center gap-1">
+                                                            {(isAdmin || isInstructor) && member.role !== 'leader' && (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            await classesAPI.setGroupLeader(params.id, group.id, member.student.id);
+                                                                            toast.success(`${member.student.firstName} is now the leader`);
+                                                                            loadClassData();
+                                                                        } catch (error) {
+                                                                            toast.error(error.response?.data?.message || 'Failed to set leader');
+                                                                        }
+                                                                    }}
+                                                                    className="px-2 py-0.5 text-xs text-amber-600 hover:bg-amber-50 rounded"
+                                                                    title="Make Leader"
+                                                                >
+                                                                    Make Leader
+                                                                </button>
+                                                            )}
+                                                            {(isAdmin || isInstructor) && (
+                                                                <button
+                                                                    onClick={() => handleRemoveMember(group.id, member.student.id)}
+                                                                    className="p-1 text-red-400 hover:text-red-600"
+                                                                    title="Remove from group"
+                                                                >
+                                                                    <UserMinus className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 ))}
 

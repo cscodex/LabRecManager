@@ -610,5 +610,49 @@ router.get('/:classId/ungrouped-students', authenticate, asyncHandler(async (req
         data: { students: ungroupedStudents }
     });
 }));
+/**
+ * @route   PUT /api/classes/:classId/groups/:groupId/leader
+ * @desc    Change group leader
+ * @access  Private (Admin, Instructor)
+ */
+router.put('/:classId/groups/:groupId/leader', authenticate, authorize('admin', 'principal', 'instructor', 'lab_assistant'), [
+    body('studentId').isUUID().withMessage('Valid student ID required')
+], asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { groupId } = req.params;
+    const { studentId } = req.body;
+
+    // Verify the student is a member of this group
+    const member = await prisma.groupMember.findFirst({
+        where: { groupId, studentId },
+        include: { student: { select: { firstName: true, lastName: true } } }
+    });
+
+    if (!member) {
+        return res.status(404).json({ success: false, message: 'Student is not a member of this group' });
+    }
+
+    // Set all members to 'member' role first, then set new leader
+    await prisma.$transaction([
+        prisma.groupMember.updateMany({
+            where: { groupId },
+            data: { role: 'member' }
+        }),
+        prisma.groupMember.update({
+            where: { id: member.id },
+            data: { role: 'leader' }
+        })
+    ]);
+
+    res.json({
+        success: true,
+        message: `${member.student.firstName} ${member.student.lastName} is now the group leader`,
+        data: { leaderId: studentId }
+    });
+}));
 
 module.exports = router;

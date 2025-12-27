@@ -940,6 +940,22 @@ router.put('/groups/:groupId/assign-pc', authenticate, authorize('admin', 'princ
         return res.status(404).json({ success: false, message: 'PC not found' });
     }
 
+    // Check if PC is already assigned to another group in the same class
+    const existingAssignment = await prisma.studentGroup.findFirst({
+        where: {
+            assignedPcId: pcId,
+            classId: group.classId,
+            id: { not: req.params.groupId } // Exclude current group
+        }
+    });
+
+    if (existingAssignment) {
+        return res.status(400).json({
+            success: false,
+            message: `PC ${pc.itemNumber} is already assigned to group "${existingAssignment.name}" in this class`
+        });
+    }
+
     const updated = await prisma.studentGroup.update({
         where: { id: req.params.groupId },
         data: { assignedPcId: pcId },

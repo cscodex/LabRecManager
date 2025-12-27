@@ -42,12 +42,26 @@ export default function CreateGroupPage() {
 
     const loadData = async () => {
         try {
-            const [classRes, studentsRes] = await Promise.all([
+            const [classRes, studentsRes, groupsRes] = await Promise.all([
                 classesAPI.getById(params.id),
-                classesAPI.getStudents(params.id)
+                classesAPI.getStudents(params.id),
+                classesAPI.getGroups(params.id)
             ]);
             setClassData(classRes.data.data.class);
-            setStudents(studentsRes.data.data.students || []);
+
+            // Get IDs of students already in groups
+            const groups = groupsRes.data.data.groups || [];
+            const groupedStudentIds = new Set();
+            groups.forEach(group => {
+                (group.members || []).forEach(member => {
+                    groupedStudentIds.add(member.student?.id || member.studentId);
+                });
+            });
+
+            // Filter out students already in groups
+            const allStudents = studentsRes.data.data.students || [];
+            const ungroupedStudents = allStudents.filter(s => !groupedStudentIds.has(s.id));
+            setStudents(ungroupedStudents);
         } catch (error) {
             toast.error('Failed to load class data');
             console.error(error);
