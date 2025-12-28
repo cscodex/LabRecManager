@@ -1555,6 +1555,7 @@ model Vendor {
   phone         String?  @db.VarChar(20)
   address       String?
   gstin         String?  @db.VarChar(20)
+  isLocal       Boolean  @default(false) @map("is_local")
   schoolId      String   @map("school_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -1574,6 +1575,9 @@ model ProcurementRequest {
   purpose        String?
   department     String?           @db.VarChar(100)
   budgetCode     String?           @map("budget_code") @db.VarChar(50)
+  // Purchase Request Letter (Step 1)
+  purchaseLetterUrl  String?       @map("purchase_letter_url") @db.VarChar(500)
+  purchaseLetterName String?       @map("purchase_letter_name") @db.VarChar(255)
   estimatedTotal Decimal?          @map("estimated_total") @db.Decimal(14, 2)
   approvedTotal  Decimal?          @map("approved_total") @db.Decimal(14, 2)
   status         ProcurementStatus @default(draft)

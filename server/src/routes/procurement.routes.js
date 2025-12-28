@@ -36,10 +36,10 @@ router.get('/vendors', authenticate, asyncHandler(async (req, res) => {
  */
 router.post('/vendors', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
     try {
-        const { name, contactPerson, email, phone, address, gstin } = req.body;
-        console.log('Creating vendor:', { name, contactPerson, email, phone, address, gstin, schoolId: req.user.schoolId });
+        const { name, contactPerson, email, phone, address, gstin, isLocal } = req.body;
+        console.log('Creating vendor:', { name, contactPerson, email, phone, address, gstin, isLocal, schoolId: req.user.schoolId });
         const vendor = await prisma.vendor.create({
-            data: { name, contactPerson, email, phone, address, gstin, schoolId: req.user.schoolId }
+            data: { name, contactPerson, email, phone, address, gstin, isLocal: isLocal || false, schoolId: req.user.schoolId }
         });
         res.status(201).json({ success: true, data: vendor, message: 'Vendor created' });
     } catch (error) {
@@ -60,11 +60,11 @@ router.post('/vendors', authenticate, authorize('admin', 'principal'), asyncHand
  */
 router.put('/vendors/:id', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
     try {
-        const { name, contactPerson, email, phone, address, gstin } = req.body;
-        console.log('Updating vendor:', req.params.id, { name, contactPerson, email, phone, address, gstin });
+        const { name, contactPerson, email, phone, address, gstin, isLocal } = req.body;
+        console.log('Updating vendor:', req.params.id, { name, contactPerson, email, phone, address, gstin, isLocal });
         const vendor = await prisma.vendor.update({
             where: { id: req.params.id },
-            data: { name, contactPerson, email, phone, address, gstin }
+            data: { name, contactPerson, email, phone, address, gstin, isLocal }
         });
         res.json({ success: true, data: vendor, message: 'Vendor updated' });
     } catch (error) {
@@ -244,6 +244,73 @@ router.put('/requests/:id', authenticate, asyncHandler(async (req, res) => {
     });
 
     res.json({ success: true, data: request, message: 'Request updated' });
+}));
+
+/**
+ * @route   PUT /api/procurement/requests/:id/purchase-letter
+ * @desc    Upload purchase request letter for Step 1
+ */
+router.put('/requests/:id/purchase-letter', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { purchaseLetterUrl, purchaseLetterName } = req.body;
+
+    const request = await prisma.procurementRequest.update({
+        where: { id: req.params.id },
+        data: { purchaseLetterUrl, purchaseLetterName }
+    });
+
+    res.json({ success: true, data: request, message: 'Purchase letter uploaded' });
+}));
+
+/**
+ * @route   GET /api/procurement/requests/:id/vendor-requirements
+ * @desc    Check vendor requirements based on estimated total
+ */
+router.get('/requests/:id/vendor-requirements', authenticate, asyncHandler(async (req, res) => {
+    const request = await prisma.procurementRequest.findFirst({
+        where: { id: req.params.id, schoolId: req.user.schoolId },
+        include: {
+            quotations: {
+                include: { vendor: { select: { id: true, name: true, isLocal: true } } }
+            }
+        }
+    });
+
+    if (!request) {
+        return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    const estimatedTotal = parseFloat(request.estimatedTotal) || 0;
+
+    // Determine minimum vendors required
+    let minVendors = 3;
+    let minLocalVendors = 1;
+    if (estimatedTotal >= 100000 && estimatedTotal < 250000) {
+        minVendors = 5;
+    } else if (estimatedTotal >= 250000) {
+        minVendors = 5; // Tender required above 2.5L
+    }
+
+    // Get unique vendors with quotations
+    const vendorsWithQuotes = [...new Map(request.quotations.map(q => [q.vendor.id, q.vendor])).values()];
+    const totalVendors = vendorsWithQuotes.length;
+    const localVendors = vendorsWithQuotes.filter(v => v.isLocal).length;
+
+    const meetsRequirements = totalVendors >= minVendors && localVendors >= minLocalVendors;
+
+    res.json({
+        success: true,
+        data: {
+            estimatedTotal,
+            minVendors,
+            minLocalVendors,
+            totalVendors,
+            localVendors,
+            meetsRequirements,
+            message: meetsRequirements
+                ? 'Vendor requirements met'
+                : `Need ${minVendors} vendors (${minLocalVendors} local). Currently: ${totalVendors} vendors (${localVendors} local)`
+        }
+    });
 }));
 
 /**

@@ -434,6 +434,10 @@ export const procurementAPI = {
     markReceived: (requestId, data) => api.put(`/procurement/requests/${requestId}/receive`, data),
     receiveItem: (requestId, itemId, data) => api.post(`/procurement/requests/${requestId}/items/${itemId}/receive`, data),
     getLabs: () => api.get('/procurement/labs'),
+    // Step 1: Purchase Letter
+    uploadPurchaseLetter: (requestId, data) => api.put(`/procurement/requests/${requestId}/purchase-letter`, data),
+    // Step 2: Vendor Requirements
+    getVendorRequirements: (requestId) => api.get(`/procurement/requests/${requestId}/vendor-requirements`),
 };
 
 export default api;

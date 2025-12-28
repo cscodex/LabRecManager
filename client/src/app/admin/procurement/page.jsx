@@ -54,7 +54,7 @@ export default function ProcurementPage() {
 
     // Vendor Modal
     const [showVendorModal, setShowVendorModal] = useState(false);
-    const [vendorForm, setVendorForm] = useState({ name: '', contactPerson: '', email: '', phone: '', address: '', gstin: '' });
+    const [vendorForm, setVendorForm] = useState({ name: '', contactPerson: '', email: '', phone: '', address: '', gstin: '', isLocal: false });
     const [editingVendor, setEditingVendor] = useState(null);
 
     // Request Detail Modal
@@ -790,6 +790,18 @@ export default function ProcurementPage() {
                             <div>
                                 <label className="label">GSTIN</label>
                                 <input type="text" value={vendorForm.gstin} onChange={(e) => setVendorForm({ ...vendorForm, gstin: e.target.value })} className="input" />
+                            </div>
+                            <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <input
+                                    type="checkbox"
+                                    id="isLocal"
+                                    checked={vendorForm.isLocal}
+                                    onChange={(e) => setVendorForm({ ...vendorForm, isLocal: e.target.checked })}
+                                    className="w-5 h-5 accent-amber-600"
+                                />
+                                <label htmlFor="isLocal" className="text-amber-800 font-medium cursor-pointer">
+                                    Local Vendor (Required for quotation compliance)
+                                </label>
                             </div>
                             <div className="flex justify-end gap-2 pt-4">
                                 <button type="button" onClick={() => setShowVendorModal(false)} className="btn btn-secondary">Cancel</button>
