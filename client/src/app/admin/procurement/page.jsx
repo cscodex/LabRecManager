@@ -74,6 +74,10 @@ export default function ProcurementPage() {
     const [receiveForm, setReceiveForm] = useState({ receivingVideoUrl: '', receivingNotes: '' });
     const [selectedLabId, setSelectedLabId] = useState('');
 
+    // Workflow step state (1-4)
+    const [workflowStep, setWorkflowStep] = useState(1);
+    const [selectedVendorIds, setSelectedVendorIds] = useState([]);
+
     useEffect(() => {
         if (_hasHydrated && !isAuthenticated) router.push('/login');
     }, [_hasHydrated, isAuthenticated, router]);
@@ -236,6 +240,147 @@ export default function ProcurementPage() {
             printWindow.document.close();
         } catch (error) {
             toast.error('Failed to generate preview');
+        }
+    };
+
+    // Generate Call Quotation for selected vendors
+    const generateCallQuotation = async (vendorId) => {
+        try {
+            const res = await procurementAPI.getPreviewData(selectedRequest.id);
+            const { school, request, committee } = res.data.data;
+            const vendor = vendors.find(v => v.id === vendorId);
+            if (!vendor) {
+                toast.error('Vendor not found');
+                return;
+            }
+            const today = new Date().toLocaleDateString('en-IN');
+
+            const html = `
+            <html>
+            <head><title>Call for Quotation - ${vendor.name}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 30px; max-width: 800px; margin: auto; }
+                .letterhead { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+                .letterhead img { max-height: 80px; margin-bottom: 10px; }
+                .letterhead h2 { margin: 5px 0; color: #1e40af; }
+                .vendor-address { background: #f8f9fa; padding: 15px; margin: 20px 0; border-left: 4px solid #1e40af; }
+                .section { margin: 20px 0; }
+                .section-title { font-weight: bold; color: #1e40af; margin-bottom: 10px; font-size: 14px; }
+                table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+                th, td { border: 1px solid #333; padding: 8px; text-align: left; font-size: 12px; }
+                th { background: #e5e7eb; }
+                .request-line { font-size: 14px; margin: 20px 0; line-height: 1.6; }
+                .committee { margin-top: 40px; }
+                .signatures { display: flex; justify-content: space-between; margin-top: 60px; flex-wrap: wrap; }
+                .signature { text-align: center; width: 180px; margin: 20px 10px; }
+                .signature-line { border-top: 1px solid #333; padding-top: 5px; font-size: 11px; }
+                .signature-name { font-weight: bold; margin-bottom: 40px; }
+                @media print { body { padding: 15px; } }
+            </style>
+            </head>
+            <body>
+                ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2><p>${school?.address || ''}</p></div>`}
+                
+                <div class="vendor-address">
+                    <strong>To,</strong><br/>
+                    <strong>${vendor.name}</strong><br/>
+                    ${vendor.contactPerson ? `Attn: ${vendor.contactPerson}<br/>` : ''}
+                    ${vendor.address || ''}<br/>
+                    ${vendor.phone ? `Phone: ${vendor.phone}` : ''} ${vendor.email ? `| Email: ${vendor.email}` : ''}<br/>
+                    ${vendor.gstin ? `GSTIN: ${vendor.gstin}` : ''}
+                </div>
+                
+                <div class="section">
+                    <p><strong>Date:</strong> ${today}</p>
+                    <p><strong>Subject:</strong> Request for Quotation - ${request.title}</p>
+                </div>
+                
+                <div class="request-line">
+                    <p>Dear Sir/Madam,</p>
+                    <p>We invite you to submit your best quotation for the following items required for <strong>${request.purpose || request.department || 'institutional purposes'}</strong>. Please provide your competitive rates at the earliest.</p>
+                </div>
+                
+                <div class="section">
+                    <div class="section-title">ITEMS REQUIRED</div>
+                    <table>
+                        <thead>
+                            <tr><th>S.No</th><th>Item Name</th><th>Specifications</th><th>Quantity</th><th>Unit</th><th>Your Rate (₹)</th></tr>
+                        </thead>
+                        <tbody>
+                            ${request.items.map((item, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td>${item.itemName}</td>
+                                    <td>${item.specifications || '-'}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${item.unit || 'pcs'}</td>
+                                    <td style="min-width:80px;"></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <p><strong>Terms & Conditions:</strong></p>
+                    <ul>
+                        <li>Quotation should be valid for at least 30 days</li>
+                        <li>Delivery period should be mentioned</li>
+                        <li>GST and other taxes should be mentioned separately</li>
+                        <li>Warranty/Guarantee details (if applicable)</li>
+                    </ul>
+                </div>
+                
+                ${committee?.length > 0 ? `
+                <div class="committee">
+                    <div class="section-title">PROCUREMENT COMMITTEE</div>
+                    <div class="signatures">
+                        ${committee.map(m => `
+                            <div class="signature">
+                                <div class="signature-name">${m.user?.firstName} ${m.user?.lastName}</div>
+                                <div class="signature-line">${m.role || 'Member'}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+                
+                <div style="margin-top: 40px; text-align: right;">
+                    <div class="signature" style="display: inline-block;">
+                        <div class="signature-name">Authorized Signatory</div>
+                        <div class="signature-line">For ${school?.name || 'Institution'}</div>
+                    </div>
+                </div>
+            </body>
+            </html>`;
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(html);
+            printWindow.document.close();
+            toast.success(`Call Quotation generated for ${vendor.name}`);
+        } catch (error) {
+            console.error('Generate quotation error:', error);
+            toast.error('Failed to generate call quotation');
+        }
+    };
+
+    // Toggle vendor selection for call quotation
+    const toggleVendorSelection = (vendorId) => {
+        setSelectedVendorIds(prev =>
+            prev.includes(vendorId)
+                ? prev.filter(id => id !== vendorId)
+                : [...prev, vendorId]
+        );
+    };
+
+    // Generate call quotations for all selected vendors
+    const generateAllCallQuotations = async () => {
+        if (selectedVendorIds.length === 0) {
+            toast.error('Please select at least one vendor');
+            return;
+        }
+        for (const vendorId of selectedVendorIds) {
+            await generateCallQuotation(vendorId);
         }
     };
 
@@ -1011,38 +1156,177 @@ export default function ProcurementPage() {
                                 </div>
                             )}
 
-                            {/* Committee Section */}
-                            <div className="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
-                                <h3 className="font-semibold mb-3 flex items-center gap-2 text-amber-800">
-                                    <Users className="w-5 h-5" /> Procurement Committee ({requestDetail.request.committee?.length || 0}/5)
-                                </h3>
-                                <div className="space-y-2 mb-3">
-                                    {requestDetail.request.committee?.map(member => (
-                                        <div key={member.id} className="flex items-center justify-between bg-white p-2 rounded">
-                                            <span>{member.user?.firstName} {member.user?.lastName} - <em className="text-slate-500">{member.role}</em></span>
-                                            <button onClick={() => handleRemoveCommitteeMember(member.id)} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
-                                        </div>
+                            {/* Workflow Steps Tabs */}
+                            <div className="mb-6">
+                                <div className="flex border-b border-slate-200">
+                                    {[
+                                        { step: 1, label: 'Requirement Letter', icon: FileText },
+                                        { step: 2, label: 'Committee', icon: Users },
+                                        { step: 3, label: 'Items', icon: Package },
+                                        { step: 4, label: 'Vendors & Quotations', icon: Building }
+                                    ].map(({ step, label, icon: Icon }) => (
+                                        <button
+                                            key={step}
+                                            onClick={() => setWorkflowStep(step)}
+                                            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${workflowStep === step ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <Icon className="w-4 h-4" />
+                                            <span className="text-sm font-medium">Step {step}: {label}</span>
+                                        </button>
                                     ))}
                                 </div>
-                                {(!requestDetail.request.committee || requestDetail.request.committee.length < 5) && (
+                            </div>
+
+                            {/* Step 1: Requirement Letter */}
+                            {workflowStep === 1 && (
+                                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-blue-800">
+                                        <FileText className="w-5 h-5" /> Step 1: Requirement Letter
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4">Upload a request letter for new purchase or the letter will be generated with school letterhead.</p>
+
+                                    {requestDetail.request.purchaseLetterUrl ? (
+                                        <div className="flex items-center gap-3 bg-white p-3 rounded">
+                                            <FileText className="w-5 h-5 text-green-600" />
+                                            <span className="flex-1">{requestDetail.request.purchaseLetterName || 'Purchase Letter'}</span>
+                                            <a href={requestDetail.request.purchaseLetterUrl} target="_blank" rel="noreferrer" className="btn btn-secondary text-sm">View</a>
+                                        </div>
+                                    ) : (
+                                        <div className="text-slate-500 text-sm italic">No requirement letter uploaded yet. Upload via request edit or generate from preview.</div>
+                                    )}
+
+                                    <button onClick={() => setWorkflowStep(2)} className="btn btn-primary mt-4">
+                                        Next: Committee Formation →
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Step 2: Committee Formation */}
+                            {workflowStep === 2 && (
+                                <div className="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-amber-800">
+                                        <Users className="w-5 h-5" /> Step 2: Procurement Committee ({requestDetail.request.committee?.length || 0}/5)
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4">Add 3-5 committee members. Admin is automatically set as Chairperson.</p>
+
+                                    <div className="space-y-2 mb-3">
+                                        {requestDetail.request.committee?.length > 0 ? (
+                                            requestDetail.request.committee.map(member => (
+                                                <div key={member.id} className="flex items-center justify-between bg-white p-3 rounded border">
+                                                    <div>
+                                                        <span className="font-medium">{member.user?.firstName} {member.user?.lastName}</span>
+                                                        <span className={`ml-2 px-2 py-0.5 text-xs rounded ${member.role === 'chairperson' ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-600'}`}>
+                                                            {member.role}
+                                                        </span>
+                                                    </div>
+                                                    <button onClick={() => handleRemoveCommitteeMember(member.id)} className="text-red-500 hover:text-red-700">
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-slate-500 text-sm italic bg-white p-3 rounded">No committee members added yet.</div>
+                                        )}
+                                    </div>
+
+                                    {(!requestDetail.request.committee || requestDetail.request.committee.length < 5) && (
+                                        <div className="flex gap-2 mb-4">
+                                            <select value={selectedStaffId} onChange={e => setSelectedStaffId(e.target.value)} className="input flex-1">
+                                                <option value="">Select staff member...</option>
+                                                {staffList.filter(s => !requestDetail.request.committee?.find(c => c.userId === s.id)).map(s => (
+                                                    <option key={s.id} value={s.id}>{s.firstName} {s.lastName} ({s.role})</option>
+                                                ))}
+                                            </select>
+                                            <select value={committeeRole} onChange={e => setCommitteeRole(e.target.value)} className="input w-36">
+                                                <option value="member">Member</option>
+                                                <option value="chairperson">Chairperson</option>
+                                                <option value="secretary">Secretary</option>
+                                            </select>
+                                            <button onClick={handleAddCommitteeMember} disabled={!selectedStaffId} className="btn btn-primary">
+                                                <UserPlus className="w-4 h-4" /> Add
+                                            </button>
+                                        </div>
+                                    )}
+
                                     <div className="flex gap-2">
-                                        <select value={selectedStaffId} onChange={e => setSelectedStaffId(e.target.value)} className="input flex-1">
-                                            <option value="">Select staff member...</option>
-                                            {staffList.filter(s => !requestDetail.request.committee?.find(c => c.userId === s.id)).map(s => (
-                                                <option key={s.id} value={s.id}>{s.firstName} {s.lastName} ({s.role})</option>
-                                            ))}
-                                        </select>
-                                        <select value={committeeRole} onChange={e => setCommitteeRole(e.target.value)} className="input w-32">
-                                            <option value="member">Member</option>
-                                            <option value="chairperson">Chairperson</option>
-                                            <option value="secretary">Secretary</option>
-                                        </select>
-                                        <button onClick={handleAddCommitteeMember} disabled={!selectedStaffId} className="btn btn-secondary">
-                                            <UserPlus className="w-4 h-4" />
+                                        <button onClick={() => setWorkflowStep(1)} className="btn btn-secondary">← Back</button>
+                                        <button onClick={() => setWorkflowStep(3)} className="btn btn-primary">Next: Add Items →</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 3: Items & Specifications */}
+                            {workflowStep === 3 && (
+                                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-green-800">
+                                        <Package className="w-5 h-5" /> Step 3: Items & Specifications ({requestDetail.request.items?.length || 0} items)
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4">Review items to be procured with their specifications.</p>
+
+                                    <div className="space-y-2 mb-4">
+                                        {requestDetail.request.items?.map((item, idx) => (
+                                            <div key={item.id} className="p-3 bg-white rounded border flex justify-between items-start">
+                                                <div>
+                                                    <span className="text-slate-400 text-sm mr-2">{idx + 1}.</span>
+                                                    <span className="font-medium">{item.itemName}</span>
+                                                    {item.specifications && <div className="text-slate-500 text-sm mt-1">Specs: {item.specifications}</div>}
+                                                </div>
+                                                <div className="text-right text-sm">
+                                                    <div>Qty: {item.quantity} {item.unit || 'pcs'}</div>
+                                                    {item.estimatedUnitPrice && <div className="text-slate-500">Est: ₹{item.estimatedUnitPrice}</div>}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setWorkflowStep(2)} className="btn btn-secondary">← Back</button>
+                                        <button onClick={() => setWorkflowStep(4)} className="btn btn-primary">Next: Select Vendors →</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 4: Vendors & Call Quotation */}
+                            {workflowStep === 4 && (
+                                <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-purple-800">
+                                        <Building className="w-5 h-5" /> Step 4: Select Vendors & Generate Call Quotations
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4">
+                                        Select vendors to send quotation requests. Min 3 vendors for ₹500-1L, Min 5 for ₹1L-2.5L (1 local required).
+                                    </p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                                        {vendors.map(vendor => (
+                                            <div key={vendor.id} className={`p-3 rounded border cursor-pointer transition-colors ${selectedVendorIds.includes(vendor.id) ? 'bg-purple-100 border-purple-400' : 'bg-white hover:bg-purple-50'}`}
+                                                onClick={() => toggleVendorSelection(vendor.id)}>
+                                                <div className="flex items-center gap-2">
+                                                    <input type="checkbox" checked={selectedVendorIds.includes(vendor.id)} onChange={() => { }} className="w-4 h-4" />
+                                                    <span className="font-medium">{vendor.name}</span>
+                                                    {vendor.isLocal && <span className="px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded">Local</span>}
+                                                </div>
+                                                <div className="text-slate-500 text-sm mt-1">{vendor.address || 'No address'}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex items-center justify-between bg-white p-3 rounded border mb-4">
+                                        <span className="text-sm">
+                                            <strong>{selectedVendorIds.length}</strong> vendors selected
+                                            {selectedVendorIds.filter(id => vendors.find(v => v.id === id)?.isLocal).length > 0 &&
+                                                <span className="text-green-600 ml-2">({selectedVendorIds.filter(id => vendors.find(v => v.id === id)?.isLocal).length} local)</span>
+                                            }
+                                        </span>
+                                        <button onClick={generateAllCallQuotations} disabled={selectedVendorIds.length === 0} className="btn bg-purple-600 hover:bg-purple-700 text-white">
+                                            <Printer className="w-4 h-4" /> Generate Call Quotations
                                         </button>
                                     </div>
-                                )}
-                            </div>
+
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setWorkflowStep(3)} className="btn btn-secondary">← Back</button>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Actions */}
                             <div className="flex flex-wrap gap-2 mb-6">
