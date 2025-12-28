@@ -83,6 +83,9 @@ export default function ProcurementPage() {
     const [selectedVendorForPurchase, setSelectedVendorForPurchase] = useState(null);
     const [gstRate, setGstRate] = useState(18);
 
+    // Step 3: New item form
+    const [newItemForm, setNewItemForm] = useState({ itemName: '', specifications: '', quantity: 1, unit: 'pcs', estimatedUnitPrice: '' });
+
     // Number to words helper
     const numberToWords = (num) => {
         const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -161,6 +164,27 @@ export default function ProcurementPage() {
             openRequestDetail(selectedRequest);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to add member');
+        }
+    };
+
+    const handleAddNewItem = async () => {
+        if (!newItemForm.itemName.trim()) {
+            toast.error('Item name is required');
+            return;
+        }
+        try {
+            await procurementAPI.addItem(selectedRequest.id, {
+                itemName: newItemForm.itemName,
+                specifications: newItemForm.specifications,
+                quantity: parseInt(newItemForm.quantity) || 1,
+                unit: newItemForm.unit,
+                estimatedUnitPrice: parseFloat(newItemForm.estimatedUnitPrice) || null
+            });
+            toast.success('Item added');
+            setNewItemForm({ itemName: '', specifications: '', quantity: 1, unit: 'pcs', estimatedUnitPrice: '' });
+            openRequestDetail(selectedRequest);
+        } catch (error) {
+            toast.error('Failed to add item');
         }
     };
 
@@ -1026,28 +1050,6 @@ export default function ProcurementPage() {
                         <div className="p-6">
                             <p className="text-slate-600 mb-4">{requestDetail.request.purpose}</p>
 
-                            {/* Progress Bar */}
-                            <div className="mb-6 p-4 bg-slate-50 rounded-lg">
-                                <div className="flex items-center justify-between text-xs mb-2">
-                                    {['Draft', 'Quotations', 'Compare', 'Approved', 'Ordered', 'Billed', 'Paid', 'Received', 'Complete'].map((step, idx) => {
-                                        const currentIdx = getStageIndex(requestDetail.request.status);
-                                        const isComplete = idx <= currentIdx;
-                                        const isCurrent = idx === currentIdx;
-                                        return (
-                                            <div key={step} className="flex flex-col items-center">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isComplete ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-500'} ${isCurrent ? 'ring-2 ring-green-300' : ''}`}>
-                                                    {isComplete ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
-                                                </div>
-                                                <span className={`mt-1 ${isCurrent ? 'font-bold text-green-600' : ''}`}>{step}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all" style={{ width: `${((getStageIndex(requestDetail.request.status) + 1) / 9) * 100}%` }} />
-                                </div>
-                            </div>
-
                             {/* Flow Stage Forms */}
                             {requestDetail.request.status === 'approved' && (
                                 <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
@@ -1230,13 +1232,34 @@ export default function ProcurementPage() {
                                     <p className="text-slate-600 text-sm mb-4">Upload a request letter for new purchase or the letter will be generated with school letterhead.</p>
 
                                     {requestDetail.request.purchaseLetterUrl ? (
-                                        <div className="flex items-center gap-3 bg-white p-3 rounded">
+                                        <div className="flex items-center gap-3 bg-white p-3 rounded mb-4">
                                             <FileText className="w-5 h-5 text-green-600" />
                                             <span className="flex-1">{requestDetail.request.purchaseLetterName || 'Purchase Letter'}</span>
                                             <a href={requestDetail.request.purchaseLetterUrl} target="_blank" rel="noreferrer" className="btn btn-secondary text-sm">View</a>
                                         </div>
                                     ) : (
-                                        <div className="text-slate-500 text-sm italic">No requirement letter uploaded yet. Upload via request edit or generate from preview.</div>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="label">Upload Requirement Letter (PDF/Image)</label>
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="input" onChange={e => {
+                                                    const file = e.target.files[0];
+                                                    if (file) toast.success(`Selected: ${file.name} - Upload functionality to be connected`);
+                                                }} />
+                                            </div>
+                                            <div className="text-center text-slate-500 text-sm">— OR —</div>
+                                            <div>
+                                                <label className="label">Create Letter Content (will use school letterhead)</label>
+                                                <textarea
+                                                    className="input min-h-[150px]"
+                                                    placeholder="Enter the requirement letter content here. This will be formatted with school letterhead automatically.
+
+Example:
+Subject: Request for Purchase of Laboratory Equipment
+
+The undersigned requests approval to purchase the following items for the science laboratory..."
+                                                />
+                                            </div>
+                                        </div>
                                     )}
 
                                     <button onClick={() => setWorkflowStep(2)} className="btn btn-primary mt-4">
@@ -1323,9 +1346,55 @@ export default function ProcurementPage() {
                                         ))}
                                     </div>
 
+                                    {/* Add New Item Form */}
+                                    <div className="bg-white p-4 rounded border mb-4">
+                                        <h4 className="font-medium mb-3 flex items-center gap-2"><Plus className="w-4 h-4" /> Add New Item</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div className="md:col-span-2">
+                                                <label className="label">Item Name *</label>
+                                                <input type="text" className="input" placeholder="e.g., Microscope"
+                                                    value={newItemForm.itemName}
+                                                    onChange={e => setNewItemForm({ ...newItemForm, itemName: e.target.value })} />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="label">Specifications</label>
+                                                <textarea className="input min-h-[80px]" placeholder="e.g., Binocular, 40x-1000x magnification"
+                                                    value={newItemForm.specifications}
+                                                    onChange={e => setNewItemForm({ ...newItemForm, specifications: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="label">Quantity</label>
+                                                <input type="number" className="input" min="1"
+                                                    value={newItemForm.quantity}
+                                                    onChange={e => setNewItemForm({ ...newItemForm, quantity: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="label">Unit</label>
+                                                <select className="input" value={newItemForm.unit} onChange={e => setNewItemForm({ ...newItemForm, unit: e.target.value })}>
+                                                    <option value="pcs">Pieces</option>
+                                                    <option value="kg">Kilograms</option>
+                                                    <option value="liters">Liters</option>
+                                                    <option value="boxes">Boxes</option>
+                                                    <option value="sets">Sets</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="label">Est. Unit Price (₹)</label>
+                                                <input type="number" className="input" placeholder="Optional"
+                                                    value={newItemForm.estimatedUnitPrice}
+                                                    onChange={e => setNewItemForm({ ...newItemForm, estimatedUnitPrice: e.target.value })} />
+                                            </div>
+                                            <div className="flex items-end">
+                                                <button onClick={handleAddNewItem} className="btn btn-primary w-full">
+                                                    <Plus className="w-4 h-4" /> Add Item
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(2)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => setWorkflowStep(4)} className="btn btn-primary">Next: Select Vendors →</button>
+                                        <button onClick={() => setWorkflowStep(4)} disabled={!requestDetail.request.items?.length} className="btn btn-primary">Next: Select Vendors →</button>
                                     </div>
                                 </div>
                             )}
