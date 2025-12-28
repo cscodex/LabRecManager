@@ -354,7 +354,11 @@ export default function ProcurementPage() {
             setEditingVendor(null);
             loadData();
         } catch (error) {
-            toast.error('Failed to save vendor');
+            const errMsg = error.response?.data?.error || error.response?.data?.message || error.message;
+            const errCode = error.response?.data?.code || '';
+            const errMeta = error.response?.data?.meta ? JSON.stringify(error.response.data.meta) : '';
+            toast.error(`Failed to save vendor: ${errMsg} ${errCode} ${errMeta}`, { duration: 8000 });
+            console.error('Vendor save error:', error.response?.data);
         }
     };
 

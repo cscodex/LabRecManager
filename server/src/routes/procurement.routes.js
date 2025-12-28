@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { prisma } = require('../config/database');
+const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 
 const asyncHandler = (fn) => (req, res, next) => {
@@ -28,11 +28,23 @@ router.get('/vendors', authenticate, asyncHandler(async (req, res) => {
  * @desc    Create a vendor
  */
 router.post('/vendors', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
-    const { name, contactPerson, email, phone, address, gstin } = req.body;
-    const vendor = await prisma.vendor.create({
-        data: { name, contactPerson, email, phone, address, gstin, schoolId: req.user.schoolId }
-    });
-    res.status(201).json({ success: true, data: vendor, message: 'Vendor created' });
+    try {
+        const { name, contactPerson, email, phone, address, gstin } = req.body;
+        console.log('Creating vendor:', { name, contactPerson, email, phone, address, gstin, schoolId: req.user.schoolId });
+        const vendor = await prisma.vendor.create({
+            data: { name, contactPerson, email, phone, address, gstin, schoolId: req.user.schoolId }
+        });
+        res.status(201).json({ success: true, data: vendor, message: 'Vendor created' });
+    } catch (error) {
+        console.error('Vendor create error:', error);
+        res.status(400).json({
+            success: false,
+            message: 'Failed to create vendor',
+            error: error.message,
+            code: error.code,
+            meta: error.meta
+        });
+    }
 }));
 
 /**
@@ -40,12 +52,24 @@ router.post('/vendors', authenticate, authorize('admin', 'principal'), asyncHand
  * @desc    Update a vendor
  */
 router.put('/vendors/:id', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
-    const { name, contactPerson, email, phone, address, gstin } = req.body;
-    const vendor = await prisma.vendor.update({
-        where: { id: req.params.id },
-        data: { name, contactPerson, email, phone, address, gstin }
-    });
-    res.json({ success: true, data: vendor, message: 'Vendor updated' });
+    try {
+        const { name, contactPerson, email, phone, address, gstin } = req.body;
+        console.log('Updating vendor:', req.params.id, { name, contactPerson, email, phone, address, gstin });
+        const vendor = await prisma.vendor.update({
+            where: { id: req.params.id },
+            data: { name, contactPerson, email, phone, address, gstin }
+        });
+        res.json({ success: true, data: vendor, message: 'Vendor updated' });
+    } catch (error) {
+        console.error('Vendor update error:', error);
+        res.status(400).json({
+            success: false,
+            message: 'Failed to update vendor',
+            error: error.message,
+            code: error.code,
+            meta: error.meta
+        });
+    }
 }));
 
 /**
