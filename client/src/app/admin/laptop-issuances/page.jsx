@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     Laptop, ArrowLeft, Plus, Search, RotateCcw, FileText,
     Share2, Mail, MessageCircle, Printer, User, Calendar,
-    CheckCircle, Clock, AlertTriangle, X
+    CheckCircle, Clock, AlertTriangle, X, Camera
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
@@ -53,6 +53,11 @@ export default function LaptopIssuancesPage() {
         chargerStatus: 'working'
     });
     const [issuing, setIssuing] = useState(false);
+
+    // Camera scanner state
+    const [showCameraScanner, setShowCameraScanner] = useState(false);
+    const scannerRef = useRef(null);
+    const html5QrcodeRef = useRef(null);
 
     // Return modal state
     const [showReturnModal, setShowReturnModal] = useState(false);
@@ -427,36 +432,117 @@ export default function LaptopIssuancesPage() {
                             </button>
                         </div>
                         <form onSubmit={handleIssueLaptop} className="p-6 space-y-4">
-                            {/* Barcode Scanner Input */}
+                            {/* Barcode Scanner Section */}
                             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <label className="label text-blue-700 flex items-center gap-2 mb-2">
                                     <span>📷</span> Scan Barcode / Serial No
                                 </label>
-                                <input
-                                    type="text"
-                                    placeholder="Scan or type barcode/serial number..."
-                                    className="input font-mono"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            const scanned = e.target.value.trim().toUpperCase();
-                                            // Find laptop by serial number or item number
-                                            const match = availableLaptops.find(l =>
-                                                l.serialNo?.toUpperCase() === scanned ||
-                                                l.itemNumber?.toUpperCase() === scanned
-                                            );
-                                            if (match) {
-                                                setIssueForm({ ...issueForm, laptopId: match.id });
-                                                toast.success(`Selected: ${match.itemNumber}`);
-                                                e.target.value = '';
-                                            } else {
-                                                toast.error(`No laptop found with barcode/serial: ${scanned}`);
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Type or scan barcode/serial..."
+                                        className="input font-mono flex-1"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                const scanned = e.target.value.trim().toUpperCase();
+                                                const match = availableLaptops.find(l =>
+                                                    l.serialNo?.toUpperCase() === scanned ||
+                                                    l.itemNumber?.toUpperCase() === scanned
+                                                );
+                                                if (match) {
+                                                    setIssueForm({ ...issueForm, laptopId: match.id });
+                                                    toast.success(`Selected: ${match.itemNumber}`);
+                                                    e.target.value = '';
+                                                } else {
+                                                    toast.error(`No laptop found: ${scanned}`);
+                                                }
                                             }
-                                        }
-                                    }}
-                                />
-                                <p className="text-xs text-blue-600 mt-1">Press Enter after scanning. Works with camera apps & laser scanners.</p>
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setShowCameraScanner(true);
+                                            // Dynamically import html5-qrcode
+                                            try {
+                                                const { Html5Qrcode } = await import('html5-qrcode');
+                                                setTimeout(() => {
+                                                    if (scannerRef.current) {
+                                                        const scanner = new Html5Qrcode('camera-scanner');
+                                                        html5QrcodeRef.current = scanner;
+                                                        scanner.start(
+                                                            { facingMode: 'environment' },
+                                                            { fps: 10, qrbox: { width: 250, height: 100 } },
+                                                            (decodedText) => {
+                                                                // Barcode scanned!
+                                                                const scanned = decodedText.trim().toUpperCase();
+                                                                const match = availableLaptops.find(l =>
+                                                                    l.serialNo?.toUpperCase() === scanned ||
+                                                                    l.itemNumber?.toUpperCase() === scanned
+                                                                );
+                                                                if (match) {
+                                                                    setIssueForm({ ...issueForm, laptopId: match.id });
+                                                                    toast.success(`Scanned: ${match.itemNumber}`);
+                                                                } else {
+                                                                    toast.error(`No laptop found: ${scanned}`);
+                                                                }
+                                                                // Stop scanner after successful scan
+                                                                scanner.stop().then(() => {
+                                                                    setShowCameraScanner(false);
+                                                                });
+                                                            },
+                                                            (errorMessage) => {
+                                                                // Ignore scan errors, just keep trying
+                                                            }
+                                                        ).catch(err => {
+                                                            toast.error('Camera access denied');
+                                                            setShowCameraScanner(false);
+                                                        });
+                                                    }
+                                                }, 100);
+                                            } catch (err) {
+                                                toast.error('Scanner not available');
+                                                setShowCameraScanner(false);
+                                            }
+                                        }}
+                                        className="btn bg-blue-500 hover:bg-blue-600 text-white"
+                                    >
+                                        <Camera className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <p className="text-xs text-blue-600 mt-1">Type + Enter, or tap camera to scan</p>
+
+                                {/* Camera Scanner Modal */}
+                                {showCameraScanner && (
+                                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
+                                        <div className="bg-white rounded-xl p-4 max-w-md w-full mx-4">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="font-semibold">Scan Barcode</h3>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (html5QrcodeRef.current) {
+                                                            html5QrcodeRef.current.stop().catch(() => { });
+                                                        }
+                                                        setShowCameraScanner(false);
+                                                    }}
+                                                    className="text-slate-500 hover:text-slate-700"
+                                                >
+                                                    <X className="w-6 h-6" />
+                                                </button>
+                                            </div>
+                                            <div
+                                                id="camera-scanner"
+                                                ref={scannerRef}
+                                                className="w-full h-64 bg-black rounded-lg overflow-hidden"
+                                            />
+                                            <p className="text-center text-sm text-slate-500 mt-2">
+                                                Point camera at laptop barcode/serial number
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
