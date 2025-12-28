@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
     Laptop, ArrowLeft, Plus, Search, RotateCcw, FileText,
     Share2, Mail, MessageCircle, Printer, User, Calendar,
-    CheckCircle, Clock, AlertTriangle, X, Camera
+    CheckCircle, Clock, AlertTriangle, X, Camera, Copy
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
@@ -58,6 +58,7 @@ export default function LaptopIssuancesPage() {
     const [showCameraScanner, setShowCameraScanner] = useState(false);
     const scannerRef = useRef(null);
     const html5QrcodeRef = useRef(null);
+    const voucherContentRef = useRef(null);
 
     // Return modal state
     const [showReturnModal, setShowReturnModal] = useState(false);
@@ -295,6 +296,38 @@ export default function LaptopIssuancesPage() {
         `);
         printWindow.document.close();
         printWindow.print();
+    };
+
+    const copyVoucherAsImage = async () => {
+        if (!voucherContentRef.current) return;
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(voucherContentRef.current, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true
+            });
+            canvas.toBlob(async (blob) => {
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    toast.success('Voucher copied! Paste in WhatsApp');
+                } catch (err) {
+                    // Fallback: download the image
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `voucher-${voucherData?.voucherNumber}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast.success('Image downloaded (clipboard not supported)');
+                }
+            }, 'image/png');
+        } catch (err) {
+            console.error('Screenshot error:', err);
+            toast.error('Failed to capture voucher');
+        }
     };
 
     const filteredIssuances = issuances.filter(i =>
@@ -769,101 +802,106 @@ export default function LaptopIssuancesPage() {
                             </button>
                         </div>
                         <div className="p-6">
-                            {/* Voucher Content */}
-                            <div className="text-center mb-6">
-                                <div className="text-2xl font-bold text-slate-900">{voucherData.voucherNumber}</div>
-                                <div className="text-sm text-slate-500">Laptop Issuance Voucher</div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="p-4 bg-blue-50 rounded-lg">
-                                    <h3 className="font-semibold text-blue-900 mb-2">Laptop Details</h3>
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div><span className="text-blue-700">Item No:</span> {voucherData.laptop?.itemNumber}</div>
-                                        <div><span className="text-blue-700">Brand:</span> {voucherData.laptop?.brand || 'N/A'}</div>
-                                        <div><span className="text-blue-700">Model:</span> {voucherData.laptop?.modelNo || 'N/A'}</div>
-                                        <div><span className="text-blue-700">Serial:</span> {voucherData.laptop?.serialNo || 'N/A'}</div>
-                                    </div>
+                            {/* Voucher Content - wrapped in ref for screenshot capture */}
+                            <div ref={voucherContentRef} className="bg-white p-4">
+                                <div className="text-center mb-6">
+                                    <div className="text-2xl font-bold text-slate-900">{voucherData.voucherNumber}</div>
+                                    <div className="text-sm text-slate-500">Laptop Issuance Voucher</div>
                                 </div>
 
-                                <div className="p-4 bg-green-50 rounded-lg">
-                                    <h3 className="font-semibold text-green-900 mb-2">Issued To</h3>
-                                    <div className="text-sm">
-                                        <div><span className="text-green-700">Name:</span> {voucherData.issuedTo?.firstName} {voucherData.issuedTo?.lastName}</div>
-                                        <div><span className="text-green-700">Role:</span> {voucherData.issuedTo?.role}</div>
-                                        <div><span className="text-green-700">Email:</span> {voucherData.issuedTo?.email}</div>
-                                        <div><span className="text-green-700">Phone:</span> {voucherData.issuedTo?.phone || 'N/A'}</div>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-slate-50 rounded-lg">
-                                    <h3 className="font-semibold text-slate-900 mb-2">Issue Details</h3>
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div><span className="text-slate-600">Issue Date:</span> {new Date(voucherData.issuedAt).toLocaleDateString()}</div>
-                                        <div><span className="text-slate-600">Condition:</span> {voucherData.conditionOnIssue}</div>
-                                        <div><span className="text-slate-600">Expected Return:</span> {voucherData.expectedReturnDate ? new Date(voucherData.expectedReturnDate).toLocaleDateString() : 'N/A'}</div>
-                                        <div><span className="text-slate-600">Issued By:</span> {voucherData.issuedBy?.firstName} {voucherData.issuedBy?.lastName}</div>
-                                    </div>
-                                    {voucherData.purpose && (
-                                        <div className="mt-2 text-sm"><span className="text-slate-600">Purpose:</span> {voucherData.purpose}</div>
-                                    )}
-                                </div>
-
-                                {/* Component Status Section */}
-                                {voucherData.componentStatus && Object.keys(voucherData.componentStatus).length > 0 && (
-                                    <div className="p-4 bg-amber-50 rounded-lg">
-                                        <h3 className="font-semibold text-amber-900 mb-2">Component Status at Issue</h3>
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-blue-50 rounded-lg">
+                                        <h3 className="font-semibold text-blue-900 mb-2">Laptop Details</h3>
                                         <div className="grid grid-cols-2 gap-2 text-sm">
-                                            {Object.entries(voucherData.componentStatus).map(([key, status]) => {
-                                                const statusColors = {
-                                                    working: 'text-green-600',
-                                                    minor_issue: 'text-amber-600 font-medium',
-                                                    not_working: 'text-red-600 font-bold',
-                                                    na: 'text-slate-400'
-                                                };
-                                                const icons = {
-                                                    screen: '🖥️', keyboard: '⌨️', touchpad: '🖱️',
-                                                    battery: '🔋', ports: '🔌', charger: '⚡'
-                                                };
-                                                const displayStatus = status === 'working' ? '✓ Working' :
-                                                    status === 'minor_issue' ? '⚠ Minor Issue' :
-                                                        status === 'not_working' ? '✕ Not Working' : '— N/A';
-                                                return (
-                                                    <div key={key} className="flex items-center gap-2">
-                                                        <span>{icons[key] || '•'}</span>
-                                                        <span className="capitalize">{key}:</span>
-                                                        <span className={statusColors[status] || 'text-slate-600'}>{displayStatus}</span>
-                                                    </div>
-                                                );
-                                            })}
+                                            <div><span className="text-blue-700">Item No:</span> {voucherData.laptop?.itemNumber}</div>
+                                            <div><span className="text-blue-700">Brand:</span> {voucherData.laptop?.brand || 'N/A'}</div>
+                                            <div><span className="text-blue-700">Model:</span> {voucherData.laptop?.modelNo || 'N/A'}</div>
+                                            <div><span className="text-blue-700">Serial:</span> {voucherData.laptop?.serialNo || 'N/A'}</div>
                                         </div>
-                                        {/* Highlight issues */}
-                                        {Object.values(voucherData.componentStatus).some(s => s === 'minor_issue' || s === 'not_working') && (
-                                            <div className="mt-2 p-2 bg-red-100 rounded text-red-800 text-sm">
-                                                ⚠️ <strong>Issues Found:</strong> {Object.entries(voucherData.componentStatus)
-                                                    .filter(([, s]) => s === 'minor_issue' || s === 'not_working')
-                                                    .map(([k]) => k).join(', ')}
-                                            </div>
+                                    </div>
+
+                                    <div className="p-4 bg-green-50 rounded-lg">
+                                        <h3 className="font-semibold text-green-900 mb-2">Issued To</h3>
+                                        <div className="text-sm">
+                                            <div><span className="text-green-700">Name:</span> {voucherData.issuedTo?.firstName} {voucherData.issuedTo?.lastName}</div>
+                                            <div><span className="text-green-700">Role:</span> {voucherData.issuedTo?.role}</div>
+                                            <div><span className="text-green-700">Email:</span> {voucherData.issuedTo?.email}</div>
+                                            <div><span className="text-green-700">Phone:</span> {voucherData.issuedTo?.phone || 'N/A'}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h3 className="font-semibold text-slate-900 mb-2">Issue Details</h3>
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div><span className="text-slate-600">Issue Date:</span> {new Date(voucherData.issuedAt).toLocaleDateString()}</div>
+                                            <div><span className="text-slate-600">Condition:</span> {voucherData.conditionOnIssue}</div>
+                                            <div><span className="text-slate-600">Expected Return:</span> {voucherData.expectedReturnDate ? new Date(voucherData.expectedReturnDate).toLocaleDateString() : 'N/A'}</div>
+                                            <div><span className="text-slate-600">Issued By:</span> {voucherData.issuedBy?.firstName} {voucherData.issuedBy?.lastName}</div>
+                                        </div>
+                                        {voucherData.purpose && (
+                                            <div className="mt-2 text-sm"><span className="text-slate-600">Purpose:</span> {voucherData.purpose}</div>
                                         )}
                                     </div>
-                                )}
 
-                                {voucherData.status === 'returned' && (
-                                    <div className="p-4 bg-green-100 rounded-lg">
-                                        <h3 className="font-semibold text-green-900 mb-2">Return Details</h3>
-                                        <div className="text-sm">
-                                            <div><span className="text-green-700">Returned On:</span> {new Date(voucherData.returnedAt).toLocaleDateString()}</div>
-                                            <div><span className="text-green-700">Condition:</span> {voucherData.conditionOnReturn}</div>
-                                            {voucherData.receivedBy && (
-                                                <div><span className="text-green-700">Received By:</span> {voucherData.receivedBy.firstName} {voucherData.receivedBy.lastName}</div>
+                                    {/* Component Status Section */}
+                                    {voucherData.componentStatus && Object.keys(voucherData.componentStatus).length > 0 && (
+                                        <div className="p-4 bg-amber-50 rounded-lg">
+                                            <h3 className="font-semibold text-amber-900 mb-2">Component Status at Issue</h3>
+                                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                                {Object.entries(voucherData.componentStatus).map(([key, status]) => {
+                                                    const statusColors = {
+                                                        working: 'text-green-600',
+                                                        minor_issue: 'text-amber-600 font-medium',
+                                                        not_working: 'text-red-600 font-bold',
+                                                        na: 'text-slate-400'
+                                                    };
+                                                    const icons = {
+                                                        screen: '🖥️', keyboard: '⌨️', touchpad: '🖱️',
+                                                        battery: '🔋', ports: '🔌', charger: '⚡'
+                                                    };
+                                                    const displayStatus = status === 'working' ? '✓ Working' :
+                                                        status === 'minor_issue' ? '⚠ Minor Issue' :
+                                                            status === 'not_working' ? '✕ Not Working' : '— N/A';
+                                                    return (
+                                                        <div key={key} className="flex items-center gap-2">
+                                                            <span>{icons[key] || '•'}</span>
+                                                            <span className="capitalize">{key}:</span>
+                                                            <span className={statusColors[status] || 'text-slate-600'}>{displayStatus}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* Highlight issues */}
+                                            {Object.values(voucherData.componentStatus).some(s => s === 'minor_issue' || s === 'not_working') && (
+                                                <div className="mt-2 p-2 bg-red-100 rounded text-red-800 text-sm">
+                                                    ⚠️ <strong>Issues Found:</strong> {Object.entries(voucherData.componentStatus)
+                                                        .filter(([, s]) => s === 'minor_issue' || s === 'not_working')
+                                                        .map(([k]) => k).join(', ')}
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+
+                                    {voucherData.status === 'returned' && (
+                                        <div className="p-4 bg-green-100 rounded-lg">
+                                            <h3 className="font-semibold text-green-900 mb-2">Return Details</h3>
+                                            <div className="text-sm">
+                                                <div><span className="text-green-700">Returned On:</span> {new Date(voucherData.returnedAt).toLocaleDateString()}</div>
+                                                <div><span className="text-green-700">Condition:</span> {voucherData.conditionOnReturn}</div>
+                                                {voucherData.receivedBy && (
+                                                    <div><span className="text-green-700">Received By:</span> {voucherData.receivedBy.firstName} {voucherData.receivedBy.lastName}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div> {/* End voucherContentRef */}
 
                             {/* Share Actions */}
                             <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t">
+                                <button onClick={copyVoucherAsImage} className="btn flex-1 bg-purple-500 hover:bg-purple-600 text-white">
+                                    <Copy className="w-4 h-4" /> Copy Image
+                                </button>
                                 <button onClick={printVoucher} className="btn btn-secondary flex-1">
                                     <Printer className="w-4 h-4" /> Print
                                 </button>
