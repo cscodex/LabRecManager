@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-    Pencil, Users, Clock, Radio, Square, CircleStop, Video,
+    Pencil, Users, Clock, Radio, Square, StopCircle, Video,
     Eye, MessageSquare, UserPlus, RefreshCw, ArrowLeft
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
@@ -214,7 +214,7 @@ export default function AdminWhiteboardsPage() {
                                         className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition"
                                         title="End Session"
                                     >
-                                        <CircleStop className="w-4 h-4" />
+                                        <StopCircle className="w-4 h-4" />
                                     </button>
                                 </div>
                             )}
