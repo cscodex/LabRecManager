@@ -101,17 +101,24 @@ router.get('/requests', authenticate, asyncHandler(async (req, res) => {
     const where = { schoolId: req.user.schoolId };
     if (status) where.status = status;
 
-    const requests = await prisma.procurementRequest.findMany({
-        where,
-        include: {
-            createdBy: { select: { firstName: true, lastName: true } },
-            approvedBy: { select: { firstName: true, lastName: true } },
-            items: { select: { id: true, itemName: true, quantity: true, estimatedUnitPrice: true } },
-            quotations: { select: { id: true, vendorId: true, totalAmount: true } }
-        },
-        orderBy: { createdAt: 'desc' }
-    });
-    res.json({ success: true, data: requests });
+    try {
+        console.log('Fetching requests for schoolId:', req.user.schoolId);
+        const requests = await prisma.procurementRequest.findMany({
+            where,
+            include: {
+                createdBy: { select: { firstName: true, lastName: true } },
+                approvedBy: { select: { firstName: true, lastName: true } },
+                items: { select: { id: true, itemName: true, quantity: true, estimatedUnitPrice: true } },
+                quotations: { select: { id: true, vendorId: true, totalAmount: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        console.log('Found requests:', requests.length);
+        res.json({ success: true, data: requests });
+    } catch (error) {
+        console.error('GET requests error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load requests', error: error.message });
+    }
 }));
 
 /**
