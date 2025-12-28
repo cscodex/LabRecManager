@@ -1609,7 +1609,7 @@ router.get('/laptop-issuances/:id/voucher', authenticate, authorize('admin', 'pr
             }) : null,
             prisma.school.findUnique({
                 where: { id: issuance.schoolId },
-                select: { name: true, address: true, phone: true, email: true }
+                select: { name: true, address: true }
             })
         ]);
 
