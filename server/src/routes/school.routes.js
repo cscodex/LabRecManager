@@ -133,4 +133,24 @@ router.put('/:id', authenticate, authorize('admin', 'principal'), asyncHandler(a
     });
 }));
 
+/**
+ * @route   PUT /api/schools/:id/letterhead
+ * @desc    Update school letterhead URL
+ * @access  Private (Admin, Principal)
+ */
+router.put('/:id/letterhead', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { letterheadUrl } = req.body;
+
+    const school = await prisma.school.update({
+        where: { id: req.params.id },
+        data: { letterheadUrl }
+    });
+
+    res.json({
+        success: true,
+        message: 'Letterhead updated successfully',
+        data: { school }
+    });
+}));
+
 module.exports = router;

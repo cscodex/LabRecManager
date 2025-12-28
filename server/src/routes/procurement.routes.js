@@ -352,4 +352,157 @@ router.get('/requests/:id/print', authenticate, asyncHandler(async (req, res) =>
     res.json({ success: true, data: { request, vendors } });
 }));
 
+// ============================================================
+// COMMITTEE MANAGEMENT
+// ============================================================
+
+/**
+ * @route   GET /api/procurement/staff
+ * @desc    Get staff members for committee selection
+ */
+router.get('/staff', authenticate, asyncHandler(async (req, res) => {
+    const staff = await prisma.user.findMany({
+        where: {
+            schoolId: req.user.schoolId,
+            role: { in: ['admin', 'principal', 'teacher', 'lab_assistant', 'instructor'] }
+        },
+        select: { id: true, firstName: true, lastName: true, role: true, email: true }
+    });
+    res.json({ success: true, data: staff });
+}));
+
+/**
+ * @route   POST /api/procurement/requests/:id/committee
+ * @desc    Add committee member to procurement
+ */
+router.post('/requests/:id/committee', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { userId, role, designation } = req.body;
+
+    // Check committee size (max 5)
+    const existingCount = await prisma.procurementCommittee.count({
+        where: { requestId: req.params.id }
+    });
+    if (existingCount >= 5) {
+        return res.status(400).json({ success: false, message: 'Maximum 5 committee members allowed' });
+    }
+
+    const member = await prisma.procurementCommittee.create({
+        data: {
+            requestId: req.params.id,
+            userId,
+            role: role || 'member',
+            designation
+        },
+        include: { user: { select: { firstName: true, lastName: true, role: true } } }
+    });
+
+    res.status(201).json({ success: true, data: member, message: 'Committee member added' });
+}));
+
+/**
+ * @route   DELETE /api/procurement/requests/:id/committee/:memberId
+ * @desc    Remove committee member
+ */
+router.delete('/requests/:id/committee/:memberId', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    await prisma.procurementCommittee.delete({ where: { id: req.params.memberId } });
+    res.json({ success: true, message: 'Committee member removed' });
+}));
+
+// ============================================================
+// COMBINED PDF PREVIEW DATA
+// ============================================================
+
+/**
+ * @route   GET /api/procurement/requests/:id/preview
+ * @desc    Get all data for combined PDF preview
+ */
+router.get('/requests/:id/preview', authenticate, asyncHandler(async (req, res) => {
+    // Get school with letterhead
+    const school = await prisma.school.findFirst({
+        where: { id: req.user.schoolId },
+        select: { name: true, address: true, letterheadUrl: true, logoUrl: true }
+    });
+
+    // Get request with all details
+    const request = await prisma.procurementRequest.findFirst({
+        where: { id: req.params.id, schoolId: req.user.schoolId },
+        include: {
+            createdBy: { select: { firstName: true, lastName: true } },
+            approvedBy: { select: { firstName: true, lastName: true } },
+            committee: {
+                include: { user: { select: { firstName: true, lastName: true, role: true } } }
+            },
+            items: {
+                include: {
+                    approvedVendor: { select: { name: true } },
+                    quotationItems: {
+                        include: {
+                            quotation: { include: { vendor: { select: { id: true, name: true } } } }
+                        }
+                    }
+                }
+            },
+            quotations: {
+                include: {
+                    vendor: { select: { id: true, name: true, contactPerson: true, email: true, phone: true, address: true, gstin: true } }
+                }
+            }
+        }
+    });
+
+    if (!request) {
+        return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    // Build comparison matrix
+    const comparison = request.items.map(item => {
+        const vendorPrices = {};
+        let lowestPrice = Infinity;
+        let lowestVendorId = null;
+
+        item.quotationItems.forEach(qi => {
+            const vendorId = qi.quotation.vendor.id;
+            const vendorName = qi.quotation.vendor.name;
+            const price = parseFloat(qi.unitPrice);
+            vendorPrices[vendorId] = { vendorName, unitPrice: price };
+            if (price < lowestPrice) {
+                lowestPrice = price;
+                lowestVendorId = vendorId;
+            }
+        });
+
+        return {
+            itemId: item.id,
+            itemName: item.itemName,
+            quantity: item.quantity,
+            unit: item.unit,
+            specifications: item.specifications,
+            vendorPrices,
+            lowestVendorId,
+            lowestPrice: lowestPrice === Infinity ? null : lowestPrice,
+            approvedVendorId: item.approvedVendorId,
+            approvedUnitPrice: parseFloat(item.approvedUnitPrice) || null
+        };
+    });
+
+    // Calculate totals
+    const totalApproved = request.items.reduce((sum, item) => {
+        return sum + ((parseFloat(item.approvedUnitPrice) || 0) * item.quantity);
+    }, 0);
+
+    const vendors = request.quotations.map(q => q.vendor);
+
+    res.json({
+        success: true,
+        data: {
+            school,
+            request,
+            comparison,
+            vendors,
+            totalApproved,
+            committee: request.committee
+        }
+    });
+}));
+
 module.exports = router;

@@ -22,6 +22,7 @@ model School {
   secondaryLanguages    String[]               @map("secondary_languages")
   academicYearStart     Int?                   @default(4) @map("academic_year_start")
   logoUrl               String?                @map("logo_url")
+  letterheadUrl         String?                @map("letterhead_url") @db.VarChar(500)
   createdAt             DateTime?              @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt             DateTime?              @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   academicYears         AcademicYear[]
@@ -183,6 +184,7 @@ model User {
   laptopsReceivedBy                              LaptopIssuance[]         @relation("LaptopReceivedBy")
   procurementsCreated                            ProcurementRequest[]     @relation("ProcurementCreatedBy")
   procurementsApproved                           ProcurementRequest[]     @relation("ProcurementApprovedBy")
+  procurementCommittees                          ProcurementCommittee[]
 
   @@unique([schoolId, studentId], map: "unique_student_id_per_school")
   @@index([email], map: "idx_users_email")
@@ -1585,6 +1587,7 @@ model ProcurementRequest {
   approvedBy User?             @relation("ProcurementApprovedBy", fields: [approvedById], references: [id])
   items      ProcurementItem[]
   quotations VendorQuotation[]
+  committee  ProcurementCommittee[]
 
   @@index([schoolId])
   @@index([status])
@@ -1651,3 +1654,19 @@ model QuotationItem {
   @@map("quotation_items")
 }
 
+model ProcurementCommittee {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId   String   @map("request_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        String?  @default("member") @db.VarChar(50) // chairperson, member, secretary
+  designation String?  @db.VarChar(100)
+  addedAt     DateTime @default(now()) @map("added_at") @db.Timestamp(6)
+
+  request ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([requestId])
+  @@index([userId])
+  @@map("procurement_committee")
+}

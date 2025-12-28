@@ -421,6 +421,12 @@ export const procurementAPI = {
     approveRequest: (requestId, approvedItems) => api.post(`/procurement/requests/${requestId}/approve`, { approvedItems }),
     // Print data
     getPrintData: (requestId) => api.get(`/procurement/requests/${requestId}/print`),
+    // Staff & Committee
+    getStaff: () => api.get('/procurement/staff'),
+    addCommitteeMember: (requestId, data) => api.post(`/procurement/requests/${requestId}/committee`, data),
+    removeCommitteeMember: (requestId, memberId) => api.delete(`/procurement/requests/${requestId}/committee/${memberId}`),
+    // Combined PDF preview
+    getPreviewData: (requestId) => api.get(`/procurement/requests/${requestId}/preview`),
 };
 
 export default api;

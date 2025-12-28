@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
     ArrowLeft, Plus, FileText, Users, ShoppingCart, Package,
     Check, X, Printer, Edit2, Trash2, ChevronDown, ChevronUp,
-    Building, Calculator, ClipboardList
+    Building, Calculator, ClipboardList, UserPlus, Eye
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { procurementAPI } from '@/lib/api';
@@ -38,7 +38,11 @@ export default function ProcurementPage() {
     const [loading, setLoading] = useState(true);
     const [requests, setRequests] = useState([]);
     const [vendors, setVendors] = useState([]);
+    const [staffList, setStaffList] = useState([]);
     const [activeTab, setActiveTab] = useState('requests'); // requests, vendors
+    const [showCommitteeModal, setShowCommitteeModal] = useState(false);
+    const [selectedStaffId, setSelectedStaffId] = useState('');
+    const [committeeRole, setCommitteeRole] = useState('member');
 
     // Create Request Modal
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -73,16 +77,151 @@ export default function ProcurementPage() {
 
     const loadData = async () => {
         try {
-            const [reqRes, vendorRes] = await Promise.all([
+            const [reqRes, vendorRes, staffRes] = await Promise.all([
                 procurementAPI.getRequests(),
-                procurementAPI.getVendors()
+                procurementAPI.getVendors(),
+                procurementAPI.getStaff()
             ]);
             setRequests(reqRes.data.data || []);
             setVendors(vendorRes.data.data || []);
+            setStaffList(staffRes.data.data || []);
         } catch (error) {
             toast.error('Failed to load data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAddCommitteeMember = async () => {
+        if (!selectedStaffId) return;
+        try {
+            await procurementAPI.addCommitteeMember(selectedRequest.id, { userId: selectedStaffId, role: committeeRole });
+            toast.success('Committee member added');
+            setSelectedStaffId('');
+            setCommitteeRole('member');
+            openRequestDetail(selectedRequest);
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to add member');
+        }
+    };
+
+    const handleRemoveCommitteeMember = async (memberId) => {
+        try {
+            await procurementAPI.removeCommitteeMember(selectedRequest.id, memberId);
+            toast.success('Member removed');
+            openRequestDetail(selectedRequest);
+        } catch (error) {
+            toast.error('Failed to remove member');
+        }
+    };
+
+    const openCombinedPdfPreview = async () => {
+        try {
+            const res = await procurementAPI.getPreviewData(selectedRequest.id);
+            const { school, request, comparison, vendors, totalApproved, committee } = res.data.data;
+            const vendorNames = vendors.map(v => v.name);
+            const today = new Date().toLocaleDateString();
+
+            const html = `
+            <html>
+            <head><title>Procurement Document - ${request.title}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; }
+                .letterhead { text-align: center; margin-bottom: 30px; }
+                .letterhead img { max-height: 100px; margin-bottom: 10px; }
+                .letterhead h2 { margin: 5px 0; }
+                .section { margin-bottom: 30px; page-break-inside: avoid; }
+                .section-title { background: #1e40af; color: white; padding: 8px 12px; font-weight: bold; margin-bottom: 10px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #333; padding: 6px; font-size: 11px; text-align: left; }
+                th { background: #f0f0f0; }
+                .lowest { background: #d4edda; font-weight: bold; }
+                .summary-box { background: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin: 15px 0; }
+                .committee { margin-top: 20px; }
+                .signatures { display: flex; justify-content: space-between; margin-top: 50px; }
+                .signature { text-align: center; width: 150px; }
+                .signature-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; font-size: 11px; }
+                @media print { body { padding: 10px; } }
+            </style>
+            </head>
+            <body>
+                ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'School Name'}</h2><p>${school?.address || ''}</p></div>`}
+                
+                <div class="section">
+                    <div class="section-title">1. CALL FOR QUOTATION</div>
+                    <p><strong>Subject:</strong> ${request.title}</p>
+                    <p><strong>Department:</strong> ${request.department || 'N/A'}</p>
+                    <p><strong>Purpose:</strong> ${request.purpose || 'N/A'}</p>
+                    <p><strong>Budget Code:</strong> ${request.budgetCode || 'N/A'}</p>
+                    <p><strong>Date:</strong> ${today}</p>
+                    <h4>Items Required:</h4>
+                    <table>
+                        <tr><th>S.No</th><th>Item</th><th>Specifications</th><th>Qty</th><th>Unit</th></tr>
+                        ${request.items.map((item, i) => `<tr><td>${i + 1}</td><td>${item.itemName}</td><td>${item.specifications || '-'}</td><td>${item.quantity}</td><td>${item.unit || 'pcs'}</td></tr>`).join('')}
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <div class="section-title">2. VENDOR QUOTATIONS RECEIVED</div>
+                    ${vendors.map(v => `<div style="margin-bottom:15px;"><strong>${v.name}</strong><br/>${v.contactPerson || ''} | ${v.phone || ''} | ${v.email || ''}<br/>GSTIN: ${v.gstin || 'N/A'}</div>`).join('')}
+                </div>
+                
+                <div class="section">
+                    <div class="section-title">3. COMPARATIVE STATEMENT</div>
+                    <table>
+                        <tr><th>S.No</th><th>Item</th><th>Qty</th>${vendorNames.map(v => `<th>${v}</th>`).join('')}<th>Lowest</th></tr>
+                        ${comparison.map((item, i) => `<tr>
+                            <td>${i + 1}</td>
+                            <td>${item.itemName}</td>
+                            <td>${item.quantity}</td>
+                            ${vendorNames.map(vName => {
+                        const vData = Object.values(item.vendorPrices).find(vp => vp.vendorName === vName);
+                        const isLowest = vData && item.lowestPrice === vData.unitPrice;
+                        return `<td class="${isLowest ? 'lowest' : ''}">₹${vData?.unitPrice?.toLocaleString() || '-'}</td>`;
+                    }).join('')}
+                            <td class="lowest">₹${item.lowestPrice?.toLocaleString() || '-'}</td>
+                        </tr>`).join('')}
+                        <tr style="font-weight:bold;"><td colspan="3">Total</td>
+                        ${vendorNames.map(vName => {
+                        const total = comparison.reduce((sum, item) => sum + ((Object.values(item.vendorPrices).find(vp => vp.vendorName === vName)?.unitPrice || 0) * item.quantity), 0);
+                        return `<td>₹${total.toLocaleString()}</td>`;
+                    }).join('')}
+                        <td class="lowest">₹${comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0).toLocaleString()}</td></tr>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <div class="section-title">4. VENDOR SELECTION & APPROVAL</div>
+                    <div class="summary-box">
+                        <p><strong>Recommendation:</strong> Based on the comparative statement, items should be procured from vendors offering the lowest prices as highlighted above.</p>
+                        <p><strong>Total Approved Amount:</strong> <span style="font-size:16px;font-weight:bold;">₹${totalApproved?.toLocaleString() || comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0).toLocaleString()}</span></p>
+                        <p><strong>Status:</strong> ${request.status}</p>
+                    </div>
+                </div>
+                
+                ${committee?.length > 0 ? `
+                <div class="section committee">
+                    <div class="section-title">5. PROCUREMENT COMMITTEE</div>
+                    <table>
+                        <tr><th>S.No</th><th>Name</th><th>Role</th><th>Designation</th><th>Signature</th></tr>
+                        ${committee.map((m, i) => `<tr><td>${i + 1}</td><td>${m.user?.firstName} ${m.user?.lastName}</td><td>${m.role || 'Member'}</td><td>${m.designation || m.user?.role || '-'}</td><td style="min-width:100px;"></td></tr>`).join('')}
+                    </table>
+                </div>` : ''}
+                
+                <div class="signatures">
+                    <div class="signature"><div class="signature-line">Prepared By</div></div>
+                    <div class="signature"><div class="signature-line">Verified By</div></div>
+                    <div class="signature"><div class="signature-line">Approved By</div></div>
+                </div>
+            </body>
+            </html>`;
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(html);
+            printWindow.document.close();
+        } catch (error) {
+            toast.error('Failed to generate preview');
         }
     };
 
@@ -582,6 +721,9 @@ export default function ProcurementPage() {
                                 </span>
                             </div>
                             <div className="flex gap-2">
+                                <button onClick={openCombinedPdfPreview} className="btn bg-indigo-500 hover:bg-indigo-600 text-white text-sm">
+                                    <Eye className="w-4 h-4" /> Preview PDF
+                                </button>
                                 {requestDetail.comparison?.length > 0 && (
                                     <button onClick={printComparison} className="btn btn-secondary text-sm">
                                         <Printer className="w-4 h-4" /> Print Comparison
@@ -652,6 +794,39 @@ export default function ProcurementPage() {
                                     </table>
                                 </div>
                             )}
+
+                            {/* Committee Section */}
+                            <div className="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                                <h3 className="font-semibold mb-3 flex items-center gap-2 text-amber-800">
+                                    <Users className="w-5 h-5" /> Procurement Committee ({requestDetail.request.committee?.length || 0}/5)
+                                </h3>
+                                <div className="space-y-2 mb-3">
+                                    {requestDetail.request.committee?.map(member => (
+                                        <div key={member.id} className="flex items-center justify-between bg-white p-2 rounded">
+                                            <span>{member.user?.firstName} {member.user?.lastName} - <em className="text-slate-500">{member.role}</em></span>
+                                            <button onClick={() => handleRemoveCommitteeMember(member.id)} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                                {(!requestDetail.request.committee || requestDetail.request.committee.length < 5) && (
+                                    <div className="flex gap-2">
+                                        <select value={selectedStaffId} onChange={e => setSelectedStaffId(e.target.value)} className="input flex-1">
+                                            <option value="">Select staff member...</option>
+                                            {staffList.filter(s => !requestDetail.request.committee?.find(c => c.userId === s.id)).map(s => (
+                                                <option key={s.id} value={s.id}>{s.firstName} {s.lastName} ({s.role})</option>
+                                            ))}
+                                        </select>
+                                        <select value={committeeRole} onChange={e => setCommitteeRole(e.target.value)} className="input w-32">
+                                            <option value="member">Member</option>
+                                            <option value="chairperson">Chairperson</option>
+                                            <option value="secretary">Secretary</option>
+                                        </select>
+                                        <button onClick={handleAddCommitteeMember} disabled={!selectedStaffId} className="btn btn-secondary">
+                                            <UserPlus className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Actions */}
                             <div className="flex flex-wrap gap-2 mb-6">
