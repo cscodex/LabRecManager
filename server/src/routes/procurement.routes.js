@@ -16,11 +16,18 @@ const asyncHandler = (fn) => (req, res, next) => {
  * @desc    Get all vendors
  */
 router.get('/vendors', authenticate, asyncHandler(async (req, res) => {
-    const vendors = await prisma.vendor.findMany({
-        where: { schoolId: req.user.schoolId },
-        orderBy: { name: 'asc' }
-    });
-    res.json({ success: true, data: vendors });
+    try {
+        console.log('Fetching vendors for schoolId:', req.user.schoolId);
+        const vendors = await prisma.vendor.findMany({
+            where: { schoolId: req.user.schoolId },
+            orderBy: { name: 'asc' }
+        });
+        console.log('Found vendors:', vendors.length);
+        res.json({ success: true, data: vendors });
+    } catch (error) {
+        console.error('GET vendors error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load vendors', error: error.message });
+    }
 }));
 
 /**
