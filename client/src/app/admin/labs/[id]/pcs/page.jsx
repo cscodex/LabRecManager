@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History, ArrowRightLeft, Camera, Network, Volume2 } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, ArrowLeft, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, PlusCircle, Eye, Download, Upload, FileSpreadsheet, Calendar, Shield, Image, Search, QrCode, CheckSquare, Square, Wrench, AlertTriangle, RefreshCw, History, ArrowRightLeft, Camera, Network, Volume2, Laptop, Tablet } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI, filesAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -11,6 +11,8 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 
 const ITEM_TYPES = {
     pc: { label: 'Computer', icon: Monitor, color: 'blue', specFields: ['processor', 'ram', 'storage', 'os', 'monitor'] },
+    laptop: { label: 'Laptop', icon: Laptop, color: 'sky', specFields: ['processor', 'ram', 'storage', 'os', 'screenSize', 'battery'] },
+    tablet: { label: 'Tablet', icon: Tablet, color: 'teal', specFields: ['processor', 'ram', 'storage', 'os', 'screenSize', 'battery'] },
     printer: { label: 'Printer', icon: Printer, color: 'purple', specFields: ['printType', 'paperSize', 'connectivity'] },
     router: { label: 'WiFi Router', icon: Wifi, color: 'green', specFields: ['speed', 'frequency', 'ports'] },
     speaker: { label: 'Speaker', icon: Speaker, color: 'amber', specFields: ['power', 'channels'] },
@@ -24,8 +26,9 @@ const ITEM_TYPES = {
 };
 
 const SPEC_LABELS = {
-    // Computer
+    // Computer & Laptop
     processor: 'Processor', ram: 'RAM', storage: 'Storage', os: 'OS', monitor: 'Monitor Size',
+    screenSize: 'Screen Size', battery: 'Battery',
     // Printer
     printType: 'Print Type', paperSize: 'Paper Size', connectivity: 'Connectivity',
     // Router
