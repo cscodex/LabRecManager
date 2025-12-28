@@ -1484,6 +1484,8 @@ enum IssuanceStatus {
   returned
   overdue
   lost
+  
+  @@map("issuance_status")
 }
 
 model LaptopIssuance {
