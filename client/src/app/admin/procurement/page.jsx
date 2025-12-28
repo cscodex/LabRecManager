@@ -79,10 +79,10 @@ export default function ProcurementPage() {
     }, [_hasHydrated, isAuthenticated, router]);
 
     useEffect(() => {
-        if (user?.schoolId) {
+        if (user?.school?.id) {
             loadData();
         }
-    }, [user?.schoolId]);
+    }, [user?.school?.id]);
 
     const loadData = async () => {
         try {
