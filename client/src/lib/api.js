@@ -427,6 +427,13 @@ export const procurementAPI = {
     removeCommitteeMember: (requestId, memberId) => api.delete(`/procurement/requests/${requestId}/committee/${memberId}`),
     // Combined PDF preview
     getPreviewData: (requestId) => api.get(`/procurement/requests/${requestId}/preview`),
+    // Flow stages
+    markOrdered: (requestId, data) => api.put(`/procurement/requests/${requestId}/order`, data),
+    addBill: (requestId, data) => api.put(`/procurement/requests/${requestId}/bill`, data),
+    addPayment: (requestId, data) => api.put(`/procurement/requests/${requestId}/payment`, data),
+    markReceived: (requestId, data) => api.put(`/procurement/requests/${requestId}/receive`, data),
+    receiveItem: (requestId, itemId, data) => api.post(`/procurement/requests/${requestId}/items/${itemId}/receive`, data),
+    getLabs: () => api.get('/procurement/labs'),
 };
 
 export default api;

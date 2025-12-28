@@ -6,7 +6,8 @@ import Link from 'next/link';
 import {
     ArrowLeft, Plus, FileText, Users, ShoppingCart, Package,
     Check, X, Printer, Edit2, Trash2, ChevronDown, ChevronUp,
-    Building, Calculator, ClipboardList, UserPlus, Eye
+    Building, Calculator, ClipboardList, UserPlus, Eye,
+    Truck, CreditCard, Receipt, ScanLine, Video, CheckCircle2
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { procurementAPI } from '@/lib/api';
@@ -64,6 +65,14 @@ export default function ProcurementPage() {
         vendorId: '', quotationNumber: '', quotationDate: '', validUntil: '', terms: '', remarks: '',
         items: []
     });
+
+    // Flow state
+    const [labs, setLabs] = useState([]);
+    const [orderForm, setOrderForm] = useState({ poNumber: '', poUrl: '' });
+    const [billForm, setBillForm] = useState({ billNumber: '', billDate: '', billAmount: '', billUrl: '' });
+    const [paymentForm, setPaymentForm] = useState({ paymentMethod: 'bank_transfer', chequeNumber: '', chequeUrl: '', paymentDate: '', paymentReference: '' });
+    const [receiveForm, setReceiveForm] = useState({ receivingVideoUrl: '', receivingNotes: '' });
+    const [selectedLabId, setSelectedLabId] = useState('');
 
     useEffect(() => {
         if (_hasHydrated && !isAuthenticated) router.push('/login');
@@ -223,6 +232,79 @@ export default function ProcurementPage() {
         } catch (error) {
             toast.error('Failed to generate preview');
         }
+    };
+
+    // Load labs for inventory
+    const loadLabs = async () => {
+        try {
+            const res = await procurementAPI.getLabs();
+            setLabs(res.data.data || []);
+        } catch (error) { }
+    };
+
+    // Flow handlers
+    const handleMarkOrdered = async () => {
+        try {
+            await procurementAPI.markOrdered(selectedRequest.id, orderForm);
+            toast.success('Marked as ordered');
+            openRequestDetail(selectedRequest);
+            loadData();
+        } catch (error) {
+            toast.error('Failed to mark as ordered');
+        }
+    };
+
+    const handleAddBill = async () => {
+        try {
+            await procurementAPI.addBill(selectedRequest.id, billForm);
+            toast.success('Bill added');
+            openRequestDetail(selectedRequest);
+            loadData();
+        } catch (error) {
+            toast.error('Failed to add bill');
+        }
+    };
+
+    const handleAddPayment = async () => {
+        try {
+            await procurementAPI.addPayment(selectedRequest.id, paymentForm);
+            toast.success('Payment recorded');
+            openRequestDetail(selectedRequest);
+            loadData();
+        } catch (error) {
+            toast.error('Failed to record payment');
+        }
+    };
+
+    const handleMarkReceived = async () => {
+        try {
+            await procurementAPI.markReceived(selectedRequest.id, receiveForm);
+            toast.success('Marked as received');
+            openRequestDetail(selectedRequest);
+            loadData();
+        } catch (error) {
+            toast.error('Failed to mark as received');
+        }
+    };
+
+    const handleReceiveItem = async (itemId, addToInventory, serialNo) => {
+        try {
+            await procurementAPI.receiveItem(selectedRequest.id, itemId, {
+                addToInventory,
+                labId: selectedLabId,
+                serialNo
+            });
+            toast.success(addToInventory ? 'Item received and added to inventory' : 'Item received');
+            openRequestDetail(selectedRequest);
+        } catch (error) {
+            toast.error('Failed to receive item');
+        }
+    };
+
+    // Get current stage index
+    const getStageIndex = (status) => {
+        const stages = ['draft', 'quotation_requested', 'quotes_received', 'approved', 'ordered', 'billed', 'paid', 'received', 'completed'];
+        return stages.indexOf(status);
     };
 
     const handleCreateRequest = async (e) => {
@@ -736,6 +818,119 @@ export default function ProcurementPage() {
                         </div>
                         <div className="p-6">
                             <p className="text-slate-600 mb-4">{requestDetail.request.purpose}</p>
+
+                            {/* Progress Bar */}
+                            <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+                                <div className="flex items-center justify-between text-xs mb-2">
+                                    {['Draft', 'Quotations', 'Compare', 'Approved', 'Ordered', 'Billed', 'Paid', 'Received', 'Complete'].map((step, idx) => {
+                                        const currentIdx = getStageIndex(requestDetail.request.status);
+                                        const isComplete = idx <= currentIdx;
+                                        const isCurrent = idx === currentIdx;
+                                        return (
+                                            <div key={step} className="flex flex-col items-center">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isComplete ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-500'} ${isCurrent ? 'ring-2 ring-green-300' : ''}`}>
+                                                    {isComplete ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                                                </div>
+                                                <span className={`mt-1 ${isCurrent ? 'font-bold text-green-600' : ''}`}>{step}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all" style={{ width: `${((getStageIndex(requestDetail.request.status) + 1) / 9) * 100}%` }} />
+                                </div>
+                            </div>
+
+                            {/* Flow Stage Forms */}
+                            {requestDetail.request.status === 'approved' && (
+                                <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-indigo-800"><Truck className="w-5 h-5" /> Mark as Ordered</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="label">PO Number</label>
+                                            <input type="text" value={orderForm.poNumber} onChange={e => setOrderForm({ ...orderForm, poNumber: e.target.value })} className="input" placeholder="PO-2024-001" />
+                                        </div>
+                                        <div>
+                                            <label className="label">PO Document URL</label>
+                                            <input type="text" value={orderForm.poUrl} onChange={e => setOrderForm({ ...orderForm, poUrl: e.target.value })} className="input" placeholder="https://..." />
+                                        </div>
+                                    </div>
+                                    <button onClick={handleMarkOrdered} className="btn bg-indigo-500 hover:bg-indigo-600 text-white mt-3"><Truck className="w-4 h-4" /> Mark Ordered</button>
+                                </div>
+                            )}
+
+                            {requestDetail.request.status === 'ordered' && (
+                                <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-purple-800"><Receipt className="w-5 h-5" /> Add Bill from Vendor</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label className="label">Bill Number *</label><input type="text" value={billForm.billNumber} onChange={e => setBillForm({ ...billForm, billNumber: e.target.value })} className="input" required /></div>
+                                        <div><label className="label">Bill Date</label><input type="date" value={billForm.billDate} onChange={e => setBillForm({ ...billForm, billDate: e.target.value })} className="input" /></div>
+                                        <div><label className="label">Bill Amount (₹)</label><input type="number" value={billForm.billAmount} onChange={e => setBillForm({ ...billForm, billAmount: e.target.value })} className="input" /></div>
+                                        <div><label className="label">Bill Document URL</label><input type="text" value={billForm.billUrl} onChange={e => setBillForm({ ...billForm, billUrl: e.target.value })} className="input" placeholder="Upload scan..." /></div>
+                                    </div>
+                                    <button onClick={handleAddBill} className="btn bg-purple-500 hover:bg-purple-600 text-white mt-3"><Receipt className="w-4 h-4" /> Save Bill</button>
+                                </div>
+                            )}
+
+                            {requestDetail.request.status === 'billed' && (
+                                <div className="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-emerald-800"><CreditCard className="w-5 h-5" /> Record Payment</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="label">Payment Method *</label>
+                                            <select value={paymentForm.paymentMethod} onChange={e => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })} className="input">
+                                                <option value="bank_transfer">Bank Transfer</option>
+                                                <option value="cheque">Cheque</option>
+                                                <option value="cash">Cash</option>
+                                                <option value="upi">UPI</option>
+                                            </select>
+                                        </div>
+                                        <div><label className="label">Payment Date</label><input type="date" value={paymentForm.paymentDate} onChange={e => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })} className="input" /></div>
+                                        {paymentForm.paymentMethod === 'cheque' && (
+                                            <>
+                                                <div><label className="label">Cheque Number</label><input type="text" value={paymentForm.chequeNumber} onChange={e => setPaymentForm({ ...paymentForm, chequeNumber: e.target.value })} className="input" placeholder="Enter or scan..." /></div>
+                                                <div><label className="label">Cheque Image URL</label><input type="text" value={paymentForm.chequeUrl} onChange={e => setPaymentForm({ ...paymentForm, chequeUrl: e.target.value })} className="input" placeholder="Upload scan..." /></div>
+                                            </>
+                                        )}
+                                        <div><label className="label">Reference/UTR</label><input type="text" value={paymentForm.paymentReference} onChange={e => setPaymentForm({ ...paymentForm, paymentReference: e.target.value })} className="input" /></div>
+                                    </div>
+                                    <button onClick={handleAddPayment} className="btn bg-emerald-500 hover:bg-emerald-600 text-white mt-3"><CreditCard className="w-4 h-4" /> Record Payment</button>
+                                </div>
+                            )}
+
+                            {requestDetail.request.status === 'paid' && (
+                                <div className="mb-6 p-4 bg-teal-50 rounded-lg border border-teal-200">
+                                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-teal-800"><Package className="w-5 h-5" /> Receive Items</h3>
+                                    <div className="grid grid-cols-2 gap-3 mb-4">
+                                        <div><label className="label">Receiving Video URL (Optional)</label><input type="text" value={receiveForm.receivingVideoUrl} onChange={e => setReceiveForm({ ...receiveForm, receivingVideoUrl: e.target.value })} className="input" placeholder="Upload video..." /></div>
+                                        <div><label className="label">Notes</label><input type="text" value={receiveForm.receivingNotes} onChange={e => setReceiveForm({ ...receiveForm, receivingNotes: e.target.value })} className="input" /></div>
+                                        <div><label className="label">Target Lab for Inventory</label>
+                                            <select value={selectedLabId} onChange={e => setSelectedLabId(e.target.value)} className="input" onFocus={loadLabs}>
+                                                <option value="">Select lab...</option>
+                                                {labs.map(l => <option key={l.id} value={l.id}>{l.name} ({l.roomNumber})</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 mb-4">
+                                        {requestDetail.request.items?.map(item => (
+                                            <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg ${item.isReceived ? 'bg-green-100' : 'bg-white border'}`}>
+                                                <div>
+                                                    <span className="font-medium">{item.itemName}</span>
+                                                    <span className="text-sm text-slate-500 ml-2">Qty: {item.quantity}</span>
+                                                    {item.isReceived && <span className="ml-2 text-green-600 text-sm">✓ Received</span>}
+                                                </div>
+                                                {!item.isReceived && (
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => handleReceiveItem(item.id, false)} className="btn btn-secondary text-xs"><Check className="w-3 h-3" /> Receive</button>
+                                                        <button onClick={() => handleReceiveItem(item.id, true)} disabled={!selectedLabId} className="btn bg-teal-500 hover:bg-teal-600 text-white text-xs"><ScanLine className="w-3 h-3" /> Add to Inventory</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={handleMarkReceived} className="btn bg-teal-500 hover:bg-teal-600 text-white"><Package className="w-4 h-4" /> Complete Receiving</button>
+                                </div>
+                            )}
 
                             {/* Comparison Table */}
                             {requestDetail.comparison?.length > 0 && requestDetail.request.quotations?.length > 0 && (

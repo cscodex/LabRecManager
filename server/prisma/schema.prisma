@@ -184,6 +184,7 @@ model User {
   laptopsReceivedBy                              LaptopIssuance[]         @relation("LaptopReceivedBy")
   procurementsCreated                            ProcurementRequest[]     @relation("ProcurementCreatedBy")
   procurementsApproved                           ProcurementRequest[]     @relation("ProcurementApprovedBy")
+  procurementsReceived                           ProcurementRequest[]     @relation("ProcurementReceivedBy")
   procurementCommittees                          ProcurementCommittee[]
 
   @@unique([schoolId, studentId], map: "unique_student_id_per_school")
@@ -430,6 +431,7 @@ model LabItem {
   assignedGroups     StudentGroup[]
   tickets            Ticket[]
   issuances          LaptopIssuance[]
+  procurementItems   ProcurementItem[]
 
   @@unique([labId, itemNumber])
   @@map("lab_items")
@@ -1578,6 +1580,27 @@ model ProcurementRequest {
   createdById    String            @map("created_by_id") @db.Uuid
   approvedById   String?           @map("approved_by_id") @db.Uuid
   approvedAt     DateTime?         @map("approved_at") @db.Timestamp(6)
+  // Ordered
+  orderedAt      DateTime?         @map("ordered_at") @db.Timestamp(6)
+  poNumber       String?           @map("po_number") @db.VarChar(100)
+  poUrl          String?           @map("po_url") @db.VarChar(500)
+  // Billing
+  billNumber     String?           @map("bill_number") @db.VarChar(100)
+  billDate       DateTime?         @map("bill_date") @db.Date
+  billAmount     Decimal?          @map("bill_amount") @db.Decimal(14, 2)
+  billUrl        String?           @map("bill_url") @db.VarChar(500)
+  // Payment
+  paymentMethod  String?           @map("payment_method") @db.VarChar(50)
+  chequeNumber   String?           @map("cheque_number") @db.VarChar(50)
+  chequeUrl      String?           @map("cheque_url") @db.VarChar(500)
+  paymentDate    DateTime?         @map("payment_date") @db.Date
+  paymentReference String?         @map("payment_reference") @db.VarChar(100)
+  // Receiving
+  receivedAt     DateTime?         @map("received_at") @db.Timestamp(6)
+  receivedById   String?           @map("received_by_id") @db.Uuid
+  receivingVideoUrl String?        @map("receiving_video_url") @db.VarChar(500)
+  receivingNotes String?           @map("receiving_notes")
+  // Common
   schoolId       String            @map("school_id") @db.Uuid
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -1585,6 +1608,7 @@ model ProcurementRequest {
   school     School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   createdBy  User              @relation("ProcurementCreatedBy", fields: [createdById], references: [id])
   approvedBy User?             @relation("ProcurementApprovedBy", fields: [approvedById], references: [id])
+  receivedBy User?             @relation("ProcurementReceivedBy", fields: [receivedById], references: [id])
   items      ProcurementItem[]
   quotations VendorQuotation[]
   committee  ProcurementCommittee[]
@@ -1605,13 +1629,19 @@ model ProcurementItem {
   estimatedUnitPrice Decimal? @map("estimated_unit_price") @db.Decimal(12, 2)
   approvedUnitPrice  Decimal? @map("approved_unit_price") @db.Decimal(12, 2)
   approvedVendorId   String?  @map("approved_vendor_id") @db.Uuid
+  // Receiving
+  isReceived         Boolean  @default(false) @map("is_received")
+  receivedQty        Int      @default(0) @map("received_qty")
+  inventoryItemId    String?  @map("inventory_item_id") @db.Uuid
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   request        ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   approvedVendor Vendor?            @relation("ApprovedVendor", fields: [approvedVendorId], references: [id])
+  inventoryItem  LabItem?           @relation(fields: [inventoryItemId], references: [id])
   quotationItems QuotationItem[]
 
   @@index([requestId])
+  @@index([isReceived])
   @@map("procurement_items")
 }
 

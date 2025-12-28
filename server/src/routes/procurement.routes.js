@@ -505,4 +505,175 @@ router.get('/requests/:id/preview', authenticate, asyncHandler(async (req, res) 
     });
 }));
 
+// ============================================================
+// PROCUREMENT FLOW STAGES
+// ============================================================
+
+/**
+ * @route   PUT /api/procurement/requests/:id/order
+ * @desc    Mark as ordered with PO details
+ */
+router.put('/requests/:id/order', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { poNumber, poUrl } = req.body;
+
+    const request = await prisma.procurementRequest.update({
+        where: { id: req.params.id },
+        data: {
+            status: 'ordered',
+            orderedAt: new Date(),
+            poNumber,
+            poUrl
+        }
+    });
+
+    res.json({ success: true, data: request, message: 'Marked as ordered' });
+}));
+
+/**
+ * @route   PUT /api/procurement/requests/:id/bill
+ * @desc    Add bill details from vendor
+ */
+router.put('/requests/:id/bill', authenticate, asyncHandler(async (req, res) => {
+    const { billNumber, billDate, billAmount, billUrl } = req.body;
+
+    const request = await prisma.procurementRequest.update({
+        where: { id: req.params.id },
+        data: {
+            status: 'billed',
+            billNumber,
+            billDate: billDate ? new Date(billDate) : null,
+            billAmount,
+            billUrl
+        }
+    });
+
+    res.json({ success: true, data: request, message: 'Bill added' });
+}));
+
+/**
+ * @route   PUT /api/procurement/requests/:id/payment
+ * @desc    Add payment details
+ */
+router.put('/requests/:id/payment', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const { paymentMethod, chequeNumber, chequeUrl, paymentDate, paymentReference } = req.body;
+
+    const request = await prisma.procurementRequest.update({
+        where: { id: req.params.id },
+        data: {
+            status: 'paid',
+            paymentMethod,
+            chequeNumber,
+            chequeUrl,
+            paymentDate: paymentDate ? new Date(paymentDate) : null,
+            paymentReference
+        }
+    });
+
+    res.json({ success: true, data: request, message: 'Payment recorded' });
+}));
+
+/**
+ * @route   PUT /api/procurement/requests/:id/receive
+ * @desc    Mark items as received with optional video
+ */
+router.put('/requests/:id/receive', authenticate, asyncHandler(async (req, res) => {
+    const { receivingVideoUrl, receivingNotes } = req.body;
+
+    const request = await prisma.procurementRequest.update({
+        where: { id: req.params.id },
+        data: {
+            status: 'received',
+            receivedAt: new Date(),
+            receivedById: req.user.id,
+            receivingVideoUrl,
+            receivingNotes
+        }
+    });
+
+    res.json({ success: true, data: request, message: 'Marked as received' });
+}));
+
+/**
+ * @route   POST /api/procurement/requests/:id/items/:itemId/receive
+ * @desc    Receive individual item and optionally create inventory entry
+ */
+router.post('/requests/:id/items/:itemId/receive', authenticate, asyncHandler(async (req, res) => {
+    const { receivedQty, addToInventory, labId, serialNo, barcode } = req.body;
+
+    let inventoryItemId = null;
+
+    // Get the procurement item
+    const procItem = await prisma.procurementItem.findFirst({
+        where: { id: req.params.itemId, requestId: req.params.id },
+        include: { request: true }
+    });
+
+    if (!procItem) {
+        return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    // Create inventory item if requested
+    if (addToInventory && labId) {
+        const inventoryItem = await prisma.labItem.create({
+            data: {
+                labId,
+                schoolId: procItem.request.schoolId,
+                itemType: procItem.itemName.toLowerCase().includes('chair') ? 'chair' :
+                    procItem.itemName.toLowerCase().includes('table') ? 'table' :
+                        procItem.itemName.toLowerCase().includes('pc') ? 'pc' : 'other',
+                itemNumber: barcode || serialNo || `PROC-${procItem.id.substring(0, 8)}`,
+                serialNo: serialNo || barcode,
+                brand: procItem.specifications?.split(' ')[0] || null,
+                status: 'active',
+                notes: `Added from procurement: ${procItem.request.title}`,
+                purchaseDate: new Date(),
+                quantity: receivedQty || procItem.quantity
+            }
+        });
+        inventoryItemId = inventoryItem.id;
+    }
+
+    // Update procurement item
+    const item = await prisma.procurementItem.update({
+        where: { id: req.params.itemId },
+        data: {
+            isReceived: true,
+            receivedQty: receivedQty || procItem.quantity,
+            inventoryItemId
+        }
+    });
+
+    // Check if all items received
+    const allItems = await prisma.procurementItem.findMany({
+        where: { requestId: req.params.id }
+    });
+    const allReceived = allItems.every(i => i.isReceived);
+
+    if (allReceived) {
+        await prisma.procurementRequest.update({
+            where: { id: req.params.id },
+            data: { status: 'completed' }
+        });
+    }
+
+    res.json({
+        success: true,
+        data: { item, inventoryItemId },
+        message: addToInventory ? 'Item received and added to inventory' : 'Item received'
+    });
+}));
+
+/**
+ * @route   GET /api/procurement/labs
+ * @desc    Get labs for inventory destination selection
+ */
+router.get('/labs', authenticate, asyncHandler(async (req, res) => {
+    const labs = await prisma.lab.findMany({
+        where: { schoolId: req.user.schoolId },
+        select: { id: true, name: true, roomNumber: true }
+    });
+    res.json({ success: true, data: labs });
+}));
+
 module.exports = router;
+
