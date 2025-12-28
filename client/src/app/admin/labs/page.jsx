@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle, Clock, Laptop } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -188,6 +188,9 @@ export default function LabsPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Link href="/admin/laptop-issuances" className="btn btn-secondary">
+                            <Laptop className="w-4 h-4" /> Laptop Issuances
+                        </Link>
                         <Link href="/admin/labs/shift-requests" className="btn btn-secondary">
                             <ArrowRightLeft className="w-4 h-4" /> Shift Requests
                         </Link>
