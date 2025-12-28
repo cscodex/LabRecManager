@@ -78,7 +78,9 @@ export default function LaptopIssuancesPage() {
             setStaffMembers(staffRes.data.data.staff || []);
             setShowIssueModal(true);
         } catch (error) {
-            toast.error('Failed to load data');
+            const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to load data';
+            console.error('Load error:', error.response?.data || error);
+            toast.error(errorMsg, { duration: 8000 });
         }
     };
 
