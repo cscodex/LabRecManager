@@ -111,7 +111,13 @@ export default function TicketsPage() {
         setItemsLoading(true);
         try {
             const res = await labsAPI.getItems(labId);
-            setLabItems(res.data.data.items || []);
+            const allItems = res.data.data.items || [];
+            // Filter out furniture items for H/W and S/W tickets - only show IT equipment
+            const furnitureTypes = ['chair', 'table', 'desk', 'furniture', 'bench'];
+            const filteredItems = allItems.filter(item =>
+                !furnitureTypes.some(type => item.itemType?.toLowerCase().includes(type))
+            );
+            setLabItems(filteredItems);
         } catch { }
         setItemsLoading(false);
     };
