@@ -445,100 +445,405 @@ export default function ProcurementPage() {
             const res = await procurementAPI.getPreviewData(selectedRequest.id);
             const { school, request, comparison, vendors, totalApproved, committee } = res.data.data;
             const vendorNames = vendors.map(v => v.name);
-            const today = new Date().toLocaleDateString();
+            const today = new Date().toLocaleDateString('en-IN');
+            const isComplete = request.status === 'received' || request.status === 'completed';
 
             const html = `
             <html>
             <head><title>Procurement Document - ${request.title}</title>
             <style>
-                body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; }
-                .letterhead { text-align: center; margin-bottom: 30px; }
-                .letterhead img { max-height: 100px; margin-bottom: 10px; }
-                .letterhead h2 { margin: 5px 0; }
-                .section { margin-bottom: 30px; page-break-inside: avoid; }
-                .section-title { background: #1e40af; color: white; padding: 8px 12px; font-weight: bold; margin-bottom: 10px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { border: 1px solid #333; padding: 6px; font-size: 11px; text-align: left; }
-                th { background: #f0f0f0; }
+                @page { size: A4; margin: 15mm; }
+                @page landscape { size: A4 landscape; }
+                body { font-family: Arial, sans-serif; font-size: 11px; line-height: 1.4; }
+                .page { page-break-after: always; padding: 20px; }
+                .page:last-child { page-break-after: avoid; }
+                .landscape { page: landscape; }
+                .letterhead { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1e40af; padding-bottom: 15px; }
+                .letterhead img { max-height: 80px; }
+                .letterhead h2 { margin: 5px 0; color: #1e40af; }
+                .section-title { background: #1e40af; color: white; padding: 8px 12px; font-weight: bold; margin: 15px 0 10px 0; font-size: 13px; }
+                table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+                th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
+                th { background: #e5e7eb; font-weight: bold; }
                 .lowest { background: #d4edda; font-weight: bold; }
-                .summary-box { background: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin: 15px 0; }
-                .committee { margin-top: 20px; }
-                .signatures { display: flex; justify-content: space-between; margin-top: 50px; }
+                .total-row { font-weight: bold; background: #f3f4f6; }
+                .summary-box { background: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin: 15px 0; border-radius: 4px; }
+                .signatures { display: flex; justify-content: space-between; margin-top: 40px; }
                 .signature { text-align: center; width: 150px; }
-                .signature-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; font-size: 11px; }
-                @media print { body { padding: 10px; } }
+                .signature-line { border-top: 1px solid #333; margin-top: 50px; padding-top: 5px; font-size: 10px; }
+                .meta-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+                .meta-info p { margin: 4px 0; }
+                .stamp-area { border: 2px dashed #ccc; width: 120px; height: 120px; margin: 10px auto; display: flex; align-items: center; justify-content: center; color: #999; font-size: 10px; }
+                @media print { 
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .page { padding: 10px; }
+                }
             </style>
             </head>
             <body>
-                ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
-                    `<div class="letterhead"><h2>${school?.name || 'School Name'}</h2><p>${school?.address || ''}</p></div>`}
-                
-                <div class="section">
-                    <div class="section-title">1. CALL FOR QUOTATION</div>
+                <!-- PAGE 1: REQUEST LETTER -->
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2><p>${school?.address || ''}</p></div>`}
+                    
+                    <div class="section-title">1. REQUEST FOR NEW PURCHASE</div>
+                    <div class="meta-info">
+                        <p><strong>Reference No:</strong> PR-${request.id?.slice(0, 8).toUpperCase() || 'XXXXXX'}</p>
+                        <p><strong>Date:</strong> ${new Date(request.createdAt).toLocaleDateString('en-IN')}</p>
+                        <p><strong>Department:</strong> ${request.department || 'N/A'}</p>
+                        <p><strong>Budget Code:</strong> ${request.budgetCode || 'N/A'}</p>
+                    </div>
+                    
                     <p><strong>Subject:</strong> ${request.title}</p>
-                    <p><strong>Department:</strong> ${request.department || 'N/A'}</p>
-                    <p><strong>Purpose:</strong> ${request.purpose || 'N/A'}</p>
-                    <p><strong>Budget Code:</strong> ${request.budgetCode || 'N/A'}</p>
-                    <p><strong>Date:</strong> ${today}</p>
-                    <h4>Items Required:</h4>
+                    <p><strong>Purpose:</strong> ${request.purpose || 'Procurement of items as listed below for institutional requirements.'}</p>
+                    
+                    ${request.letterContent ? `<div style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; background: #fafafa;"><pre style="white-space: pre-wrap; font-family: inherit;">${request.letterContent}</pre></div>` : ''}
+                    
                     <table>
-                        <tr><th>S.No</th><th>Item</th><th>Specifications</th><th>Qty</th><th>Unit</th></tr>
-                        ${request.items.map((item, i) => `<tr><td>${i + 1}</td><td>${item.itemName}</td><td>${item.specifications || '-'}</td><td>${item.quantity}</td><td>${item.unit || 'pcs'}</td></tr>`).join('')}
-                    </table>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">2. VENDOR QUOTATIONS RECEIVED</div>
-                    ${vendors.map(v => `<div style="margin-bottom:15px;"><strong>${v.name}</strong><br/>${v.contactPerson || ''} | ${v.phone || ''} | ${v.email || ''}<br/>GSTIN: ${v.gstin || 'N/A'}</div>`).join('')}
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">3. COMPARATIVE STATEMENT</div>
-                    <table>
-                        <tr><th>S.No</th><th>Item</th><th>Qty</th>${vendorNames.map(v => `<th>${v}</th>`).join('')}<th>Lowest</th></tr>
-                        ${comparison.map((item, i) => `<tr>
+                        <tr><th>S.No</th><th>Item Description</th><th>Specifications</th><th>Qty</th><th>Unit</th><th>Est. Unit Price</th><th>Est. Total</th></tr>
+                        ${request.items.map((item, i) => `<tr>
                             <td>${i + 1}</td>
                             <td>${item.itemName}</td>
+                            <td>${item.specifications || '-'}</td>
                             <td>${item.quantity}</td>
-                            ${vendorNames.map(vName => {
-                        const vData = Object.values(item.vendorPrices).find(vp => vp.vendorName === vName);
-                        const isLowest = vData && item.lowestPrice === vData.unitPrice;
-                        return `<td class="${isLowest ? 'lowest' : ''}">₹${vData?.unitPrice?.toLocaleString() || '-'}</td>`;
-                    }).join('')}
-                            <td class="lowest">₹${item.lowestPrice?.toLocaleString() || '-'}</td>
+                            <td>${item.unit || 'pcs'}</td>
+                            <td>₹${(item.estimatedUnitPrice || 0).toLocaleString()}</td>
+                            <td>₹${((item.estimatedUnitPrice || 0) * item.quantity).toLocaleString()}</td>
                         </tr>`).join('')}
-                        <tr style="font-weight:bold;"><td colspan="3">Total</td>
-                        ${vendorNames.map(vName => {
+                        <tr class="total-row">
+                            <td colspan="6" style="text-align:right;">Estimated Total:</td>
+                            <td>₹${request.items.reduce((sum, i) => sum + ((i.estimatedUnitPrice || 0) * i.quantity), 0).toLocaleString()}</td>
+                        </tr>
+                    </table>
+                    
+                    <div class="signatures">
+                        <div class="signature"><div class="signature-line">Requested By</div></div>
+                        <div class="signature"><div class="signature-line">HOD / Section Head</div></div>
+                        <div class="signature"><div class="signature-line">Principal / Director</div></div>
+                    </div>
+                </div>
+
+                <!-- PAGE 2: CALL FOR QUOTATIONS -->
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">2. CALL FOR QUOTATION</div>
+                    <p><strong>Date:</strong> ${today}</p>
+                    <p><strong>Subject:</strong> Invitation for Quotation - ${request.title}</p>
+                    
+                    <p style="margin: 15px 0;">Dear Vendor,</p>
+                    <p>You are invited to submit your competitive quotation for the following items:</p>
+                    
+                    <table>
+                        <tr><th>S.No</th><th>Item Description</th><th>Specifications</th><th>Qty</th><th>Unit</th></tr>
+                        ${request.items.map((item, i) => `<tr>
+                            <td>${i + 1}</td>
+                            <td>${item.itemName}</td>
+                            <td>${item.specifications || '-'}</td>
+                            <td>${item.quantity}</td>
+                            <td>${item.unit || 'pcs'}</td>
+                        </tr>`).join('')}
+                    </table>
+                    
+                    <div class="summary-box">
+                        <p><strong>Terms & Conditions:</strong></p>
+                        <ul style="margin: 5px 0; padding-left: 20px;">
+                            <li>Quotation must be valid for minimum 30 days</li>
+                            <li>Prices should include all taxes (GST, delivery, etc.)</li>
+                            <li>Delivery period must be mentioned</li>
+                            <li>Warranty/Guarantee details must be provided</li>
+                        </ul>
+                        <p><strong>Last Date for Submission:</strong> ____________</p>
+                    </div>
+                    
+                    <p><strong>Vendors Contacted:</strong></p>
+                    <ol>
+                        ${vendors.map(v => `<li>${v.name} - ${v.contactPerson || ''} (${v.phone || v.email || 'N/A'})</li>`).join('')}
+                    </ol>
+                </div>
+
+                <!-- PAGE 3: VENDOR QUOTATIONS RECEIVED -->
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">3. QUOTATIONS RECEIVED FROM VENDORS</div>
+                    
+                    ${vendors.map((v, idx) => `
+                        <div style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px;">
+                            <h4 style="margin: 0 0 10px 0; color: #1e40af;">Vendor ${idx + 1}: ${v.name}</h4>
+                            <table style="width: auto; margin: 0;">
+                                <tr><td style="border:none; padding: 2px 15px 2px 0;"><strong>Contact:</strong></td><td style="border:none;">${v.contactPerson || '-'}</td></tr>
+                                <tr><td style="border:none; padding: 2px 15px 2px 0;"><strong>Phone:</strong></td><td style="border:none;">${v.phone || '-'}</td></tr>
+                                <tr><td style="border:none; padding: 2px 15px 2px 0;"><strong>Email:</strong></td><td style="border:none;">${v.email || '-'}</td></tr>
+                                <tr><td style="border:none; padding: 2px 15px 2px 0;"><strong>Address:</strong></td><td style="border:none;">${v.address || '-'}</td></tr>
+                                <tr><td style="border:none; padding: 2px 15px 2px 0;"><strong>GSTIN:</strong></td><td style="border:none;">${v.gstin || '-'}</td></tr>
+                                <tr><td style="border:none; padding: 2px 15px 2px 0;"><strong>Local Vendor:</strong></td><td style="border:none;">${v.isLocal ? 'Yes ✓' : 'No'}</td></tr>
+                            </table>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <!-- PAGE 4: COMPARATIVE STATEMENT (Landscape) -->
+                <div class="page" style="page: landscape;">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">4. COMPARATIVE STATEMENT OF QUOTATIONS</div>
+                    <p><strong>Reference:</strong> ${request.title} | <strong>Date:</strong> ${today}</p>
+                    
+                    <table style="font-size: 10px;">
+                        <tr>
+                            <th>S.No</th>
+                            <th>Item Description</th>
+                            <th>Qty</th>
+                            ${vendorNames.map(v => `<th style="background:#e0e7ff;">${v}<br/>(Unit Price)</th>`).join('')}
+                            <th style="background:#d4edda;">Lowest Price</th>
+                            <th style="background:#d4edda;">Lowest Vendor</th>
+                        </tr>
+                        ${comparison.map((item, i) => {
+                        const lowestVendor = Object.values(item.vendorPrices).find(vp => vp.unitPrice === item.lowestPrice);
+                        return `<tr>
+                                <td>${i + 1}</td>
+                                <td>${item.itemName}</td>
+                                <td>${item.quantity}</td>
+                                ${vendorNames.map(vName => {
+                            const vData = Object.values(item.vendorPrices).find(vp => vp.vendorName === vName);
+                            const isLowest = vData && item.lowestPrice === vData.unitPrice;
+                            return `<td class="${isLowest ? 'lowest' : ''}">₹${vData?.unitPrice?.toLocaleString() || '-'}</td>`;
+                        }).join('')}
+                                <td class="lowest">₹${item.lowestPrice?.toLocaleString() || '-'}</td>
+                                <td class="lowest">${lowestVendor?.vendorName || '-'}</td>
+                            </tr>`;
+                    }).join('')}
+                        <tr class="total-row">
+                            <td colspan="3" style="text-align:right;"><strong>Total Amount:</strong></td>
+                            ${vendorNames.map(vName => {
                         const total = comparison.reduce((sum, item) => sum + ((Object.values(item.vendorPrices).find(vp => vp.vendorName === vName)?.unitPrice || 0) * item.quantity), 0);
                         return `<td>₹${total.toLocaleString()}</td>`;
                     }).join('')}
-                        <td class="lowest">₹${comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0).toLocaleString()}</td></tr>
+                            <td class="lowest" colspan="2">₹${comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0).toLocaleString()}</td>
+                        </tr>
                     </table>
+                    
+                    ${committee?.length > 0 ? `
+                    <div style="margin-top: 20px;">
+                        <p><strong>Procurement Committee:</strong></p>
+                        <table style="width: auto;">
+                            <tr><th>S.No</th><th>Name</th><th>Role</th><th>Signature</th></tr>
+                            ${committee.map((m, i) => `<tr><td>${i + 1}</td><td>${m.user?.firstName} ${m.user?.lastName}</td><td>${m.role || 'Member'}</td><td style="min-width:100px;"></td></tr>`).join('')}
+                        </table>
+                    </div>` : ''}
                 </div>
-                
-                <div class="section">
-                    <div class="section-title">4. VENDOR SELECTION & APPROVAL</div>
+
+                <!-- PAGE 5: AMOUNT SHEET / COST SUMMARY -->
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">5. AMOUNT SHEET / COST SUMMARY</div>
+                    <p><strong>Reference:</strong> ${request.title}</p>
+                    
+                    <table>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Item Description</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Approved Unit Price</th>
+                            <th>GST %</th>
+                            <th>GST Amount</th>
+                            <th>Total Amount</th>
+                        </tr>
+                        ${request.items.map((item, i) => {
+                        const compItem = comparison.find(c => c.itemId === item.id);
+                        const unitPrice = compItem?.lowestPrice || item.approvedUnitPrice || 0;
+                        const gstPercent = 18; // Default GST
+                        const baseAmount = unitPrice * item.quantity;
+                        const gstAmount = baseAmount * (gstPercent / 100);
+                        const totalAmount = baseAmount + gstAmount;
+                        return `<tr>
+                                <td>${i + 1}</td>
+                                <td>${item.itemName}</td>
+                                <td>${item.quantity}</td>
+                                <td>${item.unit || 'pcs'}</td>
+                                <td>₹${unitPrice.toLocaleString()}</td>
+                                <td>${gstPercent}%</td>
+                                <td>₹${gstAmount.toLocaleString()}</td>
+                                <td>₹${totalAmount.toLocaleString()}</td>
+                            </tr>`;
+                    }).join('')}
+                        <tr class="total-row">
+                            <td colspan="7" style="text-align:right;"><strong>Grand Total (incl. GST):</strong></td>
+                            <td><strong>₹${(totalApproved || comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity * 1.18), 0)).toLocaleString()}</strong></td>
+                        </tr>
+                    </table>
+                    
                     <div class="summary-box">
-                        <p><strong>Recommendation:</strong> Based on the comparative statement, items should be procured from vendors offering the lowest prices as highlighted above.</p>
-                        <p><strong>Total Approved Amount:</strong> <span style="font-size:16px;font-weight:bold;">₹${totalApproved?.toLocaleString() || comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0).toLocaleString()}</span></p>
-                        <p><strong>Status:</strong> ${request.status}</p>
+                        <p><strong>Amount in Words:</strong> ________________________________________________________________</p>
+                        <p><strong>Approved Vendor:</strong> ${vendors[0]?.name || '________________'}</p>
+                    </div>
+                    
+                    <div class="signatures">
+                        <div class="signature"><div class="signature-line">Prepared By</div></div>
+                        <div class="signature"><div class="signature-line">Verified By</div></div>
+                        <div class="signature"><div class="signature-line">Approved By</div></div>
                     </div>
                 </div>
-                
-                ${committee?.length > 0 ? `
-                <div class="section committee">
-                    <div class="section-title">5. PROCUREMENT COMMITTEE</div>
+
+                <!-- PAGE 6: PURCHASE ORDER -->
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                    `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">6. PURCHASE ORDER</div>
+                    <div class="meta-info">
+                        <p><strong>PO Number:</strong> ${request.poNumber || 'PO-' + request.id?.slice(0, 8).toUpperCase()}</p>
+                        <p><strong>PO Date:</strong> ${request.orderedAt ? new Date(request.orderedAt).toLocaleDateString('en-IN') : today}</p>
+                        <p><strong>Budget Code:</strong> ${request.budgetCode || 'N/A'}</p>
+                        <p><strong>Department:</strong> ${request.department || 'N/A'}</p>
+                    </div>
+                    
+                    <div style="margin: 15px 0; padding: 15px; border: 1px solid #1e40af; border-radius: 4px;">
+                        <p><strong>TO:</strong></p>
+                        <p style="margin-left: 20px;">
+                            <strong>${vendors[0]?.name || '________________'}</strong><br/>
+                            ${vendors[0]?.address || '________________'}<br/>
+                            Contact: ${vendors[0]?.contactPerson || ''} | Phone: ${vendors[0]?.phone || ''}<br/>
+                            GSTIN: ${vendors[0]?.gstin || 'N/A'}
+                        </p>
+                    </div>
+                    
+                    <p>Please supply the following items as per agreed terms:</p>
+                    
                     <table>
-                        <tr><th>S.No</th><th>Name</th><th>Role</th><th>Designation</th><th>Signature</th></tr>
-                        ${committee.map((m, i) => `<tr><td>${i + 1}</td><td>${m.user?.firstName} ${m.user?.lastName}</td><td>${m.role || 'Member'}</td><td>${m.designation || m.user?.role || '-'}</td><td style="min-width:100px;"></td></tr>`).join('')}
+                        <tr><th>S.No</th><th>Item Description</th><th>Specifications</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr>
+                        ${request.items.map((item, i) => {
+                        const compItem = comparison.find(c => c.itemId === item.id);
+                        const unitPrice = compItem?.lowestPrice || 0;
+                        return `<tr>
+                                <td>${i + 1}</td>
+                                <td>${item.itemName}</td>
+                                <td>${item.specifications || '-'}</td>
+                                <td>${item.quantity}</td>
+                                <td>₹${unitPrice.toLocaleString()}</td>
+                                <td>₹${(unitPrice * item.quantity).toLocaleString()}</td>
+                            </tr>`;
+                    }).join('')}
+                        <tr class="total-row">
+                            <td colspan="5" style="text-align:right;"><strong>Total:</strong></td>
+                            <td><strong>₹${comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0).toLocaleString()}</strong></td>
+                        </tr>
                     </table>
-                </div>` : ''}
-                
-                <div class="signatures">
-                    <div class="signature"><div class="signature-line">Prepared By</div></div>
-                    <div class="signature"><div class="signature-line">Verified By</div></div>
-                    <div class="signature"><div class="signature-line">Approved By</div></div>
+                    
+                    <div class="summary-box">
+                        <p><strong>Delivery Address:</strong> ${school?.address || '________________'}</p>
+                        <p><strong>Expected Delivery:</strong> ____________ days from PO date</p>
+                        <p><strong>Payment Terms:</strong> As per institutional policy</p>
+                    </div>
+                    
+                    <div class="signatures">
+                        <div class="signature"><div class="signature-line">Authorized Signatory</div><p style="font-size:10px;">${school?.name || ''}</p></div>
+                        <div class="signature"><div class="stamp-area">Official Stamp</div></div>
+                    </div>
                 </div>
+
+                <!-- PAGE 7: BILL RECEIVED (shown if bill exists) -->
+                ${request.billNumber ? `
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                        `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">7. BILL / INVOICE RECEIVED</div>
+                    <div class="meta-info">
+                        <p><strong>Bill/Invoice Number:</strong> ${request.billNumber}</p>
+                        <p><strong>Bill Date:</strong> ${request.billDate ? new Date(request.billDate).toLocaleDateString('en-IN') : '-'}</p>
+                        <p><strong>Vendor:</strong> ${vendors[0]?.name || '-'}</p>
+                        <p><strong>Vendor GSTIN:</strong> ${vendors[0]?.gstin || '-'}</p>
+                    </div>
+                    
+                    <table>
+                        <tr><th>S.No</th><th>Item Description</th><th>Qty Ordered</th><th>Qty Received</th><th>Unit Price</th><th>Amount</th></tr>
+                        ${request.items.map((item, i) => {
+                            const compItem = comparison.find(c => c.itemId === item.id);
+                            const unitPrice = compItem?.lowestPrice || 0;
+                            return `<tr>
+                                <td>${i + 1}</td>
+                                <td>${item.itemName}</td>
+                                <td>${item.quantity}</td>
+                                <td>${item.receivedQty || item.quantity}</td>
+                                <td>₹${unitPrice.toLocaleString()}</td>
+                                <td>₹${(unitPrice * (item.receivedQty || item.quantity)).toLocaleString()}</td>
+                            </tr>`;
+                        }).join('')}
+                        <tr class="total-row">
+                            <td colspan="5" style="text-align:right;"><strong>Bill Amount:</strong></td>
+                            <td><strong>₹${(request.billAmount || comparison.reduce((sum, item) => sum + ((item.lowestPrice || 0) * item.quantity), 0)).toLocaleString()}</strong></td>
+                        </tr>
+                    </table>
+                    
+                    <div class="summary-box">
+                        <p><strong>Payment Method:</strong> ${request.paymentMethod || 'Bank Transfer'}</p>
+                        <p><strong>Cheque Number:</strong> ${request.chequeNumber || 'N/A'}</p>
+                        <p><strong>Payment Date:</strong> ${request.paymentDate ? new Date(request.paymentDate).toLocaleDateString('en-IN') : '________________'}</p>
+                    </div>
+                    
+                    <div class="signatures">
+                        <div class="signature"><div class="signature-line">Received By</div></div>
+                        <div class="signature"><div class="signature-line">Verified By</div></div>
+                        <div class="signature"><div class="signature-line">Approved for Payment</div></div>
+                    </div>
+                </div>` : ''}
+
+                <!-- PAGE 8: STOCK REGISTER / INVENTORY SHEET (shown only if complete) -->
+                ${isComplete ? `
+                <div class="page">
+                    ${school?.letterheadUrl ? `<div class="letterhead"><img src="${school.letterheadUrl}" alt="Letterhead" style="max-width:100%" /></div>` :
+                        `<div class="letterhead"><h2>${school?.name || 'Institution Name'}</h2></div>`}
+                    
+                    <div class="section-title">8. STOCK REGISTER / NEW INVENTORY ENTRY</div>
+                    <div class="meta-info">
+                        <p><strong>Reference:</strong> ${request.title}</p>
+                        <p><strong>Date of Entry:</strong> ${today}</p>
+                        <p><strong>PO Number:</strong> ${request.poNumber || 'N/A'}</p>
+                        <p><strong>Received From:</strong> ${vendors[0]?.name || '-'}</p>
+                    </div>
+                    
+                    <table>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Item Description</th>
+                            <th>Specifications</th>
+                            <th>Qty Received</th>
+                            <th>Unit</th>
+                            <th>Serial Numbers / Asset Tags</th>
+                            <th>Location / Lab</th>
+                        </tr>
+                        ${request.items.map((item, i) => `<tr>
+                            <td>${i + 1}</td>
+                            <td>${item.itemName}</td>
+                            <td>${item.specifications || '-'}</td>
+                            <td>${item.receivedQty || item.quantity}</td>
+                            <td>${item.unit || 'pcs'}</td>
+                            <td style="min-width: 150px;">${item.serialNumbers?.join(', ') || '________________'}</td>
+                            <td>${item.labName || '________________'}</td>
+                        </tr>`).join('')}
+                    </table>
+                    
+                    <div class="summary-box">
+                        <p><strong>Total Items Added to Inventory:</strong> ${request.items.length}</p>
+                        <p><strong>Total Quantity:</strong> ${request.items.reduce((sum, i) => sum + (i.receivedQty || i.quantity), 0)} units</p>
+                        <p><strong>Receiving Notes:</strong> ${request.receivingNotes || 'Items received in good condition.'}</p>
+                    </div>
+                    
+                    <div class="signatures">
+                        <div class="signature"><div class="signature-line">Store Keeper</div></div>
+                        <div class="signature"><div class="signature-line">Lab In-charge</div></div>
+                        <div class="signature"><div class="signature-line">HOD / Principal</div></div>
+                    </div>
+                </div>` : ''}
+
             </body>
             </html>`;
 
@@ -546,6 +851,7 @@ export default function ProcurementPage() {
             printWindow.document.write(html);
             printWindow.document.close();
         } catch (error) {
+            console.error('PDF Preview error:', error);
             toast.error('Failed to generate preview');
         }
     };
