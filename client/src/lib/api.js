@@ -442,5 +442,41 @@ export const procurementAPI = {
     saveStep: (requestId, currentStep) => api.put(`/procurement/requests/${requestId}/save-step`, { currentStep }),
 };
 
+// File Upload API
+export const uploadAPI = {
+    // Upload a document (PDF/image)
+    uploadDocument: (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/upload/document', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    // Upload a video
+    uploadVideo: (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/upload/video', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    // Upload to specific procurement field
+    uploadProcurementDoc: (requestId, field, file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post(`/upload/procurement/${requestId}/${field}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    // Upload quotation document
+    uploadQuotationDoc: (quotationId, file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post(`/upload/quotation/${quotationId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    }
+};
+
 export default api;
 

@@ -10,7 +10,7 @@ import {
     Truck, CreditCard, Receipt, ScanLine, Video, CheckCircle2
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { procurementAPI } from '@/lib/api';
+import { procurementAPI, uploadAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 const STATUS_COLORS = {
@@ -194,11 +194,22 @@ export default function ProcurementPage() {
         try {
             switch (step) {
                 case 1:
-                    // Save letter content or file
-                    if (letterContent.trim() || letterUpload) {
+                    // Save letter content or upload file
+                    if (letterUpload && letterUpload instanceof File) {
+                        // Upload the file to Cloudinary
+                        const uploadRes = await uploadAPI.uploadProcurementDoc(
+                            selectedRequest.id,
+                            'purchaseLetter',
+                            letterUpload
+                        );
+                        if (uploadRes.data?.success) {
+                            toast.success('Letter uploaded successfully!');
+                            await openRequestDetail(selectedRequest);
+                        }
+                    } else if (letterContent.trim()) {
+                        // Save letter content only
                         await procurementAPI.uploadPurchaseLetter(selectedRequest.id, {
-                            letterContent: letterContent.trim(),
-                            letterFileName: letterUpload?.name || null
+                            letterContent: letterContent.trim()
                         });
                     }
                     break;
@@ -273,15 +284,20 @@ export default function ProcurementPage() {
                     }
                     break;
                 case 8:
-                    // Save bill and payment info
-                    // Use bill filename as billNumber for now
-                    if (billUpload) {
+                    // Upload bill document
+                    if (billUpload && billUpload instanceof File) {
+                        await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'bill', billUpload);
+                        // Also set billNumber and date
                         await procurementAPI.addBill(selectedRequest.id, {
-                            billNumber: billUpload, // Use filename as bill reference
+                            billNumber: billUpload.name,
                             billDate: new Date().toISOString().split('T')[0]
                         });
                     }
-                    // Save cheque info via payment endpoint if cheque exists
+                    // Upload cheque image
+                    if (chequeUpload && chequeUpload instanceof File) {
+                        await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'cheque', chequeUpload);
+                    }
+                    // Save payment info
                     if (chequeNumber) {
                         await procurementAPI.addPayment(selectedRequest.id, {
                             paymentMethod: 'cheque',
@@ -1494,13 +1510,18 @@ export default function ProcurementPage() {
                             </div>
                         ) : (
                             requests.map(req => {
-                                // Calculate step completion based on request data
+                                // Use currentStep from DB if available, otherwise calculate
                                 const getCompletedSteps = (r) => {
+                                    // Prefer DB-stored currentStep (more accurate)
+                                    if (r.currentStep && r.currentStep > 1) {
+                                        return Math.min(r.currentStep - 1, 9); // currentStep is next step, so completed = step - 1
+                                    }
+                                    // Fallback: calculate from data
                                     let completed = 0;
                                     if (r.purchaseLetterUrl || r.letterContent) completed++; // Step 1
                                     if ((r.committee?.length || 0) >= 3) completed++; // Step 2
                                     if ((r.items?.length || 0) >= 1) completed++; // Step 3
-                                    // Step 4: vendors selected (check selectedVendorIds or quotations)
+                                    // Step 4: vendors selected
                                     const uniqueVendors = r.selectedVendorIds?.length > 0
                                         ? r.selectedVendorIds
                                         : [...new Set((r.quotations || []).map(q => q.vendor?.id || q.vendorId))];
@@ -2660,12 +2681,12 @@ The undersigned requests approval to purchase the following items for the scienc
                                                 onChange={e => {
                                                     const file = e.target.files[0];
                                                     if (file) {
-                                                        setBillUpload(file.name);
-                                                        toast.success(`Bill uploaded: ${file.name}`);
+                                                        setBillUpload(file);
+                                                        toast.success(`Bill selected: ${file.name}`);
                                                     }
                                                 }}
                                             />
-                                            {billUpload && <div className="text-sm text-green-600 mt-2">✓ {billUpload}</div>}
+                                            {billUpload && <div className="text-sm text-green-600 mt-2">✓ {billUpload.name || billUpload}</div>}
                                         </div>
 
                                         <div className="bg-white p-4 rounded border">
@@ -2677,7 +2698,7 @@ The undersigned requests approval to purchase the following items for the scienc
                                                 onChange={e => {
                                                     const file = e.target.files[0];
                                                     if (file) {
-                                                        setChequeUpload(file.name);
+                                                        setChequeUpload(file);
                                                         // Simulate OCR extraction (placeholder)
                                                         setTimeout(() => {
                                                             const mockChequeNo = Math.floor(100000 + Math.random() * 900000).toString();
@@ -2687,7 +2708,7 @@ The undersigned requests approval to purchase the following items for the scienc
                                                     }
                                                 }}
                                             />
-                                            {chequeUpload && <div className="text-sm text-green-600 mt-2">✓ {chequeUpload}</div>}
+                                            {chequeUpload && <div className="text-sm text-green-600 mt-2">✓ {chequeUpload.name || chequeUpload}</div>}
                                         </div>
                                     </div>
 

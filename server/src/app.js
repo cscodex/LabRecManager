@@ -35,6 +35,7 @@ const whiteboardRoutes = require('./routes/whiteboard.routes');
 const auditRoutes = require('./routes/audit.routes');
 const ticketRoutes = require('./routes/ticket.routes');
 const procurementRoutes = require('./routes/procurement.routes');
+const uploadRoutes = require('./routes/upload.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -97,6 +98,7 @@ app.use('/api/whiteboard', whiteboardRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/procurement', procurementRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
