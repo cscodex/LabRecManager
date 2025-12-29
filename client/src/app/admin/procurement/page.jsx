@@ -203,29 +203,73 @@ export default function ProcurementPage() {
                     }
                     break;
                 case 4:
-                    // Save selected vendors
-                    await procurementAPI.updateRequest(selectedRequest.id, {
-                        selectedVendorIds: selectedVendorIds
-                    });
+                    // Step 4: Selected vendors are just UI state
+                    // Actual vendors are linked when quotations are added in Step 5
+                    // Nothing to save to DB here
                     break;
                 case 5:
-                    // Save quotation prices
-                    await procurementAPI.updateRequest(selectedRequest.id, {
-                        vendorQuotationPrices: vendorQuotationPrices,
-                        vendorGstSettings: vendorGstSettings
-                    });
+                    // Save quotation prices for each vendor
+                    // Create VendorQuotation for each vendor with entered prices
+                    for (const vendorId of selectedVendorIds) {
+                        const prices = vendorQuotationPrices[vendorId] || {};
+                        const items = requestDetail?.request?.items || [];
+                        const hasAnyPrice = items.some(item => prices[item.id] && parseFloat(prices[item.id]) > 0);
+
+                        if (hasAnyPrice) {
+                            // Check if quotation already exists for this vendor
+                            const existingQuotation = requestDetail?.request?.quotations?.find(q => q.vendor.id === vendorId);
+
+                            if (!existingQuotation) {
+                                // Create new quotation
+                                await procurementAPI.addQuotation(selectedRequest.id, {
+                                    vendorId,
+                                    quotationNumber: `QT-${Date.now().toString(36).toUpperCase()}`,
+                                    quotationDate: new Date().toISOString().split('T')[0],
+                                    items: items.map(item => ({
+                                        procurementItemId: item.id,
+                                        unitPrice: parseFloat(prices[item.id]) || 0,
+                                        quantity: item.quantity
+                                    }))
+                                });
+                            }
+                        }
+                    }
+                    // Refresh data after saving
+                    await openRequestDetail(selectedRequest);
                     break;
                 case 6:
-                    // Save selected vendor for purchase
-                    await procurementAPI.updateRequest(selectedRequest.id, {
-                        selectedVendorForPurchase: selectedVendorForPurchase
-                    });
+                    // Approve with the selected vendor for all items
+                    if (selectedVendorForPurchase) {
+                        const items = requestDetail?.request?.items || [];
+                        const prices = vendorQuotationPrices[selectedVendorForPurchase] || {};
+
+                        const approvedItems = items.map(item => ({
+                            itemId: item.id,
+                            vendorId: selectedVendorForPurchase,
+                            unitPrice: parseFloat(prices[item.id]) || item.approvedUnitPrice || 0,
+                            quantity: editableQuantities[item.id] ?? item.quantity
+                        }));
+
+                        await procurementAPI.approveRequest(selectedRequest.id, approvedItems);
+                        await openRequestDetail(selectedRequest);
+                    }
                     break;
                 case 7:
-                    // Save editable quantities
-                    await procurementAPI.updateRequest(selectedRequest.id, {
-                        editableQuantities: editableQuantities
-                    });
+                    // Update quantities via approve endpoint (re-approve with new quantities)
+                    if (selectedVendorForPurchase) {
+                        const items = requestDetail?.request?.items || [];
+                        const prices = vendorQuotationPrices[selectedVendorForPurchase] || {};
+
+                        const approvedItems = items.map(item => ({
+                            itemId: item.id,
+                            vendorId: item.approvedVendorId || selectedVendorForPurchase,
+                            unitPrice: item.approvedUnitPrice || parseFloat(prices[item.id]) || 0,
+                            quantity: editableQuantities[item.id] ?? item.quantity
+                        }));
+
+                        await procurementAPI.approveRequest(selectedRequest.id, approvedItems);
+                        await openRequestDetail(selectedRequest);
+                    }
                     break;
                 case 8:
                     // Save bill and cheque info
