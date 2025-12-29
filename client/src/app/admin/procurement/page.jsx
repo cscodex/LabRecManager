@@ -93,6 +93,83 @@ export default function ProcurementPage() {
     // Step 3: New item form
     const [newItemForm, setNewItemForm] = useState({ itemName: '', specifications: '', quantity: 1, unit: 'pcs', estimatedUnitPrice: '' });
 
+    // Step 1: Letter content state
+    const [letterContent, setLetterContent] = useState('');
+
+    // Validation functions for each step
+    const validateStep = (step) => {
+        switch (step) {
+            case 1:
+                if (!requestDetail?.request?.purchaseLetterUrl && !letterContent.trim()) {
+                    toast.error('Please upload a letter or enter letter content');
+                    return false;
+                }
+                return true;
+            case 2:
+                if (!requestDetail?.request?.committee?.length) {
+                    toast.error('Please add at least one committee member');
+                    return false;
+                }
+                return true;
+            case 3:
+                if (!requestDetail?.request?.items?.length) {
+                    toast.error('Please add at least one item');
+                    return false;
+                }
+                return true;
+            case 4:
+                if (!selectedVendorIds.length) {
+                    toast.error('Please select at least one vendor');
+                    return false;
+                }
+                return true;
+            case 5:
+                // Check if all items have prices for all vendors
+                for (const vendorId of selectedVendorIds) {
+                    const prices = vendorQuotationPrices[vendorId] || {};
+                    for (const item of requestDetail?.request?.items || []) {
+                        if (!prices[item.id] || parseFloat(prices[item.id]) <= 0) {
+                            const vendor = vendors.find(v => v.id === vendorId);
+                            toast.error(`Enter price for "${item.itemName}" from ${vendor?.name}`);
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            case 6:
+                if (!selectedVendorForPurchase) {
+                    toast.error('Please confirm vendor selection');
+                    return false;
+                }
+                return true;
+            case 7:
+                // All quantities must be > 0
+                for (const item of requestDetail?.request?.items || []) {
+                    const qty = editableQuantities[item.id] ?? item.quantity;
+                    if (!qty || qty <= 0) {
+                        toast.error(`Enter valid quantity for "${item.itemName}"`);
+                        return false;
+                    }
+                }
+                return true;
+            default:
+                return true;
+        }
+    };
+
+    // Save step data (placeholder - can be connected to backend)
+    const saveStepData = async (step) => {
+        toast.success(`Step ${step} data saved`);
+        return true;
+    };
+
+    // Save and proceed to next step
+    const saveAndNext = async (currentStep) => {
+        if (!validateStep(currentStep)) return;
+        await saveStepData(currentStep);
+        setWorkflowStep(currentStep + 1);
+    };
+
     // Number to words helper
     const numberToWords = (num) => {
         const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -1271,14 +1348,21 @@ Example:
 Subject: Request for Purchase of Laboratory Equipment
 
 The undersigned requests approval to purchase the following items for the science laboratory..."
+                                                    value={letterContent}
+                                                    onChange={e => setLetterContent(e.target.value)}
                                                 />
                                             </div>
                                         </div>
                                     )}
 
-                                    <button onClick={() => setWorkflowStep(2)} className="btn btn-primary mt-4">
-                                        Next: Committee Formation →
-                                    </button>
+                                    <div className="flex gap-2 mt-4">
+                                        <button onClick={() => saveStepData(1)} className="btn btn-secondary">
+                                            Save
+                                        </button>
+                                        <button onClick={() => saveAndNext(1)} className="btn btn-primary">
+                                            Save & Next →
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -1331,7 +1415,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(1)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => setWorkflowStep(3)} className="btn btn-primary">Next: Add Items →</button>
+                                        <button onClick={() => saveStepData(2)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => saveAndNext(2)} className="btn btn-primary">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1408,7 +1493,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(2)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => setWorkflowStep(4)} disabled={!requestDetail.request.items?.length} className="btn btn-primary">Next: Select Vendors →</button>
+                                        <button onClick={() => saveStepData(3)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => saveAndNext(3)} className="btn btn-primary">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1451,7 +1537,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(3)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => setWorkflowStep(5)} disabled={selectedVendorIds.length === 0} className="btn btn-primary">Next: Quotations Received →</button>
+                                        <button onClick={() => saveStepData(4)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => saveAndNext(4)} className="btn btn-primary">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1569,7 +1656,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setWorkflowStep(4)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => setWorkflowStep(6)} className="btn btn-primary">Next: Comparative Statement →</button>
+                                        <button onClick={() => saveStepData(5)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => saveAndNext(5)} className="btn btn-primary">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1658,7 +1746,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setWorkflowStep(5)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => setWorkflowStep(7)} disabled={!selectedVendorForPurchase} className="btn btn-primary">Next: Purchase Order →</button>
+                                        <button onClick={() => saveStepData(6)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => saveAndNext(6)} className="btn btn-primary">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1759,7 +1848,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setWorkflowStep(6)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={openCombinedPdfPreview} className="btn bg-emerald-600 hover:bg-emerald-700 text-white">
+                                        <button onClick={() => saveStepData(7)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => { if (validateStep(7)) openCombinedPdfPreview(); }} className="btn bg-emerald-600 hover:bg-emerald-700 text-white">
                                             <Printer className="w-4 h-4" /> Generate Purchase Order PDF
                                         </button>
                                     </div>
