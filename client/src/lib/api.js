@@ -438,6 +438,8 @@ export const procurementAPI = {
     uploadPurchaseLetter: (requestId, data) => api.put(`/procurement/requests/${requestId}/purchase-letter`, data),
     // Step 2: Vendor Requirements
     getVendorRequirements: (requestId) => api.get(`/procurement/requests/${requestId}/vendor-requirements`),
+    // Save current step
+    saveStep: (requestId, currentStep) => api.put(`/procurement/requests/${requestId}/save-step`, { currentStep }),
 };
 
 export default api;

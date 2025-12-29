@@ -242,10 +242,9 @@ export default function ProcurementPage() {
                     break;
             }
             toast.success(`Step ${step} data saved`);
-            // Refresh request data
-            openRequestDetail(selectedRequest);
             return true;
         } catch (error) {
+            console.error(`Step ${step} save error:`, error);
             toast.error(`Failed to save Step ${step} data`);
             return false;
         }
@@ -255,7 +254,14 @@ export default function ProcurementPage() {
     const saveAndNext = async (currentStep) => {
         if (!validateStep(currentStep)) return;
         await saveStepData(currentStep);
-        setWorkflowStep(currentStep + 1);
+        const nextStep = currentStep + 1;
+        setWorkflowStep(nextStep);
+        // Save step to database for persistence
+        try {
+            await procurementAPI.saveStep(selectedRequest.id, nextStep);
+        } catch (e) {
+            console.error('Failed to persist step:', e);
+        }
     };
 
     // Check if step is complete (without showing toast errors)
@@ -898,24 +904,29 @@ export default function ProcurementPage() {
                 setChequeNumber(data.request.chequeNumber);
             }
 
-            // Calculate and set workflow step based on completed steps
-            const calcHighestStep = (r, vIds) => {
-                if (r.status === 'received' || r.status === 'completed') return 9;
-                if (r.billNumber) return 8;
-                if (r.poNumber) return 7;
-                if (r.items?.[0]?.approvedVendorId) return 6;
-                if (r.quotations?.length >= 3) return 5;
-                if (vIds.length >= 3) return 4;
-                if (r.items?.length >= 1) return 3;
-                if ((r.committee?.length || 0) >= 3) return 2;
-                if (r.purchaseLetterUrl || r.letterContent) return 1;
-                return 1;
-            };
-            const vendorIds = data.request?.quotations?.length > 0
-                ? [...new Set(data.request.quotations.map(q => q.vendor.id))]
-                : [];
-            const highestStep = calcHighestStep(data.request, vendorIds);
-            setWorkflowStep(highestStep);
+            // Use currentStep from server if available, otherwise calculate
+            if (data.request?.currentStep) {
+                setWorkflowStep(data.request.currentStep);
+            } else {
+                // Fallback: Calculate and set workflow step based on completed steps
+                const calcHighestStep = (r, vIds) => {
+                    if (r.status === 'received' || r.status === 'completed') return 9;
+                    if (r.billNumber) return 8;
+                    if (r.poNumber) return 7;
+                    if (r.items?.[0]?.approvedVendorId) return 6;
+                    if (r.quotations?.length >= 3) return 5;
+                    if (vIds.length >= 3) return 4;
+                    if (r.items?.length >= 1) return 3;
+                    if ((r.committee?.length || 0) >= 3) return 2;
+                    if (r.purchaseLetterUrl || r.letterContent) return 1;
+                    return 1;
+                };
+                const vendorIds = data.request?.quotations?.length > 0
+                    ? [...new Set(data.request.quotations.map(q => q.vendor.id))]
+                    : [];
+                const highestStep = calcHighestStep(data.request, vendorIds);
+                setWorkflowStep(highestStep);
+            }
         } catch (error) {
             toast.error('Failed to load request details');
         }

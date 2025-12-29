@@ -273,6 +273,21 @@ router.put('/requests/:id/purchase-letter', authenticate, authorize('admin', 'pr
 }));
 
 /**
+ * @route   PUT /api/procurement/requests/:id/save-step
+ * @desc    Save current workflow step
+ */
+router.put('/requests/:id/save-step', authenticate, asyncHandler(async (req, res) => {
+    const { currentStep } = req.body;
+
+    const request = await prisma.procurementRequest.update({
+        where: { id: req.params.id },
+        data: { currentStep: parseInt(currentStep) || 1 }
+    });
+
+    res.json({ success: true, data: request, message: 'Step saved' });
+}));
+
+/**
  * @route   GET /api/procurement/requests/:id/vendor-requirements
  * @desc    Check vendor requirements based on estimated total
  */

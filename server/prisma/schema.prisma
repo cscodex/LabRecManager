@@ -1579,6 +1579,7 @@ model ProcurementRequest {
   purchaseLetterUrl  String?       @map("purchase_letter_url") @db.VarChar(500)
   purchaseLetterName String?       @map("purchase_letter_name") @db.VarChar(255)
   letterContent      String?       @map("letter_content")
+  currentStep        Int?          @default(1) @map("current_step")
   estimatedTotal Decimal?          @map("estimated_total") @db.Decimal(14, 2)
   approvedTotal  Decimal?          @map("approved_total") @db.Decimal(14, 2)
   status         ProcurementStatus @default(draft)
