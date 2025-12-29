@@ -2042,11 +2042,11 @@ export default function ProcurementPage() {
                                     </h3>
                                     <p className="text-slate-600 text-sm mb-4">Upload a request letter for new purchase or the letter will be generated with school letterhead.</p>
 
-                                    {requestDetail.request.purchaseLetterUrl ? (
+                                    {requestDetail?.request?.purchaseLetterUrl ? (
                                         <div className="flex items-center gap-3 bg-white p-3 rounded mb-4">
                                             <FileText className="w-5 h-5 text-green-600" />
-                                            <span className="flex-1">{requestDetail.request.purchaseLetterName || 'Purchase Letter'}</span>
-                                            <a href={requestDetail.request.purchaseLetterUrl} target="_blank" rel="noreferrer" className="btn btn-secondary text-sm">View</a>
+                                            <span className="flex-1">{requestDetail?.request?.purchaseLetterName || 'Purchase Letter'}</span>
+                                            <a href={requestDetail?.request?.purchaseLetterUrl} target="_blank" rel="noreferrer" className="btn btn-secondary text-sm">View</a>
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
