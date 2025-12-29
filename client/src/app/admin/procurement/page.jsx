@@ -200,6 +200,56 @@ export default function ProcurementPage() {
         setWorkflowStep(currentStep + 1);
     };
 
+    // Check if step is complete (without showing toast errors)
+    const isStepComplete = (step) => {
+        switch (step) {
+            case 1:
+                return !!(requestDetail?.request?.purchaseLetterUrl || letterContent.trim());
+            case 2:
+                return (requestDetail?.request?.committee?.length || 0) >= 3;
+            case 3:
+                return (requestDetail?.request?.items?.length || 0) >= 1;
+            case 4:
+                const localCount = selectedVendorIds.filter(id => vendors.find(v => v.id === id)?.isLocal).length;
+                return selectedVendorIds.length >= 3 && localCount >= 1;
+            case 5:
+                for (const vendorId of selectedVendorIds) {
+                    const prices = vendorQuotationPrices[vendorId] || {};
+                    for (const item of requestDetail?.request?.items || []) {
+                        if (!prices[item.id] || parseFloat(prices[item.id]) <= 0) return false;
+                    }
+                }
+                return selectedVendorIds.length > 0;
+            case 6:
+                return !!selectedVendorForPurchase;
+            case 7:
+                for (const item of requestDetail?.request?.items || []) {
+                    const qty = editableQuantities[item.id] ?? item.quantity;
+                    if (!qty || qty < 1) return false;
+                }
+                return true;
+            case 8:
+                return !!billUpload;
+            case 9:
+                for (const item of requestDetail?.request?.items || []) {
+                    const received = receivedItems[item.id]?.received ?? 0;
+                    const expected = editableQuantities[item.id] ?? item.quantity;
+                    if (received < expected) return false;
+                }
+                return true;
+            default:
+                return false;
+        }
+    };
+
+    // Get highest completed step (for tab navigation)
+    const getHighestAccessibleStep = () => {
+        for (let i = 1; i <= 9; i++) {
+            if (!isStepComplete(i)) return i;
+        }
+        return 9;
+    };
+
     // Number to words helper
     const numberToWords = (num) => {
         const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -1349,16 +1399,33 @@ export default function ProcurementPage() {
                                         { step: 7, label: 'Purchase Order', icon: ClipboardList },
                                         { step: 8, label: 'Bill', icon: CreditCard },
                                         { step: 9, label: 'Received', icon: CheckCircle2 }
-                                    ].map(({ step, label, icon: Icon }) => (
-                                        <button
-                                            key={step}
-                                            onClick={() => setWorkflowStep(step)}
-                                            className={`flex items-center gap-1 px-3 py-2 border-b-2 transition-colors text-xs ${workflowStep === step ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            <Icon className="w-3 h-3" />
-                                            <span className="font-medium">{step}. {label}</span>
-                                        </button>
-                                    ))}
+                                    ].map(({ step, label, icon: Icon }) => {
+                                        const maxAccessible = getHighestAccessibleStep();
+                                        const isAccessible = step <= maxAccessible;
+                                        const isComplete = step < maxAccessible || (step === maxAccessible && isStepComplete(step));
+                                        return (
+                                            <button
+                                                key={step}
+                                                onClick={() => isAccessible && setWorkflowStep(step)}
+                                                disabled={!isAccessible}
+                                                className={`flex items-center gap-1 px-3 py-2 border-b-2 transition-colors text-xs ${workflowStep === step
+                                                    ? 'border-blue-500 text-blue-600 bg-blue-50'
+                                                    : isComplete
+                                                        ? 'border-green-500 text-green-600 hover:bg-green-50'
+                                                        : isAccessible
+                                                            ? 'border-transparent text-slate-500 hover:text-slate-700'
+                                                            : 'border-transparent text-slate-300 cursor-not-allowed'
+                                                    }`}
+                                            >
+                                                {isComplete && step !== workflowStep ? (
+                                                    <Check className="w-3 h-3 text-green-500" />
+                                                ) : (
+                                                    <Icon className="w-3 h-3" />
+                                                )}
+                                                <span className="font-medium">{step}. {label}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -1404,10 +1471,10 @@ The undersigned requests approval to purchase the following items for the scienc
                                     )}
 
                                     <div className="flex gap-2 mt-4">
-                                        <button onClick={() => saveStepData(1)} className="btn btn-secondary">
+                                        <button onClick={() => saveStepData(1)} disabled={!isStepComplete(1)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">
                                             Save
                                         </button>
-                                        <button onClick={() => saveAndNext(1)} className="btn btn-primary">
+                                        <button onClick={() => saveAndNext(1)} disabled={!isStepComplete(1)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
                                             Save & Next →
                                         </button>
                                     </div>
@@ -1463,8 +1530,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(1)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(2)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => saveAndNext(2)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveStepData(2)} disabled={!isStepComplete(2)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => saveAndNext(2)} disabled={!isStepComplete(2)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1541,8 +1608,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(2)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(3)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => saveAndNext(3)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveStepData(3)} disabled={!isStepComplete(3)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => saveAndNext(3)} disabled={!isStepComplete(3)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1585,8 +1652,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(3)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(4)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => saveAndNext(4)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveStepData(4)} disabled={!isStepComplete(4)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => saveAndNext(4)} disabled={!isStepComplete(4)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1704,8 +1771,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setWorkflowStep(4)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(5)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => saveAndNext(5)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveStepData(5)} disabled={!isStepComplete(5)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => saveAndNext(5)} disabled={!isStepComplete(5)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1794,8 +1861,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setWorkflowStep(5)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(6)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => saveAndNext(6)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveStepData(6)} disabled={!isStepComplete(6)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => saveAndNext(6)} disabled={!isStepComplete(6)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1896,11 +1963,11 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2 mt-4">
                                         <button onClick={() => setWorkflowStep(6)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(7)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => { if (validateStep(7)) openCombinedPdfPreview(); }} className="btn bg-emerald-600 hover:bg-emerald-700 text-white">
+                                        <button onClick={() => saveStepData(7)} disabled={!isStepComplete(7)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => { if (validateStep(7)) openCombinedPdfPreview(); }} disabled={!isStepComplete(7)} className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
                                             <Printer className="w-4 h-4" /> Generate PO PDF
                                         </button>
-                                        <button onClick={() => saveAndNext(7)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveAndNext(7)} disabled={!isStepComplete(7)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -1968,8 +2035,8 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(7)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(8)} className="btn btn-secondary">Save</button>
-                                        <button onClick={() => saveAndNext(8)} className="btn btn-primary">Save & Next →</button>
+                                        <button onClick={() => saveStepData(8)} disabled={!isStepComplete(8)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
+                                        <button onClick={() => saveAndNext(8)} disabled={!isStepComplete(8)} className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed">Save & Next →</button>
                                     </div>
                                 </div>
                             )}
@@ -2080,14 +2147,15 @@ The undersigned requests approval to purchase the following items for the scienc
 
                                     <div className="flex gap-2">
                                         <button onClick={() => setWorkflowStep(8)} className="btn btn-secondary">← Back</button>
-                                        <button onClick={() => saveStepData(9)} className="btn btn-secondary">Save</button>
+                                        <button onClick={() => saveStepData(9)} disabled={!isStepComplete(9)} className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed">Save</button>
                                         <button
                                             onClick={() => {
                                                 if (validateStep(9)) {
                                                     toast.success('Procurement workflow completed!');
                                                 }
                                             }}
-                                            className="btn bg-teal-600 hover:bg-teal-700 text-white"
+                                            disabled={!isStepComplete(9)}
+                                            className="btn bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <Check className="w-4 h-4" /> Complete Procurement
                                         </button>
