@@ -816,7 +816,65 @@ export default function ProcurementPage() {
         setSelectedRequest(request);
         try {
             const res = await procurementAPI.getRequest(request.id);
-            setRequestDetail(res.data.data);
+            const data = res.data.data;
+            setRequestDetail(data);
+
+            // Restore local state from server data
+            if (data.request?.letterContent) {
+                setLetterContent(data.request.letterContent);
+            }
+            if (data.request?.purchaseLetterUrl) {
+                setLetterUpload({ name: data.request.purchaseLetterName || 'Uploaded Document' });
+            }
+
+            // Restore selected vendors from saved quotations
+            if (data.request?.quotations?.length > 0) {
+                const vendorIds = [...new Set(data.request.quotations.map(q => q.vendor.id))];
+                setSelectedVendorIds(vendorIds);
+            }
+
+            // Restore quotation prices from quotations
+            if (data.request?.quotations?.length > 0) {
+                const prices = {};
+                data.request.quotations.forEach(q => {
+                    prices[q.vendor.id] = {};
+                    q.items.forEach(item => {
+                        prices[q.vendor.id][item.procurementItemId] = item.unitPrice;
+                    });
+                });
+                setVendorQuotationPrices(prices);
+            }
+
+            // Restore selected vendor for purchase (from approved items)
+            if (data.request?.items?.[0]?.approvedVendorId) {
+                setSelectedVendorForPurchase(data.request.items[0].approvedVendorId);
+            }
+
+            // Restore editable quantities
+            if (data.request?.items?.length > 0) {
+                const qtys = {};
+                data.request.items.forEach(item => {
+                    qtys[item.id] = item.quantity;
+                });
+                setEditableQuantities(qtys);
+            }
+
+            // Restore received items
+            if (data.request?.items?.some(item => item.receivedQty > 0)) {
+                const received = {};
+                data.request.items.forEach(item => {
+                    received[item.id] = { received: item.receivedQty || 0, serialNumbers: [] };
+                });
+                setReceivedItems(received);
+            }
+
+            // Restore bill/cheque info
+            if (data.request?.billDocumentUrl) {
+                setBillUpload(data.request.billDocumentName || 'Bill Document');
+            }
+            if (data.request?.chequeNumber) {
+                setChequeNumber(data.request.chequeNumber);
+            }
         } catch (error) {
             toast.error('Failed to load request details');
         }

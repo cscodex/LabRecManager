@@ -131,6 +131,11 @@ router.get('/requests/:id', authenticate, asyncHandler(async (req, res) => {
         include: {
             createdBy: { select: { firstName: true, lastName: true, email: true } },
             approvedBy: { select: { firstName: true, lastName: true } },
+            committee: {
+                include: {
+                    user: { select: { id: true, firstName: true, lastName: true, email: true } }
+                }
+            },
             items: {
                 include: {
                     approvedVendor: { select: { name: true } },
@@ -145,7 +150,7 @@ router.get('/requests/:id', authenticate, asyncHandler(async (req, res) => {
             },
             quotations: {
                 include: {
-                    vendor: { select: { id: true, name: true, email: true, phone: true } },
+                    vendor: { select: { id: true, name: true, email: true, phone: true, isLocal: true } },
                     items: true
                 }
             }
@@ -251,14 +256,20 @@ router.put('/requests/:id', authenticate, asyncHandler(async (req, res) => {
  * @desc    Upload purchase request letter for Step 1
  */
 router.put('/requests/:id/purchase-letter', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
-    const { purchaseLetterUrl, purchaseLetterName } = req.body;
+    const { purchaseLetterUrl, purchaseLetterName, letterContent, letterFileName } = req.body;
+
+    const updateData = {};
+    if (purchaseLetterUrl) updateData.purchaseLetterUrl = purchaseLetterUrl;
+    if (purchaseLetterName) updateData.purchaseLetterName = purchaseLetterName;
+    if (letterContent !== undefined) updateData.letterContent = letterContent;
+    if (letterFileName) updateData.purchaseLetterName = letterFileName;
 
     const request = await prisma.procurementRequest.update({
         where: { id: req.params.id },
-        data: { purchaseLetterUrl, purchaseLetterName }
+        data: updateData
     });
 
-    res.json({ success: true, data: request, message: 'Purchase letter uploaded' });
+    res.json({ success: true, data: request, message: 'Purchase letter saved' });
 }));
 
 /**
