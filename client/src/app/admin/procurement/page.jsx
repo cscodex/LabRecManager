@@ -1098,29 +1098,79 @@ export default function ProcurementPage() {
                                 </button>
                             </div>
                         ) : (
-                            requests.map(req => (
-                                <div key={req.id} className="bg-white rounded-xl shadow-sm p-4">
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <h3 className="font-semibold text-lg">{req.title}</h3>
-                                            <p className="text-sm text-slate-500">{req.description}</p>
-                                            <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-                                                <span>{req.items?.length || 0} items</span>
-                                                <span>{req.quotations?.length || 0} quotations</span>
-                                                <span>By: {req.createdBy?.firstName} {req.createdBy?.lastName}</span>
+                            requests.map(req => {
+                                // Calculate step completion based on request data
+                                const getCompletedSteps = (r) => {
+                                    let completed = 0;
+                                    if (r.purchaseLetterUrl || r.letterContent) completed++;
+                                    if ((r.committee?.length || 0) >= 3) completed++;
+                                    if ((r.items?.length || 0) >= 1) completed++;
+                                    if ((r.quotations?.length || 0) >= 3) completed++;
+                                    if ((r.quotations?.length || 0) >= 3) completed++; // Step 5: quotations entered
+                                    if (r.status !== 'draft' && r.status !== 'pending') completed++; // Step 6: comparative done
+                                    if (r.poNumber) completed++; // Step 7: PO generated
+                                    if (r.billNumber) completed++; // Step 8: bill added
+                                    if (r.status === 'received' || r.status === 'completed') completed++; // Step 9: received
+                                    return Math.min(completed, 9);
+                                };
+                                const completedSteps = getCompletedSteps(req);
+                                const progressPercent = Math.round((completedSteps / 9) * 100);
+
+                                return (
+                                    <div key={req.id} className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1">
+                                                <h3 className="font-semibold text-lg">{req.title}</h3>
+                                                <p className="text-sm text-slate-500 line-clamp-1">{req.purpose || req.description || 'No description'}</p>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
                                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[req.status]}`}>
                                                 {STATUS_LABELS[req.status]}
                                             </span>
-                                            <button onClick={() => openRequestDetail(req)} className="btn btn-secondary text-sm">
-                                                View Details
-                                            </button>
                                         </div>
+
+                                        {/* Progress Bar */}
+                                        <div className="mb-3">
+                                            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                                                <span>Step {completedSteps}/9 completed</span>
+                                                <span className="font-medium">{progressPercent}%</span>
+                                            </div>
+                                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full transition-all ${progressPercent === 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                                    style={{ width: `${progressPercent}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Stats Row */}
+                                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3">
+                                            <span className="flex items-center gap-1">
+                                                <Package className="w-3 h-3" /> {req.items?.length || 0} items
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Receipt className="w-3 h-3" /> {req.quotations?.length || 0} quotes
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Users className="w-3 h-3" /> {req.createdBy?.firstName}
+                                            </span>
+                                        </div>
+
+                                        {/* Dates */}
+                                        <div className="flex items-center justify-between text-xs text-slate-400 border-t pt-2">
+                                            <span>Created: {new Date(req.createdAt).toLocaleDateString()}</span>
+                                            <span>Updated: {new Date(req.updatedAt).toLocaleDateString()}</span>
+                                        </div>
+
+                                        {/* View Button */}
+                                        <button
+                                            onClick={() => openRequestDetail(req)}
+                                            className="btn btn-primary text-sm w-full mt-3"
+                                        >
+                                            View Details →
+                                        </button>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            }))
                         )}
                     </div>
                 )}
