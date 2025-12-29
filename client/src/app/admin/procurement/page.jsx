@@ -897,6 +897,25 @@ export default function ProcurementPage() {
             if (data.request?.chequeNumber) {
                 setChequeNumber(data.request.chequeNumber);
             }
+
+            // Calculate and set workflow step based on completed steps
+            const calcHighestStep = (r, vIds) => {
+                if (r.status === 'received' || r.status === 'completed') return 9;
+                if (r.billNumber) return 8;
+                if (r.poNumber) return 7;
+                if (r.items?.[0]?.approvedVendorId) return 6;
+                if (r.quotations?.length >= 3) return 5;
+                if (vIds.length >= 3) return 4;
+                if (r.items?.length >= 1) return 3;
+                if ((r.committee?.length || 0) >= 3) return 2;
+                if (r.purchaseLetterUrl || r.letterContent) return 1;
+                return 1;
+            };
+            const vendorIds = data.request?.quotations?.length > 0
+                ? [...new Set(data.request.quotations.map(q => q.vendor.id))]
+                : [];
+            const highestStep = calcHighestStep(data.request, vendorIds);
+            setWorkflowStep(highestStep);
         } catch (error) {
             toast.error('Failed to load request details');
         }
@@ -1102,12 +1121,15 @@ export default function ProcurementPage() {
                                 // Calculate step completion based on request data
                                 const getCompletedSteps = (r) => {
                                     let completed = 0;
-                                    if (r.purchaseLetterUrl || r.letterContent) completed++;
-                                    if ((r.committee?.length || 0) >= 3) completed++;
-                                    if ((r.items?.length || 0) >= 1) completed++;
-                                    if ((r.quotations?.length || 0) >= 3) completed++;
-                                    if ((r.quotations?.length || 0) >= 3) completed++; // Step 5: quotations entered
-                                    if (r.status !== 'draft' && r.status !== 'pending') completed++; // Step 6: comparative done
+                                    if (r.purchaseLetterUrl || r.letterContent) completed++; // Step 1
+                                    if ((r.committee?.length || 0) >= 3) completed++; // Step 2
+                                    if ((r.items?.length || 0) >= 1) completed++; // Step 3
+                                    // Step 4: vendors selected (we check quotations as proxy for vendor selection)
+                                    const uniqueVendors = [...new Set((r.quotations || []).map(q => q.vendorId))];
+                                    if (uniqueVendors.length >= 3) completed++; // Step 4
+                                    // Step 5: quotation prices entered
+                                    if ((r.quotations?.length || 0) >= 3) completed++; // Step 5
+                                    if (r.items?.[0]?.approvedVendorId) completed++; // Step 6: vendor approved
                                     if (r.poNumber) completed++; // Step 7: PO generated
                                     if (r.billNumber) completed++; // Step 8: bill added
                                     if (r.status === 'received' || r.status === 'completed') completed++; // Step 9: received
