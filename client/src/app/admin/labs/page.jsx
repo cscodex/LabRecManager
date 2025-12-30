@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle, Clock, Laptop, Barcode, ClipboardList } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { labsAPI } from '@/lib/api';
+import { labsAPI, usersAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
@@ -33,7 +33,8 @@ export default function LabsPage() {
     // Modal state
     const [showModal, setShowModal] = useState(false);
     const [editingLab, setEditingLab] = useState(null);
-    const [formData, setFormData] = useState({ name: '', nameHindi: '', roomNumber: '', capacity: 30 });
+    const [formData, setFormData] = useState({ name: '', nameHindi: '', roomNumber: '', capacity: 30, inchargeId: '' });
+    const [instructors, setInstructors] = useState([]);
 
     // Delete confirmation state
     const [deleteDialog, setDeleteDialog] = useState({ open: false, lab: null });
@@ -59,8 +60,14 @@ export default function LabsPage() {
     const loadLabs = async () => {
         setLoading(true);
         try {
-            const res = await labsAPI.getAll();
-            setLabs(res.data.data.labs || []);
+            const [labsRes, usersRes] = await Promise.all([
+                labsAPI.getAll(),
+                usersAPI.getAll({ role: 'instructor', limit: 100 })
+            ]);
+            setLabs(labsRes.data.data.labs || []);
+            // Include lab_assistants too
+            const instructorsList = usersRes.data.data.users || [];
+            setInstructors(instructorsList);
         } catch (error) {
             toast.error('Failed to load labs');
         } finally {
@@ -80,7 +87,7 @@ export default function LabsPage() {
             }
             setShowModal(false);
             setEditingLab(null);
-            setFormData({ name: '', nameHindi: '', roomNumber: '', capacity: 30 });
+            setFormData({ name: '', nameHindi: '', roomNumber: '', capacity: 30, inchargeId: '' });
             loadLabs();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Operation failed');
@@ -93,7 +100,8 @@ export default function LabsPage() {
             name: lab.name,
             nameHindi: lab.nameHindi || '',
             roomNumber: lab.roomNumber || '',
-            capacity: lab.capacity || 30
+            capacity: lab.capacity || 30,
+            inchargeId: lab.inchargeId || ''
         });
         setShowModal(true);
     };
@@ -206,7 +214,7 @@ export default function LabsPage() {
                         <Link href="/admin/labs/inventory-reports" className="btn btn-secondary">
                             <BarChart3 className="w-4 h-4" /> Reports
                         </Link>
-                        <button onClick={() => { setEditingLab(null); setFormData({ name: '', nameHindi: '', roomNumber: '', capacity: 30 }); setShowModal(true); }} className="btn btn-primary">
+                        <button onClick={() => { setEditingLab(null); setFormData({ name: '', nameHindi: '', roomNumber: '', capacity: 30, inchargeId: '' }); setShowModal(true); }} className="btn btn-primary">
                             <Plus className="w-4 h-4" /> Add Lab
                         </button>
                     </div>
@@ -369,6 +377,21 @@ export default function LabsPage() {
                                             min="1"
                                         />
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Lab Incharge</label>
+                                    <select
+                                        value={formData.inchargeId}
+                                        onChange={(e) => setFormData({ ...formData, inchargeId: e.target.value })}
+                                        className="input"
+                                    >
+                                        <option value="">Select Instructor</option>
+                                        {instructors.map(inst => (
+                                            <option key={inst.id} value={inst.id}>
+                                                {inst.firstName} {inst.lastName} ({inst.email})
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">
