@@ -1,14 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
 
-// Create a single instance of Prisma Client
+// Create a single instance of Prisma Client with query logging
 const prisma = new PrismaClient({
-    log: process.env.NODE_ENV === 'development'
-        ? ['info', 'warn', 'error']
-        : ['error'],
+    log: [
+        { emit: 'event', level: 'query' },
+        { emit: 'stdout', level: 'error' },
+        { emit: 'stdout', level: 'warn' },
+    ],
 });
 
 // Track database status
 let isDatabaseConnected = false;
+
+// Store recent queries for debugging (in-memory, last 100)
+const recentQueries = [];
+const MAX_RECENT_QUERIES = 100;
+
+// Listen for query events and capture actual SQL
+prisma.$on('query', (e) => {
+    const queryInfo = {
+        query: e.query,
+        params: e.params,
+        duration: e.duration,
+        timestamp: new Date().toISOString()
+    };
+
+    // Store in memory for debugging
+    recentQueries.push(queryInfo);
+    if (recentQueries.length > MAX_RECENT_QUERIES) {
+        recentQueries.shift();
+    }
+
+    // Log slow queries (>500ms)
+    if (e.duration > 500) {
+        console.log(`⚠️ Slow query (${e.duration}ms):`, e.query.substring(0, 200));
+    }
+});
 
 // Query logging middleware (logs to query_logs table)
 prisma.$use(async (params, next) => {
@@ -30,21 +57,21 @@ prisma.$use(async (params, next) => {
     const duration = Date.now() - startTime;
 
     // Log to database asynchronously (don't await to avoid slowing down requests)
-    // Only log if DB is connected and we're logging significant operations
-    if (isDatabaseConnected && ['create', 'update', 'delete', 'upsert', 'createMany', 'updateMany', 'deleteMany'].includes(params.action)) {
+    // Log all operations now, not just writes
+    if (isDatabaseConnected) {
+        const paramsStr = JSON.stringify(params.args || {});
+
         prisma.queryLog.create({
             data: {
                 query: `${params.model}.${params.action}`,
-                params: JSON.stringify(params.args || {}).substring(0, 5000), // Limit params size
+                params: paramsStr.substring(0, 5000),
                 duration,
-                error: error ? (error.message || String(error)).substring(0, 2000) : null,
+                error: error ? `${error.message}\n${error.stack || ''}`.substring(0, 2000) : null,
                 success: !error,
                 model: params.model,
                 action: params.action,
-                // userId and userEmail would need to be passed via context - skipping for now
             }
         }).catch(logError => {
-            // Silently fail query logging to avoid affecting main operations
             console.error('Query log failed:', logError.message);
         });
     }
@@ -96,5 +123,8 @@ prisma.isConnected = () => isDatabaseConnected;
 prisma.reconnect = async () => {
     return testConnection(1);
 };
+
+// Export recent queries for debugging API
+prisma.getRecentQueries = () => [...recentQueries];
 
 module.exports = prisma;

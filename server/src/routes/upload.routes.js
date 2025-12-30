@@ -109,8 +109,23 @@ router.post('/procurement/:requestId/:field', authenticate, upload.single('file'
             message: `${field} uploaded successfully`
         });
     } catch (error) {
-        console.error('Procurement upload error:', error);
-        res.status(500).json({ success: false, message: 'Upload failed', error: error.message });
+        console.error('=== PROCUREMENT UPLOAD ERROR ===');
+        console.error('RequestId:', req.params.requestId);
+        console.error('Field:', req.params.field);
+        console.error('Error:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('Code:', error.code);
+        console.error('================================');
+
+        res.status(500).json({
+            success: false,
+            message: 'Upload failed: ' + error.message,
+            error: {
+                message: error.message,
+                code: error.code,
+                field: req.params.field
+            }
+        });
     }
 });
 

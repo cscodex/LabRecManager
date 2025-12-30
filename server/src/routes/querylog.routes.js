@@ -154,4 +154,22 @@ router.get('/models', authenticate, authorize('admin', 'principal'), asyncHandle
     });
 }));
 
+/**
+ * @route   GET /api/admin/query-logs/recent-sql
+ * @desc    Get recent raw SQL queries from memory (for debugging)
+ * @access  Admin only
+ */
+router.get('/recent-sql', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const recentQueries = prisma.getRecentQueries ? prisma.getRecentQueries() : [];
+
+    res.json({
+        success: true,
+        data: {
+            queries: recentQueries.reverse().slice(0, 50), // Most recent first, limit 50
+            count: recentQueries.length
+        }
+    });
+}));
+
 module.exports = router;
+
