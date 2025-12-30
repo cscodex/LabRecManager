@@ -36,6 +36,7 @@ const auditRoutes = require('./routes/audit.routes');
 const ticketRoutes = require('./routes/ticket.routes');
 const procurementRoutes = require('./routes/procurement.routes');
 const uploadRoutes = require('./routes/upload.routes');
+const queryLogRoutes = require('./routes/querylog.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -99,6 +100,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/procurement', procurementRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/admin/query-logs', queryLogRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

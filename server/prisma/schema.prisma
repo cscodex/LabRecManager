@@ -1678,3 +1678,24 @@ enum ProcurementStatus {
 
   @@map("procurement_status")
 }
+
+// Query Log for monitoring database queries
+model QueryLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  query       String   @db.Text
+  params      String?  @db.Text
+  duration    Int?     // milliseconds
+  error       String?  @db.Text
+  success     Boolean  @default(true)
+  model       String?  @db.VarChar(100)
+  action      String?  @db.VarChar(50)
+  userId      String?  @map("user_id") @db.Uuid
+  userEmail   String?  @map("user_email") @db.VarChar(255)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("query_logs")
+  @@index([createdAt])
+  @@index([success])
+  @@index([model])
+}
