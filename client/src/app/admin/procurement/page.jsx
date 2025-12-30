@@ -19,6 +19,9 @@ const STATUS_COLORS = {
     quotes_received: 'bg-purple-100 text-purple-700',
     approved: 'bg-green-100 text-green-700',
     ordered: 'bg-indigo-100 text-indigo-700',
+    billed: 'bg-amber-100 text-amber-700',
+    paid: 'bg-teal-100 text-teal-700',
+    received: 'bg-cyan-100 text-cyan-700',
     completed: 'bg-emerald-100 text-emerald-700',
     cancelled: 'bg-red-100 text-red-700'
 };
@@ -29,6 +32,9 @@ const STATUS_LABELS = {
     quotes_received: 'Quotes Received',
     approved: 'Approved',
     ordered: 'Ordered',
+    billed: 'Billed',
+    paid: 'Paid',
+    received: 'Received',
     completed: 'Completed',
     cancelled: 'Cancelled'
 };
