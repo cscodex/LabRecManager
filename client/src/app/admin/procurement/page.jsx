@@ -249,9 +249,9 @@ export default function ProcurementPage() {
 
                                 // Upload quotation document if exists
                                 const docFile = vendorQuotationDocs[vendorId];
-                                if (docFile && docFile instanceof File && newQuotationRes?.data?.data?.id) {
+                                if (docFile && docFile instanceof File && newQuotationRes?.data?.id) {
                                     try {
-                                        await uploadAPI.uploadQuotationDoc(newQuotationRes.data.data.id, docFile);
+                                        await uploadAPI.uploadQuotationDoc(newQuotationRes.data.id, docFile);
                                     } catch (uploadErr) {
                                         console.error('Quotation doc upload error:', uploadErr);
                                     }
