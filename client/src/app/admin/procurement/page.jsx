@@ -286,24 +286,38 @@ export default function ProcurementPage() {
                 case 8:
                     // Upload bill document
                     if (billUpload && billUpload instanceof File) {
-                        await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'bill', billUpload);
-                        // Also set billNumber and date
-                        await procurementAPI.addBill(selectedRequest.id, {
-                            billNumber: billUpload.name,
-                            billDate: new Date().toISOString().split('T')[0]
-                        });
+                        try {
+                            await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'bill', billUpload);
+                            // Also set billNumber and date
+                            await procurementAPI.addBill(selectedRequest.id, {
+                                billNumber: billUpload.name,
+                                billDate: new Date().toISOString().split('T')[0]
+                            });
+                        } catch (err) {
+                            console.error('Bill upload/save error:', err);
+                            toast.error('Bill upload failed: ' + (err.response?.data?.message || err.message));
+                        }
                     }
                     // Upload cheque image
                     if (chequeUpload && chequeUpload instanceof File) {
-                        await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'cheque', chequeUpload);
+                        try {
+                            await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'cheque', chequeUpload);
+                        } catch (err) {
+                            console.error('Cheque upload error:', err);
+                        }
                     }
-                    // Save payment info
+                    // Save payment info (may fail if not admin/principal)
                     if (chequeNumber) {
-                        await procurementAPI.addPayment(selectedRequest.id, {
-                            paymentMethod: 'cheque',
-                            chequeNumber: chequeNumber,
-                            paymentDate: new Date().toISOString().split('T')[0]
-                        });
+                        try {
+                            await procurementAPI.addPayment(selectedRequest.id, {
+                                paymentMethod: 'cheque',
+                                chequeNumber: chequeNumber,
+                                paymentDate: new Date().toISOString().split('T')[0]
+                            });
+                        } catch (err) {
+                            console.error('Payment save error:', err);
+                            // Payment may require admin role, don't fail entire step
+                        }
                     }
                     await openRequestDetail(selectedRequest);
                     break;
@@ -1512,11 +1526,7 @@ export default function ProcurementPage() {
                             requests.map(req => {
                                 // Use currentStep from DB if available, otherwise calculate
                                 const getCompletedSteps = (r) => {
-                                    // Prefer DB-stored currentStep (more accurate)
-                                    if (r.currentStep && r.currentStep > 1) {
-                                        return Math.min(r.currentStep - 1, 9); // currentStep is next step, so completed = step - 1
-                                    }
-                                    // Fallback: calculate from data
+                                    // Calculate strictly from data for accuracy
                                     let completed = 0;
                                     if (r.purchaseLetterUrl || r.letterContent) completed++; // Step 1
                                     if ((r.committee?.length || 0) >= 3) completed++; // Step 2
