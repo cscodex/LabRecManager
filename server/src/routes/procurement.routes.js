@@ -688,42 +688,86 @@ router.put('/requests/:id/order', authenticate, authorize('admin', 'principal'),
  * @desc    Add bill details from vendor
  */
 router.put('/requests/:id/bill', authenticate, asyncHandler(async (req, res) => {
-    const { billNumber, billDate, billAmount, billUrl } = req.body;
+    console.log('=== BILL SAVE REQUEST ===');
+    console.log('RequestId:', req.params.id);
+    console.log('Body:', JSON.stringify(req.body));
 
-    const request = await prisma.procurementRequest.update({
-        where: { id: req.params.id },
-        data: {
+    try {
+        const { billNumber, billDate, billAmount, billUrl } = req.body;
+
+        const updateData = {
             status: 'billed',
-            billNumber,
+            billNumber: billNumber || null,
             billDate: billDate ? new Date(billDate) : null,
-            billAmount,
-            billUrl
-        }
-    });
+            billUrl: billUrl || null
+        };
 
-    res.json({ success: true, data: request, message: 'Bill added' });
+        // Only add billAmount if it's a valid number
+        if (billAmount !== undefined && billAmount !== null) {
+            updateData.billAmount = parseFloat(billAmount) || null;
+        }
+
+        console.log('UpdateData:', JSON.stringify(updateData));
+
+        const request = await prisma.procurementRequest.update({
+            where: { id: req.params.id },
+            data: updateData
+        });
+
+        console.log('Bill saved successfully');
+        res.json({ success: true, data: request, message: 'Bill added' });
+    } catch (error) {
+        console.error('=== BILL SAVE ERROR ===');
+        console.error('Error:', error.message);
+        console.error('Code:', error.code);
+        console.error('Stack:', error.stack);
+        console.error('========================');
+        throw error;
+    }
 }));
 
 /**
  * @route   PUT /api/procurement/requests/:id/payment
  * @desc    Add payment details
  */
+/**
+ * @route   PUT /api/procurement/requests/:id/payment
+ * @desc    Add payment details
+ */
 router.put('/requests/:id/payment', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
-    const { paymentMethod, chequeNumber, chequeUrl, paymentDate, paymentReference } = req.body;
+    console.log('=== PAYMENT SAVE REQUEST ===');
+    console.log('RequestId:', req.params.id);
+    console.log('Body:', JSON.stringify(req.body));
 
-    const request = await prisma.procurementRequest.update({
-        where: { id: req.params.id },
-        data: {
+    try {
+        const { paymentMethod, chequeNumber, chequeUrl, paymentDate, paymentReference } = req.body;
+
+        const updateData = {
             status: 'paid',
-            paymentMethod,
-            chequeNumber,
-            chequeUrl,
+            paymentMethod: paymentMethod || null,
+            chequeNumber: chequeNumber || null,
+            chequeUrl: chequeUrl || null,
             paymentDate: paymentDate ? new Date(paymentDate) : null,
-            paymentReference
-        }
-    });
+            paymentReference: paymentReference || null
+        };
 
-    res.json({ success: true, data: request, message: 'Payment recorded' });
+        console.log('UpdateData:', JSON.stringify(updateData));
+
+        const request = await prisma.procurementRequest.update({
+            where: { id: req.params.id },
+            data: updateData
+        });
+
+        console.log('Payment recorded successfully');
+        res.json({ success: true, data: request, message: 'Payment recorded' });
+    } catch (error) {
+        console.error('=== PAYMENT SAVE ERROR ===');
+        console.error('Error:', error.message);
+        console.error('Code:', error.code);
+        console.error('Stack:', error.stack);
+        console.error('==========================');
+        throw error;
+    }
 }));
 
 /**
