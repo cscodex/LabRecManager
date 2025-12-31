@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
     Home, BookOpen, FileText, Award, Users, GraduationCap,
     Video, BarChart3, Settings, LogOut, Menu, X, ChevronLeft,
-    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil, Ticket
+    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil, Ticket, Building
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 
@@ -26,6 +26,7 @@ const navItems = {
         { href: '/admin/whiteboards', label: 'Live Sessions', labelHindi: 'लाइव सत्र', icon: Video },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
         { href: '/tickets', label: 'Tickets', labelHindi: 'टिकट', icon: Ticket },
+        { href: '/admin/school-profile', label: 'School Profile', labelHindi: 'स्कूल प्रोफ़ाइल', icon: Building },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
@@ -37,6 +38,7 @@ const navItems = {
         { href: '/grades', label: 'Grades', labelHindi: 'ग्रेड', icon: Award },
         { href: '/activity-logs', label: 'Activity Logs', labelHindi: 'गतिविधि लॉग', icon: Activity },
         { href: '/tickets', label: 'Tickets', labelHindi: 'टिकट', icon: Ticket },
+        { href: '/admin/school-profile', label: 'School Profile', labelHindi: 'स्कूल प्रोफ़ाइल', icon: Building },
         { href: '/reports', label: 'Reports', labelHindi: 'रिपोर्ट', icon: BarChart3 },
         { href: '/settings', label: 'Settings', labelHindi: 'सेटिंग्स', icon: Settings },
     ],
