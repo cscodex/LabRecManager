@@ -21,6 +21,7 @@ export default function LoginPage() {
     const [academicYears, setAcademicYears] = useState([]);
     const [selectedYear, setSelectedYear] = useState('');
     const [loadingYears, setLoadingYears] = useState(true);
+    const [schoolInfo, setSchoolInfo] = useState({ name: '', logoUrl: '' });
 
     // PIN login state
     const [loginMode, setLoginMode] = useState('password'); // 'password' or 'pin'
@@ -42,6 +43,9 @@ export default function LoginPage() {
         try {
             const res = await axios.get('/api/schools/academic-years');
             const years = res.data.data?.academicYears || [];
+            if (res.data.data?.school) {
+                setSchoolInfo(res.data.data.school);
+            }
             setAcademicYears(years);
             const currentYear = years.find(y => y.isCurrent);
             if (currentYear) {
@@ -58,7 +62,7 @@ export default function LoginPage() {
 
     const text = {
         en: {
-            title: 'ULRMS',
+            title: schoolInfo.name || 'ULRMS',
             subtitle: 'Unified Lab Record Management System',
             email: 'Email Address',
             password: 'Password',
@@ -74,7 +78,7 @@ export default function LoginPage() {
             confirmPassword: 'Confirm Password',
         },
         hi: {
-            title: 'यूएलआरएमएस',
+            title: schoolInfo.name || 'यूएलआरएमएस',
             subtitle: 'यूनिफाइड लैब रिकॉर्ड प्रबंधन प्रणाली',
             email: 'ईमेल पता',
             password: 'पासवर्ड',
@@ -198,8 +202,12 @@ export default function LoginPage() {
             <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-600 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
                 <div className="relative z-10 flex flex-col justify-center items-center text-white p-12">
-                    <div className="w-24 h-24 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center mb-8">
-                        <GraduationCap className="w-12 h-12" />
+                    <div className="w-24 h-24 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center mb-8 overflow-hidden">
+                        {schoolInfo.logoUrl ? (
+                            <img src={schoolInfo.logoUrl} alt={schoolInfo.name} className="w-full h-full object-contain p-2" />
+                        ) : (
+                            <GraduationCap className="w-12 h-12" />
+                        )}
                     </div>
                     <h1 className="text-4xl font-bold mb-4 text-center">{t.title}</h1>
                     <p className="text-xl text-white/80 text-center max-w-md">{t.subtitle}</p>
@@ -234,8 +242,12 @@ export default function LoginPage() {
 
                 <div className="w-full max-w-md">
                     <div className="lg:hidden text-center mb-8">
-                        <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <GraduationCap className="w-8 h-8 text-primary-600" />
+                        <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4 overflow-hidden">
+                            {schoolInfo.logoUrl ? (
+                                <img src={schoolInfo.logoUrl} alt={schoolInfo.name} className="w-full h-full object-contain p-1" />
+                            ) : (
+                                <GraduationCap className="w-8 h-8 text-primary-600" />
+                            )}
                         </div>
                         <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
                     </div>

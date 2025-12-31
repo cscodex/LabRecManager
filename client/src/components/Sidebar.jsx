@@ -86,6 +86,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
     const pathname = usePathname();
     const { user, logout } = useAuthStore();
     const [isMobile, setIsMobile] = useState(false);
+    const [schoolInfo, setSchoolInfo] = useState({ name: 'ULRMS', logoUrl: '' });
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -93,6 +94,25 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
+
+    // Fetch school info if user is logged in
+    useEffect(() => {
+        if (user?.schoolId) {
+            import('@/lib/api').then(module => {
+                const api = module.default;
+                api.get(`/schools/${user.schoolId}`)
+                    .then(res => {
+                        if (res.data.success && res.data.data.school) {
+                            setSchoolInfo({
+                                name: res.data.data.school.name,
+                                logoUrl: res.data.data.school.logoUrl
+                            });
+                        }
+                    })
+                    .catch(err => console.error('Failed to load school info', err));
+            });
+        }
+    }, [user?.schoolId]);
 
     const handleLogout = () => {
         logout();
@@ -112,11 +132,15 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             <div className={`p-4 border-b border-slate-200 dark:border-slate-700 flex items-center ${isCollapsed && !isMobile ? 'justify-center' : 'justify-between'}`}>
                 {(!isCollapsed || isMobile) && (
                     <Link href="/dashboard" className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold">
-                            <Beaker className="w-6 h-6" />
+                        <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold overflow-hidden">
+                            {schoolInfo.logoUrl ? (
+                                <img src={schoolInfo.logoUrl} alt="Logo" className="w-full h-full object-contain p-1 bg-white" />
+                            ) : (
+                                <Beaker className="w-6 h-6" />
+                            )}
                         </div>
                         <div>
-                            <h1 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-none">ULRMS</h1>
+                            <h1 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-none truncate max-w-[150px]" title={schoolInfo.name}>{schoolInfo.name}</h1>
                             <p className="text-xs text-slate-500 dark:text-slate-400">Unified Lab Records</p>
                         </div>
                     </Link>

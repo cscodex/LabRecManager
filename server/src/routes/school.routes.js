@@ -22,9 +22,20 @@ router.get('/academic-years', asyncHandler(async (req, res) => {
         }
     });
 
+    // Get default school info for login page
+    const school = await prisma.school.findFirst({
+        select: {
+            name: true,
+            logoUrl: true
+        }
+    });
+
     res.json({
         success: true,
-        data: { academicYears }
+        data: {
+            academicYears,
+            school // Return default school info
+        }
     });
 }));
 
