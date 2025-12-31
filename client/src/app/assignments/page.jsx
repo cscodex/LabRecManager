@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import {
     FileText, Plus, Search, Filter, Calendar, Users,
     ChevronRight, Clock, CheckCircle, Edit, Trash2, Eye
@@ -15,13 +16,13 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function AssignmentsPage() {
     const router = useRouter();
+    const { t } = useTranslation('common');
     const { user, isAuthenticated, _hasHydrated, selectedSessionId } = useAuthStore();
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
-    // Confirmation dialog state
     const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, title: '' });
     const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -40,7 +41,7 @@ export default function AssignmentsPage() {
             const res = await assignmentsAPI.getAll({ status: statusFilter !== 'all' ? statusFilter : undefined });
             setAssignments(res.data.data.assignments || []);
         } catch (error) {
-            toast.error('Failed to load assignments');
+            toast.error(t('common.noData'));
         } finally {
             setLoading(false);
         }
@@ -55,11 +56,11 @@ export default function AssignmentsPage() {
         setDeleteLoading(true);
         try {
             await assignmentsAPI.delete(deleteDialog.id);
-            toast.success('Assignment deleted');
+            toast.success(t('common.delete'));
             setDeleteDialog({ open: false, id: null, title: '' });
             loadAssignments();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to delete');
+            toast.error(error.response?.data?.message || t('common.noData'));
         } finally {
             setDeleteLoading(false);
         }
@@ -68,10 +69,10 @@ export default function AssignmentsPage() {
     const handlePublish = async (id) => {
         try {
             await assignmentsAPI.publish(id);
-            toast.success('Assignment published!');
+            toast.success(t('assignments.published') + '!');
             loadAssignments();
         } catch (error) {
-            toast.error('Failed to publish');
+            toast.error(t('common.noData'));
         }
     };
 
@@ -89,6 +90,15 @@ export default function AssignmentsPage() {
         return styles[status] || 'badge-primary';
     };
 
+    const getStatusLabel = (status) => {
+        const labels = {
+            draft: t('assignments.draft'),
+            published: t('assignments.published'),
+            archived: t('assignments.archived')
+        };
+        return labels[status] || status;
+    };
+
     const isInstructor = user?.role === 'instructor' || user?.role === 'admin' || user?.role === 'lab_assistant';
 
     if (loading) {
@@ -101,11 +111,11 @@ export default function AssignmentsPage() {
 
     return (
         <div className="min-h-screen bg-slate-50">
-            <PageHeader title="Assignments">
+            <PageHeader title={t('assignments.title')}>
                 {isInstructor && (
                     <Link href="/assignments/create" className="btn btn-primary">
                         <Plus className="w-4 h-4" />
-                        Create Assignment
+                        {t('assignments.createAssignment')}
                     </Link>
                 )}
             </PageHeader>
@@ -118,7 +128,7 @@ export default function AssignmentsPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search assignments..."
+                                placeholder={t('assignments.searchAssignments')}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="input pl-10"
@@ -129,10 +139,10 @@ export default function AssignmentsPage() {
                             onChange={(e) => { setStatusFilter(e.target.value); loadAssignments(); }}
                             className="input w-full md:w-48"
                         >
-                            <option value="all">All Status</option>
-                            <option value="draft">Draft</option>
-                            <option value="published">Published</option>
-                            <option value="archived">Archived</option>
+                            <option value="all">{t('assignments.allStatus')}</option>
+                            <option value="draft">{t('assignments.draft')}</option>
+                            <option value="published">{t('assignments.published')}</option>
+                            <option value="archived">{t('assignments.archived')}</option>
                         </select>
                     </div>
                 </div>
@@ -141,9 +151,9 @@ export default function AssignmentsPage() {
                 {filteredAssignments.length === 0 ? (
                     <div className="card p-12 text-center">
                         <FileText className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                        <h3 className="text-lg font-medium text-slate-700 mb-2">No assignments found</h3>
+                        <h3 className="text-lg font-medium text-slate-700 mb-2">{t('assignments.noAssignmentsFound')}</h3>
                         <p className="text-slate-500">
-                            {isInstructor ? 'Create your first assignment to get started.' : 'No assignments have been assigned to you yet.'}
+                            {isInstructor ? t('assignments.createFirst') : t('assignments.noAssignmentsYet')}
                         </p>
                     </div>
                 ) : (
@@ -154,7 +164,7 @@ export default function AssignmentsPage() {
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-2">
                                             <span className={`badge ${getStatusBadge(assignment.status)}`}>
-                                                {assignment.status}
+                                                {getStatusLabel(assignment.status)}
                                             </span>
                                             {assignment.experimentNumber && (
                                                 <span className="text-sm text-slate-500">{assignment.experimentNumber}</span>
@@ -170,28 +180,27 @@ export default function AssignmentsPage() {
                                             {assignment.description}
                                         </p>
                                         <div className="flex flex-wrap gap-4 text-sm text-slate-500">
-                                            {/* Show scheduled publish or published date instead of due date */}
                                             {assignment.status === 'draft' && assignment.publishDate && (
                                                 <span className="flex items-center gap-1 text-amber-600">
                                                     <Clock className="w-4 h-4" />
-                                                    Scheduled: {new Date(assignment.publishDate).toLocaleString()}
+                                                    {t('assignments.scheduled')}: {new Date(assignment.publishDate).toLocaleString()}
                                                 </span>
                                             )}
                                             {assignment.status === 'published' && (
                                                 <span className="flex items-center gap-1 text-emerald-600">
                                                     <CheckCircle className="w-4 h-4" />
-                                                    Published: {assignment.publishDate ? new Date(assignment.publishDate).toLocaleString() : new Date(assignment.createdAt).toLocaleString()}
+                                                    {t('assignments.published')}: {assignment.publishDate ? new Date(assignment.publishDate).toLocaleString() : new Date(assignment.createdAt).toLocaleString()}
                                                 </span>
                                             )}
                                             {!assignment.publishDate && assignment.status === 'draft' && (
                                                 <span className="flex items-center gap-1">
                                                     <Calendar className="w-4 h-4" />
-                                                    Created: {new Date(assignment.createdAt).toLocaleString()}
+                                                    {t('assignments.created')}: {new Date(assignment.createdAt).toLocaleString()}
                                                 </span>
                                             )}
                                             <span className="flex items-center gap-1">
                                                 <CheckCircle className="w-4 h-4" />
-                                                Max Marks: {assignment.maxMarks}
+                                                {t('assignments.maxMarks')}: {assignment.maxMarks}
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <FileText className="w-4 h-4" />
@@ -204,7 +213,7 @@ export default function AssignmentsPage() {
                                         <Link
                                             href={`/assignments/${assignment.id}`}
                                             className="btn btn-ghost p-2"
-                                            title="View"
+                                            title={t('common.view')}
                                         >
                                             <Eye className="w-5 h-5" />
                                         </Link>
@@ -215,13 +224,13 @@ export default function AssignmentsPage() {
                                                         onClick={() => handlePublish(assignment.id)}
                                                         className="btn btn-primary py-1.5 px-3 text-sm"
                                                     >
-                                                        Publish
+                                                        {t('assignments.publish')}
                                                     </button>
                                                 )}
                                                 <button
                                                     onClick={() => handleDeleteClick(assignment.id, assignment.title)}
                                                     className="btn btn-ghost p-2 text-red-500 hover:bg-red-50"
-                                                    title="Delete"
+                                                    title={t('common.delete')}
                                                 >
                                                     <Trash2 className="w-5 h-5" />
                                                 </button>
@@ -232,7 +241,7 @@ export default function AssignmentsPage() {
                                                 href={`/assignments/${assignment.id}/submit`}
                                                 className="btn btn-primary py-1.5 px-3 text-sm"
                                             >
-                                                Submit
+                                                {t('assignments.submit')}
                                             </Link>
                                         )}
                                     </div>
@@ -248,9 +257,9 @@ export default function AssignmentsPage() {
                 isOpen={deleteDialog.open}
                 onClose={() => setDeleteDialog({ open: false, id: null, title: '' })}
                 onConfirm={handleDeleteConfirm}
-                title="Delete Assignment"
-                message={`Are you sure you want to delete "${deleteDialog.title}"? This action cannot be undone.`}
-                confirmText="Delete"
+                title={t('assignments.deleteAssignment')}
+                message={t('assignments.deleteConfirm')}
+                confirmText={t('common.delete')}
                 type="danger"
                 loading={deleteLoading}
             />
