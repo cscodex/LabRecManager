@@ -2719,11 +2719,18 @@ The undersigned requests approval to purchase the following items for the scienc
                                                 type="file"
                                                 className="input"
                                                 accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={e => {
+                                                onChange={async (e) => {
                                                     const file = e.target.files[0];
-                                                    if (file) {
+                                                    if (file && selectedRequest?.id) {
                                                         setBillUpload(file);
-                                                        toast.success(`Bill selected: ${file.name}`);
+                                                        try {
+                                                            await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'bill', file);
+                                                            toast.success('Bill uploaded successfully');
+                                                            await openRequestDetail(selectedRequest); // Refresh to show link
+                                                        } catch (err) {
+                                                            console.error('Bill upload error:', err);
+                                                            toast.error('Bill upload failed: ' + (err.response?.data?.message || err.message));
+                                                        }
                                                     }
                                                 }}
                                             />
@@ -2743,17 +2750,19 @@ The undersigned requests approval to purchase the following items for the scienc
                                             <input
                                                 type="file"
                                                 className="input"
-                                                accept=".jpg,.jpeg,.png"
-                                                onChange={e => {
+                                                accept=".jpg,.jpeg,.png,.pdf"
+                                                onChange={async (e) => {
                                                     const file = e.target.files[0];
-                                                    if (file) {
+                                                    if (file && selectedRequest?.id) {
                                                         setChequeUpload(file);
-                                                        // Simulate OCR extraction (placeholder)
-                                                        setTimeout(() => {
-                                                            const mockChequeNo = Math.floor(100000 + Math.random() * 900000).toString();
-                                                            setChequeNumber(mockChequeNo);
-                                                            toast.success(`Cheque number extracted: ${mockChequeNo}`);
-                                                        }, 1000);
+                                                        try {
+                                                            await uploadAPI.uploadProcurementDoc(selectedRequest.id, 'cheque', file);
+                                                            toast.success('Cheque uploaded successfully');
+                                                            await openRequestDetail(selectedRequest); // Refresh to show link
+                                                        } catch (err) {
+                                                            console.error('Cheque upload error:', err);
+                                                            toast.error('Cheque upload failed: ' + (err.response?.data?.message || err.message));
+                                                        }
                                                     }
                                                 }}
                                             />
