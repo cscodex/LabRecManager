@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import { GraduationCap, Save, X, Users, BookOpen } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -11,6 +12,7 @@ import PageHeader from '@/components/PageHeader';
 
 export default function CreateClassPage() {
     const router = useRouter();
+    const { t } = useTranslation('common');
     const { user, isAuthenticated, _hasHydrated } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [academicYears, setAcademicYears] = useState([]);
@@ -26,17 +28,13 @@ export default function CreateClassPage() {
         maxStudents: 50
     });
 
-    // Helper to get current academic year label (April to March cycle)
     const getCurrentAcademicYearLabel = () => {
         const now = new Date();
-        const month = now.getMonth() + 1; // 1-12
+        const month = now.getMonth() + 1;
         const year = now.getFullYear();
-
         if (month >= 4) {
-            // April to December: current year to next year
             return `${year}-${year + 1}`;
         } else {
-            // January to March: previous year to current year
             return `${year - 1}-${year}`;
         }
     };
@@ -49,7 +47,7 @@ export default function CreateClassPage() {
         }
         if (user?.role !== 'admin' && user?.role !== 'principal') {
             router.push('/classes');
-            toast.error('Only admins can create classes');
+            toast.error(t('common.noData'));
             return;
         }
         loadFormData();
@@ -66,7 +64,6 @@ export default function CreateClassPage() {
             setAcademicYears(years);
             setInstructors(usersRes.data.data.users || []);
 
-            // Auto-select academic year based on current date
             const currentLabel = getCurrentAcademicYearLabel();
             const matchingYear = years.find(y => y.yearLabel === currentLabel || y.yearLabel === currentLabel.replace('-', '-20'));
             const currentYear = matchingYear || years.find(y => y.isCurrent);
@@ -76,7 +73,7 @@ export default function CreateClassPage() {
             }
         } catch (error) {
             console.error('Failed to load form data:', error);
-            toast.error('Failed to load required data');
+            toast.error(t('common.noData'));
         }
     };
 
@@ -84,7 +81,7 @@ export default function CreateClassPage() {
         e.preventDefault();
 
         if (!formData.name || !formData.gradeLevel || !formData.academicYearId) {
-            toast.error('Please fill in all required fields');
+            toast.error(t('common.noData'));
             return;
         }
 
@@ -96,11 +93,11 @@ export default function CreateClassPage() {
                 maxStudents: parseInt(formData.maxStudents)
             });
 
-            toast.success('Class created successfully!');
+            toast.success(t('common.save'));
             router.push(`/classes/${response.data.data.class.id}`);
         } catch (error) {
             console.error('Failed to create class:', error);
-            toast.error(error.response?.data?.message || 'Failed to create class');
+            toast.error(error.response?.data?.message || t('common.noData'));
         } finally {
             setLoading(false);
         }
@@ -111,7 +108,6 @@ export default function CreateClassPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Generate class name (auto-generated from grade, section, stream)
     const generateClassName = () => {
         const grade = formData.gradeLevel;
         if (!grade) return '';
@@ -126,7 +122,6 @@ export default function CreateClassPage() {
         return name;
     };
 
-    // Always update class name when grade/section/stream changes
     useEffect(() => {
         if (formData.gradeLevel) {
             const generatedName = generateClassName();
@@ -136,10 +131,10 @@ export default function CreateClassPage() {
 
     return (
         <div className="min-h-screen bg-slate-50">
-            <PageHeader title="Create New Class" titleHindi="नई कक्षा बनाएं">
+            <PageHeader title={t('classes.createClass')} titleHindi="नई कक्षा बनाएं">
                 <Link href="/classes" className="btn btn-ghost">
                     <X className="w-4 h-4" />
-                    Cancel
+                    {t('common.cancel')}
                 </Link>
             </PageHeader>
 
@@ -152,15 +147,15 @@ export default function CreateClassPage() {
                                 <GraduationCap className="w-5 h-5 text-primary-600" />
                             </div>
                             <div>
-                                <h2 className="font-semibold text-slate-900">Basic Information</h2>
-                                <p className="text-sm text-slate-500">Enter class details</p>
+                                <h2 className="font-semibold text-slate-900">{t('common.description')}</h2>
+                                <p className="text-sm text-slate-500">{t('classes.className')}</p>
                             </div>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Grade Level <span className="text-red-500">*</span>
+                                    {t('classes.gradeLevel')} <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     name="gradeLevel"
@@ -169,7 +164,7 @@ export default function CreateClassPage() {
                                     className="input"
                                     required
                                 >
-                                    <option value="">Select Grade</option>
+                                    <option value="">{t('classes.gradeLevel')}</option>
                                     {[...Array(12)].map((_, i) => (
                                         <option key={i + 1} value={i + 1}>
                                             Grade {i + 1} (Class {i + 1})
@@ -180,7 +175,7 @@ export default function CreateClassPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Section
+                                    {t('classes.section')}
                                 </label>
                                 <select
                                     name="section"
@@ -188,7 +183,7 @@ export default function CreateClassPage() {
                                     onChange={handleChange}
                                     className="input"
                                 >
-                                    <option value="">No Section</option>
+                                    <option value="">{t('classes.section')}</option>
                                     {['A', 'B', 'C', 'D', 'E', 'F'].map(s => (
                                         <option key={s} value={s}>{s}</option>
                                     ))}
@@ -197,7 +192,7 @@ export default function CreateClassPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Class Name <span className="text-slate-400 text-xs">(auto-generated)</span>
+                                    {t('classes.className')}
                                 </label>
                                 <input
                                     type="text"
@@ -205,13 +200,13 @@ export default function CreateClassPage() {
                                     value={formData.name}
                                     readOnly
                                     className="input bg-slate-100 cursor-not-allowed"
-                                    placeholder="Select grade level to generate"
+                                    placeholder={t('classes.gradeLevel')}
                                 />
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    कक्षा का नाम (Hindi)
+                                    {t('classes.classNameHindi')}
                                 </label>
                                 <input
                                     type="text"
@@ -225,7 +220,7 @@ export default function CreateClassPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Stream
+                                    {t('classes.stream')}
                                 </label>
                                 <select
                                     name="stream"
@@ -233,7 +228,7 @@ export default function CreateClassPage() {
                                     onChange={handleChange}
                                     className="input"
                                 >
-                                    <option value="">General</option>
+                                    <option value="">{t('classes.general')}</option>
                                     <option value="Commerce">Commerce (वाणिज्य)</option>
                                     <option value="NonMedical">Non-Medical / PCM (नॉन-मेडिकल)</option>
                                     <option value="Medical">Medical / PCB (मेडिकल)</option>
@@ -242,7 +237,7 @@ export default function CreateClassPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Max Students
+                                    Max {t('classes.students')}
                                 </label>
                                 <input
                                     type="number"
@@ -264,15 +259,15 @@ export default function CreateClassPage() {
                                 <BookOpen className="w-5 h-5 text-blue-600" />
                             </div>
                             <div>
-                                <h2 className="font-semibold text-slate-900">Assignment Details</h2>
-                                <p className="text-sm text-slate-500">Academic year and instructor</p>
+                                <h2 className="font-semibold text-slate-900">{t('auth.academicSession')}</h2>
+                                <p className="text-sm text-slate-500">{t('classes.classTeacher')}</p>
                             </div>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Academic Year <span className="text-red-500">*</span>
+                                    {t('auth.academicSession')} <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     name="academicYearId"
@@ -281,10 +276,10 @@ export default function CreateClassPage() {
                                     className="input"
                                     required
                                 >
-                                    <option value="">Select Academic Year</option>
+                                    <option value="">{t('auth.academicSession')}</option>
                                     {academicYears.map(year => (
                                         <option key={year.id} value={year.id}>
-                                            {year.yearLabel} {year.isCurrent ? '(Current)' : ''}
+                                            {year.yearLabel} {year.isCurrent ? `(${t('auth.current')})` : ''}
                                         </option>
                                     ))}
                                 </select>
@@ -292,7 +287,7 @@ export default function CreateClassPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Instructor
+                                    {t('classes.classTeacher')}
                                 </label>
                                 <select
                                     name="classTeacherId"
@@ -300,7 +295,7 @@ export default function CreateClassPage() {
                                     onChange={handleChange}
                                     className="input"
                                 >
-                                    <option value="">Select Instructor (Optional)</option>
+                                    <option value="">{t('classes.selectTeacher')}</option>
                                     {instructors.map(instructor => (
                                         <option key={instructor.id} value={instructor.id}>
                                             {instructor.firstName} {instructor.lastName}
@@ -314,19 +309,19 @@ export default function CreateClassPage() {
                     {/* Preview */}
                     {formData.gradeLevel && (
                         <div className="card p-6 bg-gradient-to-br from-primary-50 to-primary-100 border-primary-200">
-                            <h3 className="text-sm font-medium text-primary-800 mb-3">Preview</h3>
+                            <h3 className="text-sm font-medium text-primary-800 mb-3">{t('common.view')}</h3>
                             <div className="flex items-center gap-4">
                                 <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-2xl font-bold text-primary-600 shadow-sm">
                                     {formData.gradeLevel}
                                     {formData.section && <span className="text-lg">{formData.section}</span>}
                                 </div>
                                 <div>
-                                    <h4 className="text-lg font-semibold text-primary-900">{formData.name || 'Class Name'}</h4>
+                                    <h4 className="text-lg font-semibold text-primary-900">{formData.name || t('classes.className')}</h4>
                                     {formData.nameHindi && (
                                         <p className="text-primary-700">{formData.nameHindi}</p>
                                     )}
                                     <p className="text-sm text-primary-600">
-                                        {formData.stream || 'General'} • Max {formData.maxStudents} students
+                                        {formData.stream || t('classes.general')} • Max {formData.maxStudents} {t('classes.students')}
                                     </p>
                                 </div>
                             </div>
@@ -336,7 +331,7 @@ export default function CreateClassPage() {
                     {/* Submit */}
                     <div className="flex justify-end gap-3">
                         <Link href="/classes" className="btn btn-ghost">
-                            Cancel
+                            {t('common.cancel')}
                         </Link>
                         <button
                             type="submit"
@@ -346,12 +341,12 @@ export default function CreateClassPage() {
                             {loading ? (
                                 <>
                                     <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
-                                    Creating...
+                                    {t('classes.creating')}
                                 </>
                             ) : (
                                 <>
                                     <Save className="w-4 h-4" />
-                                    Create Class
+                                    {t('classes.createClass')}
                                 </>
                             )}
                         </button>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import { Users, GraduationCap, Search, Plus, Eye, UserPlus, Calendar, Lock } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -10,6 +11,7 @@ import toast from 'react-hot-toast';
 
 export default function ClassesPage() {
     const router = useRouter();
+    const { t } = useTranslation('common');
     const { user, isAuthenticated, _hasHydrated, selectedSessionId, selectedSession, isReadOnlyMode } = useAuthStore();
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ export default function ClassesPage() {
             const res = await api.get('/classes');
             setClasses(res.data.data.classes || []);
         } catch (error) {
-            toast.error('Failed to load classes');
+            toast.error(t('common.noData'));
         } finally {
             setLoading(false);
         }
@@ -57,14 +59,14 @@ export default function ClassesPage() {
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/dashboard" className="text-slate-500 hover:text-slate-700">
-                            ← Back
+                            ← {t('common.back')}
                         </Link>
-                        <h1 className="text-xl font-semibold text-slate-900">Classes</h1>
+                        <h1 className="text-xl font-semibold text-slate-900">{t('classes.title')}</h1>
                     </div>
                     {isAdmin && (
                         <Link href="/classes/create" className="btn btn-primary">
                             <Plus className="w-4 h-4" />
-                            Add Class
+                            {t('classes.addClass')}
                         </Link>
                     )}
                 </div>
@@ -74,8 +76,8 @@ export default function ClassesPage() {
                 {/* Session Indicator */}
                 {selectedSession && (
                     <div className={`rounded-xl p-4 mb-6 flex items-center justify-between ${isReadOnlyMode
-                            ? 'bg-amber-50 border border-amber-200'
-                            : 'bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-200'
+                        ? 'bg-amber-50 border border-amber-200'
+                        : 'bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-200'
                         }`}>
                         <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isReadOnlyMode ? 'bg-amber-100' : 'bg-primary-100'
@@ -89,12 +91,12 @@ export default function ClassesPage() {
                                     </span>
                                     {selectedSession.isCurrent ? (
                                         <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium">
-                                            Current Session
+                                            {t('classes.currentSession')}
                                         </span>
                                     ) : (
                                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium flex items-center gap-1">
                                             <Lock className="w-3 h-3" />
-                                            Historical
+                                            {t('classes.historical')}
                                         </span>
                                     )}
                                 </div>
@@ -104,7 +106,7 @@ export default function ClassesPage() {
                             </div>
                         </div>
                         <p className="text-sm text-slate-500">
-                            Use the session selector in header to change
+                            {t('classes.sessionHint')}
                         </p>
                     </div>
                 )}
@@ -115,7 +117,7 @@ export default function ClassesPage() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Search classes..."
+                            placeholder={t('classes.searchClasses')}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="input pl-10"
@@ -127,9 +129,9 @@ export default function ClassesPage() {
                 {filteredClasses.length === 0 ? (
                     <div className="card p-12 text-center">
                         <GraduationCap className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                        <h3 className="text-lg font-medium text-slate-700 mb-2">No classes found</h3>
+                        <h3 className="text-lg font-medium text-slate-700 mb-2">{t('classes.noClassesFound')}</h3>
                         <p className="text-slate-500">
-                            {isAdmin ? 'Create your first class to get started.' : 'No classes available.'}
+                            {isAdmin ? t('classes.createFirst') : t('classes.noClassesAvailable')}
                         </p>
                     </div>
                 ) : (
@@ -141,7 +143,7 @@ export default function ClassesPage() {
                                         {cls.gradeLevel}
                                         {cls.section && <span className="text-sm ml-0.5">{cls.section}</span>}
                                     </div>
-                                    <span className="text-sm text-slate-500">{cls.stream || 'General'}</span>
+                                    <span className="text-sm text-slate-500">{cls.stream || t('classes.general')}</span>
                                 </div>
 
                                 <h3 className="text-lg font-semibold text-slate-900 mb-1">{cls.name}</h3>
@@ -152,13 +154,13 @@ export default function ClassesPage() {
                                 <div className="flex items-center gap-4 text-sm text-slate-500 mb-4">
                                     <span className="flex items-center gap-1">
                                         <Users className="w-4 h-4" />
-                                        {cls._count?.enrollments || 0} students
+                                        {cls._count?.enrollments || 0} {t('classes.students')}
                                     </span>
                                 </div>
 
                                 {cls.classTeacher && (
                                     <p className="text-sm text-slate-600 mb-4">
-                                        Teacher: {cls.classTeacher.firstName} {cls.classTeacher.lastName}
+                                        {t('classes.teacher')}: {cls.classTeacher.firstName} {cls.classTeacher.lastName}
                                     </p>
                                 )}
 
@@ -168,7 +170,7 @@ export default function ClassesPage() {
                                         className="btn btn-ghost flex-1 text-sm"
                                     >
                                         <Eye className="w-4 h-4" />
-                                        View
+                                        {t('classes.view')}
                                     </Link>
                                     {isAdmin && (
                                         <Link
@@ -176,7 +178,7 @@ export default function ClassesPage() {
                                             className="btn btn-primary flex-1 text-sm"
                                         >
                                             <UserPlus className="w-4 h-4" />
-                                            Students
+                                            {t('classes.students')}
                                         </Link>
                                     )}
                                 </div>
