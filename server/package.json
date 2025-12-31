@@ -1,6 +1,6 @@
 {
   "name": "lab-record-manager-server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Backend API for Lab Record Manager System",
   "main": "src/app.js",
   "scripts": {
