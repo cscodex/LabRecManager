@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import {
     FileText, Search, Filter, CheckCircle, Clock,
     XCircle, Eye, Award, User
@@ -13,6 +14,7 @@ import toast from 'react-hot-toast';
 
 export default function SubmissionsPage() {
     const router = useRouter();
+    const { t } = useTranslation('common');
     const { user, isAuthenticated, _hasHydrated, selectedSessionId } = useAuthStore();
     const [submissions, setSubmissions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -42,8 +44,7 @@ export default function SubmissionsPage() {
             setSubmissions(res.data.data.submissions || []);
         } catch (error) {
             console.error('Failed to load submissions:', error);
-            const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-            toast.error(`Failed to load submissions: ${errorMessage}`);
+            toast.error(t('common.noData'));
         } finally {
             setLoading(false);
         }
@@ -71,6 +72,17 @@ export default function SubmissionsPage() {
         return styles[status] || 'badge-secondary';
     };
 
+    const getStatusLabel = (status) => {
+        const labels = {
+            submitted: t('submissions.submitted'),
+            under_review: t('submissions.underReview'),
+            graded: t('submissions.graded'),
+            needs_revision: t('submissions.needsRevision'),
+            returned: t('submissions.returned')
+        };
+        return labels[status] || status.replace('_', ' ');
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -87,10 +99,10 @@ export default function SubmissionsPage() {
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/dashboard" className="text-slate-500 hover:text-slate-700">
-                            ← Back
+                            ← {t('common.back')}
                         </Link>
                         <h1 className="text-xl font-semibold text-slate-900">
-                            {isInstructor ? 'Submissions for Review' : 'My Submissions'}
+                            {isInstructor ? t('submissions.forReview') : t('submissions.mySubmissions')}
                         </h1>
                     </div>
                 </div>
@@ -107,7 +119,7 @@ export default function SubmissionsPage() {
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
-                            All
+                            {t('submissions.all')}
                         </button>
                         <button
                             onClick={() => setStatusFilter('submitted')}
@@ -116,7 +128,7 @@ export default function SubmissionsPage() {
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
-                            Submitted
+                            {t('submissions.submitted')}
                         </button>
                         <button
                             onClick={() => setStatusFilter('graded')}
@@ -125,7 +137,7 @@ export default function SubmissionsPage() {
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
-                            Graded
+                            {t('submissions.graded')}
                         </button>
                         <button
                             onClick={() => setStatusFilter('needs_revision')}
@@ -134,7 +146,7 @@ export default function SubmissionsPage() {
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
-                            Needs Revision
+                            {t('submissions.needsRevision')}
                         </button>
                     </div>
                 </div>
@@ -143,11 +155,11 @@ export default function SubmissionsPage() {
                 {submissions.length === 0 ? (
                     <div className="card p-12 text-center">
                         <FileText className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                        <h3 className="text-lg font-medium text-slate-700 mb-2">No submissions found</h3>
+                        <h3 className="text-lg font-medium text-slate-700 mb-2">{t('submissions.noSubmissions')}</h3>
                         <p className="text-slate-500">
                             {isInstructor
-                                ? 'No submissions pending for review.'
-                                : 'You have not submitted any assignments yet.'}
+                                ? t('submissions.noPending')
+                                : t('submissions.noSubmitted')}
                         </p>
                     </div>
                 ) : (
@@ -162,11 +174,11 @@ export default function SubmissionsPage() {
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className={`badge ${getStatusBadge(submission.status)}`}>
-                                                    {submission.status.replace('_', ' ')}
+                                                    {getStatusLabel(submission.status)}
                                                 </span>
                                                 {submission.submissionNumber > 1 && (
                                                     <span className="text-xs text-slate-500">
-                                                        Revision #{submission.submissionNumber}
+                                                        {t('submissions.revision')}{submission.submissionNumber}
                                                     </span>
                                                 )}
                                             </div>
@@ -176,7 +188,7 @@ export default function SubmissionsPage() {
                                             {isInstructor && submission.student && (
                                                 <p className="text-sm text-slate-600 flex items-center gap-1 mt-1">
                                                     <User className="w-4 h-4" />
-                                                    <span className="font-medium">Student:</span> {submission.student.firstName} {submission.student.lastName}
+                                                    <span className="font-medium">{t('submissions.student')}:</span> {submission.student.firstName} {submission.student.lastName}
                                                     {(submission.student.studentId || submission.student.admissionNumber) && (
                                                         <span className="text-slate-400">
                                                             ({submission.student.studentId || submission.student.admissionNumber})
@@ -186,24 +198,24 @@ export default function SubmissionsPage() {
                                             )}
                                             {isInstructor && submission.assignment?.createdBy && (
                                                 <p className="text-sm text-primary-600 flex items-center gap-1 mt-1">
-                                                    <span className="font-medium">Assigned by:</span> {submission.assignment.createdBy.firstName} {submission.assignment.createdBy.lastName}
+                                                    <span className="font-medium">{t('submissions.assignedBy')}:</span> {submission.assignment.createdBy.firstName} {submission.assignment.createdBy.lastName}
                                                     <span className="text-slate-400 text-xs">
                                                         ({submission.assignment.createdBy.role})
                                                     </span>
                                                 </p>
                                             )}
                                             <p className="text-sm text-slate-500 mt-2">
-                                                Submitted: {new Date(submission.submittedAt).toLocaleString()}
+                                                {t('submissions.submittedAt')}: {new Date(submission.submittedAt).toLocaleString()}
                                                 {submission.isLate && (
                                                     <span className="ml-2 text-red-500">
-                                                        (Late by {submission.lateDays} days)
+                                                        ({t('submissions.lateBy')} {submission.lateDays} {t('submissions.days')})
                                                     </span>
                                                 )}
                                             </p>
                                             {submission.grade && (
                                                 <>
                                                     <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center gap-2">
-                                                        Marks: {submission.grade.finalMarks || submission.grade.totalMarks} / {submission.grade.maxMarks || submission.assignment?.maxMarks || 100}
+                                                        {t('submissions.marks')}: {submission.grade.finalMarks || submission.grade.totalMarks} / {submission.grade.maxMarks || submission.assignment?.maxMarks || 100}
                                                         {submission.grade.gradeLetter && (
                                                             <span className="px-2 py-0.5 bg-emerald-500 text-white text-xs rounded font-bold">
                                                                 {submission.grade.gradeLetter}
@@ -211,12 +223,12 @@ export default function SubmissionsPage() {
                                                         )}
                                                     </p>
                                                     <p className="text-sm text-slate-500 mt-1">
-                                                        Graded: {submission.grade.gradedAt
+                                                        {t('submissions.gradedAt')}: {submission.grade.gradedAt
                                                             ? new Date(submission.grade.gradedAt).toLocaleString()
-                                                            : 'Pending'}
+                                                            : t('dashboard.pending')}
                                                         {submission.grade.gradedBy && (
                                                             <span className="ml-2 text-slate-400">
-                                                                by {submission.grade.gradedBy.firstName} {submission.grade.gradedBy.lastName}
+                                                                {t('submissions.by')} {submission.grade.gradedBy.firstName} {submission.grade.gradedBy.lastName}
                                                             </span>
                                                         )}
                                                     </p>
@@ -230,7 +242,7 @@ export default function SubmissionsPage() {
                                             href={`/submissions/${submission.id}`}
                                             className="btn btn-primary py-1.5 px-3 text-sm"
                                         >
-                                            {isInstructor && submission.status === 'submitted' ? 'Review' : 'View'}
+                                            {isInstructor && submission.status === 'submitted' ? t('submissions.review') : t('submissions.view')}
                                         </Link>
                                     </div>
                                 </div>
