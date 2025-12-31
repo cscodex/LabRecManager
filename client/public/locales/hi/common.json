@@ -63,14 +63,31 @@
         "address": "पता"
     },
     "auth": {
-        "login": "लॉग इन",
+        "login": "साइन इन करें",
         "logout": "लॉग आउट",
         "email": "ईमेल पता",
         "password": "पासवर्ड",
         "rememberMe": "मुझे याद रखें",
         "forgotPassword": "पासवर्ड भूल गए?",
         "noAccount": "कोई खाता नहीं है?",
-        "signUp": "साइन अप करें"
+        "signUp": "साइन अप करें",
+        "signingIn": "साइन इन हो रहा है...",
+        "welcome": "वापसी पर स्वागत है!",
+        "demoCredentials": "डेमो क्रेडेंशियल्स",
+        "firstTimeLogin": "पहली बार? पिन का उपयोग करें",
+        "usePassword": "पासवर्ड का उपयोग करें",
+        "pin": "6-अंकीय पिन",
+        "verifyPin": "पिन सत्यापित करें",
+        "setPassword": "पासवर्ड सेट करें",
+        "confirmPassword": "पासवर्ड की पुष्टि करें",
+        "verifying": "सत्यापित हो रहा है...",
+        "settingUp": "सेट अप हो रहा है...",
+        "setPasswordLogin": "पासवर्ड सेट करें और लॉगिन करें",
+        "enterPinFromTeacher": "शिक्षक से प्राप्त पिन दर्ज करें",
+        "academicSession": "शैक्षणिक सत्र",
+        "noSessions": "कोई सत्र नहीं",
+        "current": "वर्तमान",
+        "pinVerified": "पिन सत्यापित! अपना पासवर्ड सेट करें।"
     },
     "language": {
         "selectLanguage": "भाषा चुनें",
@@ -79,5 +96,15 @@
     },
     "sidebar": {
         "unifiedLabRecords": "यूनिफाइड लैब रिकॉर्ड्स"
+    },
+    "login": {
+        "title": "यूएलआरएमएस",
+        "subtitle": "यूनिफाइड लैब रिकॉर्ड प्रबंधन प्रणाली",
+        "features": {
+            "multiLanguage": "बहु-भाषा समर्थन",
+            "onlineViva": "ऑनलाइन वाइवा सिस्टम",
+            "realTimeGrading": "रियल-टाइम ग्रेडिंग",
+            "comprehensiveReports": "व्यापक रिपोर्ट"
+        }
     }
 }

@@ -63,14 +63,31 @@
         "address": "Address"
     },
     "auth": {
-        "login": "Login",
+        "login": "Sign In",
         "logout": "Logout",
         "email": "Email Address",
         "password": "Password",
         "rememberMe": "Remember me",
         "forgotPassword": "Forgot Password?",
         "noAccount": "Don't have an account?",
-        "signUp": "Sign Up"
+        "signUp": "Sign Up",
+        "signingIn": "Signing in...",
+        "welcome": "Welcome back!",
+        "demoCredentials": "Demo Credentials",
+        "firstTimeLogin": "First time? Use PIN",
+        "usePassword": "Use Password",
+        "pin": "6-Digit PIN",
+        "verifyPin": "Verify PIN",
+        "setPassword": "Set Password",
+        "confirmPassword": "Confirm Password",
+        "verifying": "Verifying...",
+        "settingUp": "Setting up...",
+        "setPasswordLogin": "Set Password & Login",
+        "enterPinFromTeacher": "Enter PIN from your teacher",
+        "academicSession": "Academic Session",
+        "noSessions": "No sessions",
+        "current": "Current",
+        "pinVerified": "PIN verified! Set your password."
     },
     "language": {
         "selectLanguage": "Select Language",
@@ -79,5 +96,15 @@
     },
     "sidebar": {
         "unifiedLabRecords": "Unified Lab Records"
+    },
+    "login": {
+        "title": "ULRMS",
+        "subtitle": "Unified Lab Record Management System",
+        "features": {
+            "multiLanguage": "Multi-language Support",
+            "onlineViva": "Online Viva System",
+            "realTimeGrading": "Real-time Grading",
+            "comprehensiveReports": "Comprehensive Reports"
+        }
     }
 }
