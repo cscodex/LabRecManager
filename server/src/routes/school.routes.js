@@ -45,12 +45,20 @@ router.get('/academic-years', asyncHandler(async (req, res) => {
  * @access  Private (Admin, Principal)
  */
 router.get('/profile', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
-    console.log('[DEBUG] GET /profile hit. User:', req.user.id, 'SchoolID:', req.user.schoolId);
+    console.log('='.repeat(60));
+    console.log('[SCHOOL-PROFILE] Request received at:', new Date().toISOString());
+    console.log('[SCHOOL-PROFILE] User ID:', req.user?.id);
+    console.log('[SCHOOL-PROFILE] User Role:', req.user?.role);
+    console.log('[SCHOOL-PROFILE] SchoolID from token:', req.user?.schoolId);
+    console.log('[SCHOOL-PROFILE] SchoolID type:', typeof req.user?.schoolId);
+    console.log('='.repeat(60));
 
     // Explicitly validate schoolId from user token before query
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!req.user.schoolId || !uuidRegex.test(req.user.schoolId)) {
-        console.error('[ERROR] Invalid School ID in User Token:', req.user.schoolId);
+        console.error('[SCHOOL-PROFILE][ERROR] Invalid School ID in User Token!');
+        console.error('[SCHOOL-PROFILE][ERROR] Value:', JSON.stringify(req.user.schoolId));
+        console.error('[SCHOOL-PROFILE][ERROR] Full user object:', JSON.stringify(req.user));
         return res.status(400).json({
             success: false,
             message: 'Invalid School ID in user profile'
@@ -58,6 +66,7 @@ router.get('/profile', authenticate, authorize('admin', 'principal'), asyncHandl
     }
 
     try {
+        console.log('[SCHOOL-PROFILE] Querying database for school...');
         const school = await prisma.school.findUnique({
             where: { id: req.user.schoolId },
             select: {
@@ -81,19 +90,24 @@ router.get('/profile', authenticate, authorize('admin', 'principal'), asyncHandl
         });
 
         if (!school) {
-            console.error('[ERROR] School not found for ID:', req.user.schoolId);
+            console.error('[SCHOOL-PROFILE][ERROR] School not found for ID:', req.user.schoolId);
             return res.status(404).json({
                 success: false,
                 message: 'School not found'
             });
         }
 
+        console.log('[SCHOOL-PROFILE] Success! Returning school:', school.name);
         res.json({
             success: true,
             data: school
         });
     } catch (error) {
-        console.error('[CRITICAL] Error in GET /profile:', error);
+        console.error('[SCHOOL-PROFILE][CRITICAL] Database error!');
+        console.error('[SCHOOL-PROFILE][CRITICAL] Error name:', error.name);
+        console.error('[SCHOOL-PROFILE][CRITICAL] Error message:', error.message);
+        console.error('[SCHOOL-PROFILE][CRITICAL] Full error:', error);
+        console.error('[SCHOOL-PROFILE][CRITICAL] Stack:', error.stack);
         throw error;
     }
 }));
