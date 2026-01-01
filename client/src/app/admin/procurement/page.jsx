@@ -2031,9 +2031,10 @@ export default function ProcurementPage() {
                                         { step: 4, label: 'Call Quotations', icon: Building },
                                         { step: 5, label: 'Quotations', icon: Receipt },
                                         { step: 6, label: 'Comparative', icon: Calculator },
-                                        { step: 7, label: 'Purchase Order', icon: ClipboardList },
-                                        { step: 8, label: 'Bill', icon: CreditCard },
-                                        { step: 9, label: 'Received', icon: CheckCircle2 }
+                                        { step: 7, label: 'Proceedings', icon: FileText },
+                                        { step: 8, label: 'PO', icon: ClipboardList },
+                                        { step: 9, label: 'Bill', icon: CreditCard },
+                                        { step: 10, label: 'Received', icon: CheckCircle2 }
                                     ].filter(t => !t.showOnlyNew || isCreatingNew).map(({ step, label, icon: Icon }) => {
                                         const maxAccessible = isCreatingNew ? 0 : getHighestAccessibleStep();
                                         const isAccessible = isCreatingNew ? step === 0 : step <= maxAccessible;
