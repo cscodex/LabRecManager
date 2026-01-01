@@ -61,9 +61,9 @@ router.post('/', authenticate, [
     body('description').trim().notEmpty().withMessage('Description is required'),
     body('category').optional().isIn(['hardware_issue', 'software_issue', 'maintenance_request', 'general_complaint', 'other']),
     body('priority').optional().isIn(['low', 'medium', 'high', 'critical']),
-    body('itemId').optional().isUUID(),
-    body('labId').optional().isUUID(),
-    body('issueTypeId').optional().isUUID()
+    body('itemId').optional().matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).withMessage('Invalid item ID format'),
+    body('labId').optional().matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).withMessage('Invalid lab ID format'),
+    body('issueTypeId').optional().matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).withMessage('Invalid issue type ID format')
 ], asyncHandler(async (req, res) => {
     console.log('=== POST /api/tickets - Create Ticket ===');
     console.log('User:', req.user?.email, 'Role:', req.user?.role, 'ID:', req.user?.id);
@@ -114,6 +114,21 @@ router.post('/', authenticate, [
             message: `Ticket ${ticket.ticketNumber} created successfully`,
             data: { ticket }
         });
+
+        // Notify admins about new ticket (after response)
+        try {
+            const timestamp = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+            await notificationService.notifyAdmins({
+                title: `New Ticket: ${ticket.ticketNumber}`,
+                message: `${ticket.createdBy.firstName} ${ticket.createdBy.lastName} (${ticket.createdBy.role}) created ticket "${ticket.title}" at ${timestamp}`,
+                type: 'ticket_created',
+                referenceType: 'ticket',
+                referenceId: ticket.id,
+                actionUrl: '/tickets'
+            });
+        } catch (notifyError) {
+            console.warn('Failed to send ticket creation notification:', notifyError.message);
+        }
     } catch (error) {
         console.error('=== ERROR creating ticket ===');
         console.error('Error name:', error.name);
@@ -408,7 +423,10 @@ router.post('/:id/comments', authenticate, [
         return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id } });
+    const ticket = await prisma.ticket.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, ticketNumber: true, title: true, createdById: true }
+    });
     if (!ticket) {
         return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
@@ -440,6 +458,37 @@ router.post('/:id/comments', authenticate, [
         message: 'Comment added',
         data: { comment }
     });
+
+    // Notify concerned parties about new comment (after response)
+    try {
+        const commenterName = `${comment.user.firstName} ${comment.user.lastName}`;
+        const isAdmin = ['admin', 'principal', 'lab_assistant', 'instructor'].includes(req.user.role);
+
+        if (isAdmin) {
+            // Admin/instructor commented - notify the ticket creator (student)
+            await notificationService.createNotification({
+                userId: ticket.createdById,
+                title: `Comment on Ticket: ${ticket.ticketNumber}`,
+                message: `${commenterName} commented on your ticket "${ticket.title}"`,
+                type: 'ticket_comment',
+                referenceType: 'ticket',
+                referenceId: ticket.id,
+                actionUrl: '/tickets'
+            });
+        } else {
+            // Student commented - notify admins and assigned person
+            await notificationService.notifyAdmins({
+                title: `Comment on Ticket: ${ticket.ticketNumber}`,
+                message: `${commenterName} commented on ticket "${ticket.title}"`,
+                type: 'ticket_comment',
+                referenceType: 'ticket',
+                referenceId: ticket.id,
+                actionUrl: '/tickets'
+            });
+        }
+    } catch (notifyError) {
+        console.warn('Failed to send comment notification:', notifyError.message);
+    }
 }));
 
 /**

@@ -170,10 +170,51 @@ async function notifyUsers({ userIds, title, message, type, referenceType, refer
     }
 }
 
+/**
+ * Notify all admins, principals, and lab assistants
+ */
+async function notifyAdmins({ title, message, type, referenceType, referenceId, actionUrl }) {
+    try {
+        // Get all admin, principal, and lab_assistant users
+        const admins = await prisma.user.findMany({
+            where: {
+                role: { in: ['admin', 'principal', 'lab_assistant'] },
+                isActive: true
+            },
+            select: { id: true }
+        });
+
+        if (admins.length === 0) {
+            console.log('No admin users found');
+            return [];
+        }
+
+        const notifications = await prisma.notification.createMany({
+            data: admins.map(admin => ({
+                userId: admin.id,
+                title,
+                message,
+                type: type || 'info',
+                reference_type: referenceType || null,
+                reference_id: referenceId || null,
+                action_url: actionUrl || null,
+                is_read: false
+            }))
+        });
+
+        console.log(`Created ${notifications.count} notifications for admins`);
+        return notifications;
+    } catch (error) {
+        console.error('Failed to notify admins:', error.message);
+        return null;
+    }
+}
+
 module.exports = {
     createNotification,
     notifyClass,
     notifyGroup,
     notifyAssignmentOwner,
-    notifyUsers
+    notifyUsers,
+    notifyAdmins
 };
