@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
+const notificationService = require('../services/notificationService');
 
 /**
  * Generate unique ticket number (TKT-000001 format)
@@ -64,16 +65,26 @@ router.post('/', authenticate, [
     body('labId').optional().isUUID(),
     body('issueTypeId').optional().isUUID()
 ], asyncHandler(async (req, res) => {
+    console.log('=== POST /api/tickets - Create Ticket ===');
+    console.log('User:', req.user?.email, 'Role:', req.user?.role, 'ID:', req.user?.id);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        console.log('Validation errors:', JSON.stringify(errors.array(), null, 2));
         return res.status(400).json({ success: false, errors: errors.array() });
     }
 
     const { title, description, category, priority, itemId, labId, issueTypeId } = req.body;
 
-    const ticket = await prisma.ticket.create({
-        data: {
-            ticketNumber: await generateTicketNumber(),
+    console.log('Parsed values:', { title, description, category, priority, itemId, labId, issueTypeId });
+
+    try {
+        const ticketNumber = await generateTicketNumber();
+        console.log('Generated ticket number:', ticketNumber);
+
+        const ticketData = {
+            ticketNumber,
             title,
             description,
             category: category || 'other',
@@ -83,20 +94,34 @@ router.post('/', authenticate, [
             labId: labId || null,
             issueTypeId: issueTypeId || null,
             createdById: req.user.id
-        },
-        include: {
-            createdBy: { select: { id: true, firstName: true, lastName: true, role: true } },
-            item: { select: { id: true, itemNumber: true, itemType: true } },
-            lab: { select: { id: true, name: true } },
-            issueType: { select: { id: true, name: true, category: true } }
-        }
-    });
+        };
+        console.log('Ticket data to create:', JSON.stringify(ticketData, null, 2));
 
-    res.status(201).json({
-        success: true,
-        message: `Ticket ${ticket.ticketNumber} created successfully`,
-        data: { ticket }
-    });
+        const ticket = await prisma.ticket.create({
+            data: ticketData,
+            include: {
+                createdBy: { select: { id: true, firstName: true, lastName: true, role: true } },
+                item: { select: { id: true, itemNumber: true, itemType: true } },
+                lab: { select: { id: true, name: true } },
+                issueType: { select: { id: true, name: true, category: true } }
+            }
+        });
+
+        console.log('Ticket created successfully:', ticket.id, ticket.ticketNumber);
+
+        res.status(201).json({
+            success: true,
+            message: `Ticket ${ticket.ticketNumber} created successfully`,
+            data: { ticket }
+        });
+    } catch (error) {
+        console.error('=== ERROR creating ticket ===');
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error code:', error.code);
+        console.error('Error stack:', error.stack);
+        throw error;
+    }
 }));
 
 /**
@@ -325,6 +350,21 @@ router.put('/:id/resolve', authenticate, authorize('admin', 'principal', 'lab_as
         message: `Ticket ${resolved.ticketNumber} resolved`,
         data: { ticket: resolved }
     });
+
+    // Send notification to ticket creator (after response to not delay)
+    try {
+        await notificationService.createNotification({
+            userId: ticket.createdById,
+            title: `Ticket Resolved: ${resolved.ticketNumber}`,
+            message: `Your ticket "${resolved.title}" has been resolved.${resolutionNotes ? ` Notes: ${resolutionNotes}` : ''}`,
+            type: 'ticket_resolved',
+            referenceType: 'ticket',
+            referenceId: resolved.id,
+            actionUrl: '/tickets'
+        });
+    } catch (notifyError) {
+        console.warn('Failed to send ticket resolution notification:', notifyError.message);
+    }
 }));
 
 /**

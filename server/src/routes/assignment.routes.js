@@ -7,6 +7,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
 const { asyncHandler } = require('../middleware/errorHandler');
 const cloudinary = require('../services/cloudinary');
+const notificationService = require('../services/notificationService');
 
 // Configure multer for memory storage (for PDF uploads to Cloudinary)
 const pdfUpload = multer({
@@ -220,6 +221,8 @@ router.get('/my-assigned', authenticate, asyncHandler(async (req, res) => {
                     ...target.assignment,
                     targetType: target.targetType,
                     targetId: target.targetClassId || target.targetGroupId || target.targetStudentId,
+                    // Use target-specific dueDate if available, otherwise use assignment's due_date
+                    dueDate: target.dueDate || target.assignment.due_date || null,
                     specialInstructions: target.specialInstructions,
                     extendedDueDate: target.extendedDueDate
                 });
@@ -751,6 +754,29 @@ router.post('/:id/targets', authenticate, authorize('instructor', 'lab_assistant
         });
     } catch (logError) {
         console.warn('Failed to log activity:', logError.message);
+    }
+
+    // Send notification to assigned students
+    try {
+        const dueDateStr = dueDate ? new Date(dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No deadline';
+        const notificationData = {
+            title: `New Work Assigned: ${assignment.title}`,
+            message: `You have been assigned new work. Due: ${dueDateStr}`,
+            type: 'work_assigned',
+            referenceType: 'assignment',
+            referenceId: assignment.id,
+            actionUrl: '/my-work'
+        };
+
+        if (targetType === 'class') {
+            await notificationService.notifyClass({ classId: targetId, ...notificationData });
+        } else if (targetType === 'group') {
+            await notificationService.notifyGroup({ groupId: targetId, ...notificationData });
+        } else if (targetType === 'student') {
+            await notificationService.createNotification({ userId: targetId, ...notificationData });
+        }
+    } catch (notifyError) {
+        console.warn('Failed to send work assignment notification:', notifyError.message);
     }
 
     res.status(201).json({

@@ -5,6 +5,7 @@ const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadFields } = require('../middleware/upload');
 const { asyncHandler } = require('../middleware/errorHandler');
+const notificationService = require('../services/notificationService');
 
 /**
  * @route   GET /api/submissions
@@ -535,6 +536,21 @@ router.post('/', authenticate, authorize('student'), uploadFields, [
             : 'सबमिशन सफलतापूर्वक प्राप्त',
         data: { submission: fullSubmission }
     });
+
+    // Notify instructor/assignment owner about new submission (after response to not delay)
+    try {
+        await notificationService.notifyAssignmentOwner({
+            assignmentId: assignment.id,
+            title: `New Submission: ${assignment.title}`,
+            message: `${req.user.firstName} ${req.user.lastName} has submitted work for "${assignment.title}"`,
+            type: 'submission_received',
+            referenceType: 'submission',
+            referenceId: submission.id,
+            actionUrl: '/submissions'
+        });
+    } catch (notifyError) {
+        console.warn('Failed to send submission notification:', notifyError.message);
+    }
 }));
 
 /**
