@@ -327,6 +327,7 @@ app.post('/api/projects/:id/push', async (req, res) => {
         const commitMsg = message || `Update - ${new Date().toLocaleString()}`;
 
         // Get git remotes to show which repos we're pushing to
+        let remoteNames = [];
         let remotesInfo = '';
         try {
             const remotesResult = await runCommand('git remote -v', project.rootDir);
@@ -334,13 +335,15 @@ app.post('/api/projects/:id/push', async (req, res) => {
                 .filter(line => line.includes('(push)'))
                 .map(line => {
                     const parts = line.split(/\s+/);
-                    return `${parts[0]}: ${parts[1]}`;
+                    return { name: parts[0], url: parts[1] };
                 });
-            remotesInfo = pushRemotes.join(', ') || 'default';
-            addLog(id, 'server', `📡 Git remotes: ${remotesInfo}`);
-            addLog(id, 'client', `📡 Git remotes: ${remotesInfo}`);
+            remoteNames = [...new Set(pushRemotes.map(r => r.name))];
+            remotesInfo = pushRemotes.map(r => `${r.name}: ${r.url}`).join(', ') || 'default';
+            addLog(id, 'server', `📡 Found ${remoteNames.length} remote(s): ${remoteNames.join(', ')}`);
+            addLog(id, 'client', `📡 Found ${remoteNames.length} remote(s): ${remoteNames.join(', ')}`);
         } catch (e) {
-            remotesInfo = 'unknown';
+            remoteNames = ['origin'];
+            remotesInfo = 'origin (default)';
         }
 
         addLog(id, 'server', `📦 Git: Adding all changes...`);
@@ -349,23 +352,73 @@ app.post('/api/projects/:id/push', async (req, res) => {
 
         addLog(id, 'server', `📝 Git: Committing - "${commitMsg}"`);
         addLog(id, 'client', `📝 Git: Committing - "${commitMsg}"`);
+        let hasNewCommit = true;
         try {
-            await runCommand(`git commit -m "${commitMsg}"`, project.rootDir);
+            const commitResult = await runCommand(`git commit -m "${commitMsg}"`, project.rootDir);
+            // Get the new commit hash
+            const hashResult = await runCommand('git rev-parse --short HEAD', project.rootDir);
+            const newHash = hashResult.stdout.trim();
+            addLog(id, 'server', `✓ Committed: ${newHash}`);
+            addLog(id, 'client', `✓ Committed: ${newHash}`);
         } catch (e) {
             if (e.stdout && e.stdout.includes('nothing to commit')) {
-                addLog(id, 'server', '✓ Nothing to commit');
-                addLog(id, 'client', '✓ Nothing to commit');
-                return res.json({ success: true, message: 'Nothing to commit', remotes: remotesInfo });
+                hasNewCommit = false;
+                addLog(id, 'server', '✓ Nothing new to commit, will push any unpushed commits...');
+                addLog(id, 'client', '✓ Nothing new to commit, will push any unpushed commits...');
             }
         }
 
-        addLog(id, 'server', `🚀 Git: Pushing to ${remotesInfo}...`);
-        addLog(id, 'client', `🚀 Git: Pushing to ${remotesInfo}...`);
-        await runCommand('git push', project.rootDir);
-        addLog(id, 'server', '✅ Push successful!');
-        addLog(id, 'client', '✅ Push successful!');
+        // Push to ALL remotes
+        const pushResults = [];
+        for (const remoteName of remoteNames) {
+            addLog(id, 'server', `🚀 Pushing to ${remoteName}...`);
+            addLog(id, 'client', `🚀 Pushing to ${remoteName}...`);
+            try {
+                const pushResult = await runCommand(`git push ${remoteName}`, project.rootDir);
+                const output = pushResult.stdout + pushResult.stderr;
+                if (output.includes('Everything up-to-date')) {
+                    addLog(id, 'server', `✓ ${remoteName}: Already up-to-date`);
+                    addLog(id, 'client', `✓ ${remoteName}: Already up-to-date`);
+                    pushResults.push({ remote: remoteName, status: 'up-to-date' });
+                } else {
+                    addLog(id, 'server', `✅ ${remoteName}: Push successful!`);
+                    addLog(id, 'client', `✅ ${remoteName}: Push successful!`);
+                    pushResults.push({ remote: remoteName, status: 'pushed' });
+                }
+            } catch (pushErr) {
+                const errOutput = pushErr.stderr || pushErr.stdout || pushErr.error || '';
+                if (errOutput.includes('Everything up-to-date')) {
+                    addLog(id, 'server', `✓ ${remoteName}: Already up-to-date`);
+                    addLog(id, 'client', `✓ ${remoteName}: Already up-to-date`);
+                    pushResults.push({ remote: remoteName, status: 'up-to-date' });
+                } else {
+                    addLog(id, 'server', `❌ ${remoteName}: ${pushErr.error || errOutput}`);
+                    addLog(id, 'client', `❌ ${remoteName}: ${pushErr.error || errOutput}`);
+                    pushResults.push({ remote: remoteName, status: 'failed', error: pushErr.error || errOutput });
+                }
+            }
+        }
 
-        res.json({ success: true, message: `Changes pushed to ${remotesInfo}`, remotes: remotesInfo });
+        const successCount = pushResults.filter(r => r.status !== 'failed').length;
+        const failedCount = pushResults.filter(r => r.status === 'failed').length;
+
+        let resultMessage = hasNewCommit
+            ? `Committed and pushed to ${successCount}/${remoteNames.length} remote(s)`
+            : `No new commits. Pushed to ${successCount}/${remoteNames.length} remote(s)`;
+
+        if (failedCount > 0) {
+            resultMessage += ` (${failedCount} failed)`;
+        }
+
+        addLog(id, 'server', `📊 ${resultMessage}`);
+        addLog(id, 'client', `📊 ${resultMessage}`);
+
+        res.json({
+            success: failedCount === 0,
+            message: resultMessage,
+            remotes: remotesInfo,
+            pushResults
+        });
     } catch (error) {
         const errMsg = `❌ Push failed: ${error.error || error.message}`;
         addLog(id, 'server', errMsg);
