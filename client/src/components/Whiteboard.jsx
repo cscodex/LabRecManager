@@ -5,14 +5,14 @@ import {
     Pencil, Eraser, Circle, Square, Minus, Type, Undo2, Redo2, Trash2, Download, Save,
     Palette, ChevronDown, X, Maximize2, Minimize2, Share2, MousePointer2,
     Highlighter, MoveRight, Pointer, Image as ImageIcon, ChevronLeft, ChevronRight,
-    Plus, Video, VideoOff, Mic, MicOff, Camera
+    Plus, Video, VideoOff, Mic, MicOff, Camera, RotateCw, Move, Pipette
 } from 'lucide-react';
 
-const COLORS = [
-    '#000000', '#1e293b', '#475569',
-    '#ef4444', '#f97316', '#eab308',
-    '#22c55e', '#3b82f6', '#8b5cf6',
-    '#ec4899', '#ffffff', '#94a3b8'
+// Default colors (rainbow + black/white)
+const DEFAULT_COLORS = [
+    '#000000', '#ffffff', '#ef4444', // Black, White, Red
+    '#f97316', '#eab308', '#22c55e', // Orange, Yellow, Green
+    '#3b82f6', '#8b5cf6', '#ec4899', // Blue, Purple, Pink
 ];
 
 // Highlighter colors with transparency
@@ -25,6 +25,61 @@ const HIGHLIGHTER_COLORS = [
 ];
 
 const STROKE_WIDTHS = [2, 4, 6, 8, 12];
+
+// Helper: Convert hex to RGB
+const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 };
+};
+
+// Helper: Convert RGB to hex
+const rgbToHex = (r, g, b) => {
+    return '#' + [r, g, b].map(x => {
+        const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+};
+
+// Helper: Convert RGB to HSB
+const rgbToHsb = (r, g, b) => {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const d = max - min;
+    let h = 0, s = max === 0 ? 0 : d / max, v = max;
+    if (max !== min) {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 100), b: Math.round(v * 100) };
+};
+
+// Helper: Convert HSB to RGB
+const hsbToRgb = (h, s, b) => {
+    h /= 360; s /= 100; b /= 100;
+    let r, g, bl;
+    const i = Math.floor(h * 6);
+    const f = h * 6 - i;
+    const p = b * (1 - s);
+    const q = b * (1 - f * s);
+    const t = b * (1 - (1 - f) * s);
+    switch (i % 6) {
+        case 0: r = b; g = t; bl = p; break;
+        case 1: r = q; g = b; bl = p; break;
+        case 2: r = p; g = b; bl = t; break;
+        case 3: r = p; g = q; bl = b; break;
+        case 4: r = t; g = p; bl = b; break;
+        case 5: r = b; g = p; bl = q; break;
+    }
+    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(bl * 255) };
+};
 
 export default function Whiteboard({
     onSave,
@@ -94,6 +149,21 @@ export default function Whiteboard({
 
     // Image insert
     const imageInputRef = useRef(null);
+
+    // Recently used colors (3x3 = 9 colors)
+    const [recentColors, setRecentColors] = useState(DEFAULT_COLORS);
+
+    // Custom color picker state
+    const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
+    const [customColorMode, setCustomColorMode] = useState('rgb'); // 'rgb' or 'hsb'
+    const [customRgb, setCustomRgb] = useState({ r: 0, g: 0, b: 0 });
+    const [customHsb, setCustomHsb] = useState({ h: 0, s: 100, b: 100 });
+    const [hexInput, setHexInput] = useState('#000000');
+
+    // Image objects for manipulation (selectable, movable, resizable, rotatable)
+    const [imageObjects, setImageObjects] = useState([]);
+    const [selectedImageId, setSelectedImageId] = useState(null);
+    const [imageDragState, setImageDragState] = useState(null); // { id, action, startX, startY, startObj }
 
     // Canvas dimensions - keep fixed to prevent content loss
     const canvasWidth = width;
@@ -258,6 +328,203 @@ export default function Whiteboard({
         setSelection(null);
         saveToHistory();
     }, [selection, saveToHistory]);
+
+    // Select color and add to recently used
+    const selectColor = useCallback((newColor) => {
+        setColor(newColor);
+        setShowColorPicker(false);
+        setShowCustomColorPicker(false);
+
+        // Add to recently used (move to front, keep 9 max)
+        setRecentColors(prev => {
+            const filtered = prev.filter(c => c.toLowerCase() !== newColor.toLowerCase());
+            return [newColor, ...filtered].slice(0, 9);
+        });
+    }, []);
+
+    // Handle custom color RGB change
+    const handleRgbChange = useCallback((key, value) => {
+        const newRgb = { ...customRgb, [key]: Math.max(0, Math.min(255, parseInt(value) || 0)) };
+        setCustomRgb(newRgb);
+        const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+        setHexInput(hex);
+        setCustomHsb(rgbToHsb(newRgb.r, newRgb.g, newRgb.b));
+    }, [customRgb]);
+
+    // Handle custom color HSB change
+    const handleHsbChange = useCallback((key, value) => {
+        const max = key === 'h' ? 360 : 100;
+        const newHsb = { ...customHsb, [key]: Math.max(0, Math.min(max, parseInt(value) || 0)) };
+        setCustomHsb(newHsb);
+        const rgb = hsbToRgb(newHsb.h, newHsb.s, newHsb.b);
+        setCustomRgb(rgb);
+        setHexInput(rgbToHex(rgb.r, rgb.g, rgb.b));
+    }, [customHsb]);
+
+    // Handle hex input change
+    const handleHexChange = useCallback((value) => {
+        setHexInput(value);
+        if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+            const rgb = hexToRgb(value);
+            setCustomRgb(rgb);
+            setCustomHsb(rgbToHsb(rgb.r, rgb.g, rgb.b));
+        }
+    }, []);
+
+    // Apply custom color
+    const applyCustomColor = useCallback(() => {
+        selectColor(hexInput);
+    }, [hexInput, selectColor]);
+
+    // Delete selected image
+    const deleteSelectedImage = useCallback(() => {
+        if (selectedImageId) {
+            setImageObjects(prev => prev.filter(img => img.id !== selectedImageId));
+            setSelectedImageId(null);
+            saveToHistory();
+        }
+    }, [selectedImageId, saveToHistory]);
+
+    // Copy selected image
+    const copySelectedImage = useCallback(() => {
+        if (selectedImageId) {
+            const img = imageObjects.find(i => i.id === selectedImageId);
+            if (img) {
+                setClipboard({ type: 'image', data: { ...img, id: Date.now() } });
+            }
+        }
+    }, [selectedImageId, imageObjects]);
+
+    // Paste image from clipboard
+    const pasteImage = useCallback(() => {
+        if (clipboard?.type === 'image') {
+            const newImg = {
+                ...clipboard.data,
+                id: Date.now(),
+                x: clipboard.data.x + 20,
+                y: clipboard.data.y + 20
+            };
+            setImageObjects(prev => [...prev, newImg]);
+            setSelectedImageId(newImg.id);
+        }
+    }, [clipboard]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+            if (modKey && e.key === 'c') {
+                if (selectedImageId) {
+                    e.preventDefault();
+                    copySelectedImage();
+                }
+            } else if (modKey && e.key === 'x') {
+                if (selectedImageId) {
+                    e.preventDefault();
+                    copySelectedImage();
+                    deleteSelectedImage();
+                }
+            } else if (modKey && e.key === 'v') {
+                if (clipboard?.type === 'image') {
+                    e.preventDefault();
+                    pasteImage();
+                }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedImageId && document.activeElement === document.body) {
+                    e.preventDefault();
+                    deleteSelectedImage();
+                }
+            } else if (e.key === 'Escape') {
+                setSelectedImageId(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedImageId, clipboard, copySelectedImage, deleteSelectedImage, pasteImage]);
+
+    // Image manipulation mouse handlers
+    useEffect(() => {
+        if (!imageDragState) return;
+
+        const handleMouseMove = (e) => {
+            const dx = e.clientX - imageDragState.startX;
+            const dy = e.clientY - imageDragState.startY;
+            const startObj = imageDragState.startObj;
+
+            if (imageDragState.action === 'move') {
+                setImageObjects(prev => prev.map(img =>
+                    img.id === imageDragState.id
+                        ? { ...img, x: startObj.x + dx, y: startObj.y + dy }
+                        : img
+                ));
+            } else if (imageDragState.action === 'rotate') {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                const centerX = startObj.x + startObj.width / 2;
+                const centerY = startObj.y + startObj.height / 2;
+                const canvasCenterX = rect.left + (centerX / canvas.width) * rect.width;
+                const canvasCenterY = rect.top + (centerY / canvas.height) * rect.height;
+
+                const startAngle = Math.atan2(imageDragState.startY - canvasCenterY, imageDragState.startX - canvasCenterX);
+                const currentAngle = Math.atan2(e.clientY - canvasCenterY, e.clientX - canvasCenterX);
+                const angleDiff = (currentAngle - startAngle) * (180 / Math.PI);
+
+                setImageObjects(prev => prev.map(img =>
+                    img.id === imageDragState.id
+                        ? { ...img, rotation: startObj.rotation + angleDiff }
+                        : img
+                ));
+            } else if (imageDragState.action.startsWith('resize-')) {
+                const handle = imageDragState.action.replace('resize-', '');
+                let newX = startObj.x, newY = startObj.y;
+                let newWidth = startObj.width, newHeight = startObj.height;
+                const minSize = 50;
+
+                if (handle.includes('e')) {
+                    newWidth = Math.max(minSize, startObj.width + dx);
+                }
+                if (handle.includes('w')) {
+                    const widthChange = Math.min(dx, startObj.width - minSize);
+                    newX = startObj.x + widthChange;
+                    newWidth = startObj.width - widthChange;
+                }
+                if (handle.includes('s')) {
+                    newHeight = Math.max(minSize, startObj.height + dy);
+                }
+                if (handle.includes('n')) {
+                    const heightChange = Math.min(dy, startObj.height - minSize);
+                    newY = startObj.y + heightChange;
+                    newHeight = startObj.height - heightChange;
+                }
+
+                setImageObjects(prev => prev.map(img =>
+                    img.id === imageDragState.id
+                        ? { ...img, x: newX, y: newY, width: newWidth, height: newHeight }
+                        : img
+                ));
+            }
+        };
+
+        const handleMouseUp = () => {
+            setImageDragState(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [imageDragState]);
+
+    // Click on canvas to deselect images
+    const handleCanvasClick = useCallback(() => {
+        setSelectedImageId(null);
+    }, []);
 
     // Get position from event (works for both mouse and touch)
     const getPosition = useCallback((e) => {
@@ -704,7 +971,7 @@ export default function Whiteboard({
         if (currentPage < totalPages - 1) loadPage(currentPage + 1);
     }, [currentPage, totalPages, loadPage]);
 
-    // Image insert handler
+    // Image insert handler - creates selectable image objects
     const handleImageInsert = useCallback((e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -715,13 +982,12 @@ export default function Whiteboard({
             img.onload = () => {
                 const canvas = canvasRef.current;
                 if (!canvas) return;
-                const ctx = canvas.getContext('2d');
 
                 // Scale image to fit canvas if too large
                 let imgWidth = img.width;
                 let imgHeight = img.height;
-                const maxWidth = canvas.width * 0.8;
-                const maxHeight = canvas.height * 0.8;
+                const maxWidth = canvas.width * 0.6;
+                const maxHeight = canvas.height * 0.6;
 
                 if (imgWidth > maxWidth) {
                     const ratio = maxWidth / imgWidth;
@@ -734,24 +1000,36 @@ export default function Whiteboard({
                     imgWidth *= ratio;
                 }
 
-                // Center the image
-                const x = (canvas.width - imgWidth) / 2;
-                const y = (canvas.height - imgHeight) / 2;
-                ctx.drawImage(img, x, y, imgWidth, imgHeight);
-                saveToHistory();
+                // Create image object for manipulation
+                const imageObj = {
+                    id: Date.now(),
+                    src: event.target.result,
+                    x: (canvas.width - imgWidth) / 2,
+                    y: (canvas.height - imgHeight) / 2,
+                    width: imgWidth,
+                    height: imgHeight,
+                    rotation: 0, // degrees
+                    imageElement: img
+                };
+
+                setImageObjects(prev => [...prev, imageObj]);
+                setSelectedImageId(imageObj.id);
 
                 // Emit image event
                 emitDrawEvent({
                     type: 'image',
                     imageData: event.target.result,
-                    x, y, width: imgWidth, height: imgHeight
+                    x: imageObj.x,
+                    y: imageObj.y,
+                    width: imgWidth,
+                    height: imgHeight
                 });
             };
             img.src = event.target.result;
         };
         reader.readAsDataURL(file);
         e.target.value = ''; // Reset input
-    }, [saveToHistory, emitDrawEvent]);
+    }, [emitDrawEvent]);
 
     // Handle tool click - special handling for image tool
     const handleToolClick = useCallback((toolId) => {
@@ -832,10 +1110,10 @@ export default function Whiteboard({
 
                 <div className="w-px h-8 bg-slate-200" />
 
-                {/* Color Picker */}
+                {/* Color Picker - 3x3 Recently Used + Custom */}
                 <div className="relative">
                     <button
-                        onClick={() => { setShowColorPicker(!showColorPicker); setShowStrokePicker(false); }}
+                        onClick={() => { setShowColorPicker(!showColorPicker); setShowStrokePicker(false); setShowCustomColorPicker(false); }}
                         className="flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition"
                         title="Color"
                     >
@@ -846,18 +1124,191 @@ export default function Whiteboard({
                         <ChevronDown className="w-3 h-3 text-slate-400" />
                     </button>
                     {showColorPicker && (
-                        <div className="absolute top-full left-0 mt-1 p-2 bg-white rounded-lg shadow-lg border border-slate-200 z-10">
-                            <div className="grid grid-cols-5 gap-1">
-                                {COLORS.map((c) => (
+                        <div className="absolute top-full left-0 mt-1 p-3 bg-white rounded-lg shadow-lg border border-slate-200 z-20 w-44">
+                            <p className="text-xs font-medium text-slate-500 mb-2">Recent Colors</p>
+                            {/* 3x3 Grid of Recent Colors */}
+                            <div className="grid grid-cols-3 gap-2 mb-3">
+                                {recentColors.map((c, idx) => (
                                     <button
-                                        key={c}
-                                        onClick={() => { setColor(c); setShowColorPicker(false); }}
-                                        className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-primary-500 ring-2 ring-primary-200' : 'border-slate-200'
+                                        key={`${c}-${idx}`}
+                                        onClick={() => selectColor(c)}
+                                        className={`w-10 h-10 rounded-lg border-2 transition hover:scale-105 ${color === c ? 'border-primary-500 ring-2 ring-primary-200' : 'border-slate-200'
                                             }`}
                                         style={{ backgroundColor: c }}
+                                        title={c}
                                     />
                                 ))}
                             </div>
+                            {/* Custom Color Button */}
+                            <button
+                                onClick={() => {
+                                    setShowCustomColorPicker(true);
+                                    setShowColorPicker(false);
+                                    // Initialize custom picker with current color
+                                    const rgb = hexToRgb(color);
+                                    setCustomRgb(rgb);
+                                    setCustomHsb(rgbToHsb(rgb.r, rgb.g, rgb.b));
+                                    setHexInput(color);
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium text-slate-700 transition"
+                            >
+                                <Palette className="w-4 h-4" />
+                                Custom Color
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Custom Color Picker Modal */}
+                    {showCustomColorPicker && (
+                        <div className="absolute top-full left-0 mt-1 p-4 bg-white rounded-lg shadow-xl border border-slate-200 z-20 w-72">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-sm font-semibold text-slate-700">Custom Color</p>
+                                <button onClick={() => setShowCustomColorPicker(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Color Preview */}
+                            <div
+                                className="w-full h-16 rounded-lg border border-slate-200 mb-3"
+                                style={{ backgroundColor: hexInput }}
+                            />
+
+                            {/* Mode Tabs */}
+                            <div className="flex gap-2 mb-3">
+                                <button
+                                    onClick={() => setCustomColorMode('rgb')}
+                                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition ${customColorMode === 'rgb' ? 'bg-primary-500 text-white' : 'bg-slate-100 text-slate-600'
+                                        }`}
+                                >
+                                    RGB
+                                </button>
+                                <button
+                                    onClick={() => setCustomColorMode('hsb')}
+                                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition ${customColorMode === 'hsb' ? 'bg-primary-500 text-white' : 'bg-slate-100 text-slate-600'
+                                        }`}
+                                >
+                                    HSB
+                                </button>
+                            </div>
+
+                            {/* RGB Sliders */}
+                            {customColorMode === 'rgb' && (
+                                <div className="space-y-2 mb-3">
+                                    {['r', 'g', 'b'].map(key => (
+                                        <div key={key} className="flex items-center gap-2">
+                                            <span className="w-4 text-xs font-medium text-slate-500 uppercase">{key}</span>
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="255"
+                                                value={customRgb[key]}
+                                                onChange={(e) => handleRgbChange(key, e.target.value)}
+                                                className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
+                                                style={{
+                                                    background: `linear-gradient(to right, 
+                                                        ${key === 'r' ? `rgb(0,${customRgb.g},${customRgb.b}), rgb(255,${customRgb.g},${customRgb.b})` : ''}
+                                                        ${key === 'g' ? `rgb(${customRgb.r},0,${customRgb.b}), rgb(${customRgb.r},255,${customRgb.b})` : ''}
+                                                        ${key === 'b' ? `rgb(${customRgb.r},${customRgb.g},0), rgb(${customRgb.r},${customRgb.g},255)` : ''}
+                                                    )`
+                                                }}
+                                            />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="255"
+                                                value={customRgb[key]}
+                                                onChange={(e) => handleRgbChange(key, e.target.value)}
+                                                className="w-14 px-2 py-1 text-xs border border-slate-200 rounded text-center"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* HSB Sliders */}
+                            {customColorMode === 'hsb' && (
+                                <div className="space-y-2 mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-4 text-xs font-medium text-slate-500">H</span>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="360"
+                                            value={customHsb.h}
+                                            onChange={(e) => handleHsbChange('h', e.target.value)}
+                                            className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
+                                            style={{ background: 'linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red)' }}
+                                        />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="360"
+                                            value={customHsb.h}
+                                            onChange={(e) => handleHsbChange('h', e.target.value)}
+                                            className="w-14 px-2 py-1 text-xs border border-slate-200 rounded text-center"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-4 text-xs font-medium text-slate-500">S</span>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={customHsb.s}
+                                            onChange={(e) => handleHsbChange('s', e.target.value)}
+                                            className="flex-1 h-2 rounded-full appearance-none cursor-pointer bg-gradient-to-r from-slate-300 to-primary-500"
+                                        />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={customHsb.s}
+                                            onChange={(e) => handleHsbChange('s', e.target.value)}
+                                            className="w-14 px-2 py-1 text-xs border border-slate-200 rounded text-center"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-4 text-xs font-medium text-slate-500">B</span>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={customHsb.b}
+                                            onChange={(e) => handleHsbChange('b', e.target.value)}
+                                            className="flex-1 h-2 rounded-full appearance-none cursor-pointer bg-gradient-to-r from-black to-white"
+                                        />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={customHsb.b}
+                                            onChange={(e) => handleHsbChange('b', e.target.value)}
+                                            className="w-14 px-2 py-1 text-xs border border-slate-200 rounded text-center"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Hex Input */}
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="text-xs font-medium text-slate-500">HEX</span>
+                                <input
+                                    type="text"
+                                    value={hexInput}
+                                    onChange={(e) => handleHexChange(e.target.value)}
+                                    className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded font-mono"
+                                    placeholder="#000000"
+                                />
+                            </div>
+
+                            {/* Apply Button */}
+                            <button
+                                onClick={applyCustomColor}
+                                className="w-full py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition"
+                            >
+                                Apply Color
+                            </button>
                         </div>
                     )}
                 </div>
@@ -1132,6 +1583,7 @@ export default function Whiteboard({
                         onTouchStart={startDrawing}
                         onTouchMove={draw}
                         onTouchEnd={stopDrawing}
+                        onClick={handleCanvasClick}
                     />
 
                     {/* Live Preview Overlay - Shows dotted shape preview while drawing */}
@@ -1223,6 +1675,164 @@ export default function Whiteboard({
                             )}
                         </svg>
                     )}
+
+                    {/* Image Objects Layer - Selectable, Movable, Resizable, Rotatable */}
+                    {imageObjects.map((imgObj) => {
+                        const isSelected = selectedImageId === imgObj.id;
+                        const handleSize = 10;
+
+                        return (
+                            <div
+                                key={imgObj.id}
+                                className="absolute"
+                                style={{
+                                    left: imgObj.x,
+                                    top: imgObj.y,
+                                    width: imgObj.width,
+                                    height: imgObj.height,
+                                    transform: `rotate(${imgObj.rotation}deg)`,
+                                    transformOrigin: 'center center',
+                                    cursor: isSelected ? 'move' : 'pointer',
+                                    zIndex: isSelected ? 20 : 10,
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedImageId(imgObj.id);
+                                }}
+                                onMouseDown={(e) => {
+                                    if (!isSelected) {
+                                        setSelectedImageId(imgObj.id);
+                                        return;
+                                    }
+                                    if (e.target.dataset.handle) return; // Let handles handle their own events
+                                    e.stopPropagation();
+                                    setImageDragState({
+                                        id: imgObj.id,
+                                        action: 'move',
+                                        startX: e.clientX,
+                                        startY: e.clientY,
+                                        startObj: { ...imgObj }
+                                    });
+                                }}
+                            >
+                                {/* Image */}
+                                <img
+                                    src={imgObj.src}
+                                    alt="Inserted"
+                                    className="w-full h-full object-contain pointer-events-none select-none"
+                                    draggable={false}
+                                />
+
+                                {/* Selection Border */}
+                                {isSelected && (
+                                    <>
+                                        <div className="absolute inset-0 border-2 border-blue-500 pointer-events-none" />
+
+                                        {/* Corner Resize Handles */}
+                                        {['nw', 'ne', 'sw', 'se'].map(corner => {
+                                            const pos = {
+                                                nw: { left: -handleSize / 2, top: -handleSize / 2, cursor: 'nwse-resize' },
+                                                ne: { right: -handleSize / 2, top: -handleSize / 2, cursor: 'nesw-resize' },
+                                                sw: { left: -handleSize / 2, bottom: -handleSize / 2, cursor: 'nesw-resize' },
+                                                se: { right: -handleSize / 2, bottom: -handleSize / 2, cursor: 'nwse-resize' },
+                                            }[corner];
+
+                                            return (
+                                                <div
+                                                    key={corner}
+                                                    data-handle={corner}
+                                                    className="absolute bg-white border-2 border-blue-500 rounded-sm z-30"
+                                                    style={{
+                                                        width: handleSize,
+                                                        height: handleSize,
+                                                        ...pos,
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        setImageDragState({
+                                                            id: imgObj.id,
+                                                            action: `resize-${corner}`,
+                                                            startX: e.clientX,
+                                                            startY: e.clientY,
+                                                            startObj: { ...imgObj }
+                                                        });
+                                                    }}
+                                                />
+                                            );
+                                        })}
+
+                                        {/* Edge Resize Handles */}
+                                        {['n', 'e', 's', 'w'].map(edge => {
+                                            const pos = {
+                                                n: { left: '50%', top: -handleSize / 2, transform: 'translateX(-50%)', cursor: 'ns-resize' },
+                                                s: { left: '50%', bottom: -handleSize / 2, transform: 'translateX(-50%)', cursor: 'ns-resize' },
+                                                e: { right: -handleSize / 2, top: '50%', transform: 'translateY(-50%)', cursor: 'ew-resize' },
+                                                w: { left: -handleSize / 2, top: '50%', transform: 'translateY(-50%)', cursor: 'ew-resize' },
+                                            }[edge];
+
+                                            return (
+                                                <div
+                                                    key={edge}
+                                                    data-handle={edge}
+                                                    className="absolute bg-white border-2 border-blue-500 rounded-sm z-30"
+                                                    style={{
+                                                        width: handleSize,
+                                                        height: handleSize,
+                                                        ...pos,
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        setImageDragState({
+                                                            id: imgObj.id,
+                                                            action: `resize-${edge}`,
+                                                            startX: e.clientX,
+                                                            startY: e.clientY,
+                                                            startObj: { ...imgObj }
+                                                        });
+                                                    }}
+                                                />
+                                            );
+                                        })}
+
+                                        {/* Rotate Handle */}
+                                        <div
+                                            className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center z-30"
+                                            style={{ top: -35 }}
+                                        >
+                                            <div className="w-px h-5 bg-blue-500" />
+                                            <div
+                                                data-handle="rotate"
+                                                className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center cursor-grab hover:bg-blue-600"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    setImageDragState({
+                                                        id: imgObj.id,
+                                                        action: 'rotate',
+                                                        startX: e.clientX,
+                                                        startY: e.clientY,
+                                                        startObj: { ...imgObj }
+                                                    });
+                                                }}
+                                            >
+                                                <RotateCw className="w-3 h-3 text-white" />
+                                            </div>
+                                        </div>
+
+                                        {/* Delete Button */}
+                                        <button
+                                            className="absolute -top-3 -right-3 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center z-30 shadow-lg"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteSelectedImage();
+                                            }}
+                                        >
+                                            <X className="w-3 h-3 text-white" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
 
                     {/* Laser Pointer Overlay */}
                     {laserPos && (
