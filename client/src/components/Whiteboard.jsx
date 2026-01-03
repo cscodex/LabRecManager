@@ -112,10 +112,28 @@ export default function Whiteboard({
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showStrokePicker, setShowStrokePicker] = useState(false);
 
-    // Background options
-    const [bgPattern, setBgPattern] = useState('plain'); // plain, dotted, grid, lined
-    const [bgColor, setBgColor] = useState('#ffffff');
+    // Background options - per page
+    const [pageBackgrounds, setPageBackgrounds] = useState({ 0: { pattern: 'plain', color: '#ffffff' } });
     const [showBgPicker, setShowBgPicker] = useState(false);
+
+    // Get current page background
+    const currentBg = pageBackgrounds[currentPage] || { pattern: 'plain', color: '#ffffff' };
+    const bgPattern = currentBg.pattern;
+    const bgColor = currentBg.color;
+
+    const setBgPattern = useCallback((pattern) => {
+        setPageBackgrounds(prev => ({
+            ...prev,
+            [currentPage]: { ...prev[currentPage], pattern }
+        }));
+    }, [currentPage]);
+
+    const setBgColor = useCallback((color) => {
+        setPageBackgrounds(prev => ({
+            ...prev,
+            [currentPage]: { ...prev[currentPage], color }
+        }));
+    }, [currentPage]);
 
     // History for undo/redo
     const [history, setHistory] = useState([]);
@@ -161,9 +179,35 @@ export default function Whiteboard({
     const [hexInput, setHexInput] = useState('#000000');
 
     // Image objects for manipulation (selectable, movable, resizable, rotatable)
-    const [imageObjects, setImageObjects] = useState([]);
+    // Store images per page: { [pageIndex]: [imageObjects] }
+    const [pageImageObjects, setPageImageObjects] = useState({ 0: [] });
     const [selectedImageId, setSelectedImageId] = useState(null);
     const [imageDragState, setImageDragState] = useState(null); // { id, action, startX, startY, startObj }
+
+    // Text objects for manipulation (like images)
+    const [pageTextObjects, setPageTextObjects] = useState({ 0: [] });
+    const [selectedTextId, setSelectedTextId] = useState(null);
+    const [textDragState, setTextDragState] = useState(null);
+    const [textInputMode, setTextInputMode] = useState('create'); // 'create' or 'edit'
+    const [textBoundary, setTextBoundary] = useState(null); // { x, y, width, height } - dotted boundary while creating
+
+    // Get current page's image objects
+    const imageObjects = pageImageObjects[currentPage] || [];
+    const setImageObjects = useCallback((updater) => {
+        setPageImageObjects(prev => ({
+            ...prev,
+            [currentPage]: typeof updater === 'function' ? updater(prev[currentPage] || []) : updater
+        }));
+    }, [currentPage]);
+
+    // Get current page's text objects
+    const textObjects = pageTextObjects[currentPage] || [];
+    const setTextObjects = useCallback((updater) => {
+        setPageTextObjects(prev => ({
+            ...prev,
+            [currentPage]: typeof updater === 'function' ? updater(prev[currentPage] || []) : updater
+        }));
+    }, [currentPage]);
 
     // Canvas dimensions - keep fixed to prevent content loss
     const canvasWidth = width;
@@ -273,8 +317,15 @@ export default function Whiteboard({
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Also clear images and text on current page
+        setImageObjects([]);
+        setTextObjects([]);
+        setSelectedImageId(null);
+        setSelectedTextId(null);
+
         saveToHistory();
-    }, [saveToHistory]);
+    }, [saveToHistory, setImageObjects, setTextObjects]);
 
     // Copy selection to clipboard
     const handleCopySelection = useCallback(() => {
@@ -566,11 +617,12 @@ export default function Whiteboard({
         e.preventDefault();
         const pos = getPosition(e);
 
-        // Handle text tool separately
+        // Handle text tool - start drawing text boundary area (like MS Paint)
         if (tool === 'text') {
-            setTextPos(pos);
-            setTextValue('');
-            setShowTextInput(true);
+            setIsDrawing(true);
+            setStartPos(pos);
+            setCurrentPos(pos);
+            setTextBoundary(null);
             return;
         }
 
@@ -841,10 +893,21 @@ export default function Whiteboard({
             if (selWidth > 5 && selHeight > 5) {
                 setSelection({ x, y, width: selWidth, height: selHeight });
             }
+        } else if (tool === 'text') {
+            // Create text boundary box (MS Paint style)
+            const x = Math.min(startPos.x, pos.x);
+            const y = Math.min(startPos.y, pos.y);
+            const textWidth = Math.max(100, Math.abs(pos.x - startPos.x));
+            const textHeight = Math.max(30, Math.abs(pos.y - startPos.y));
+
+            setTextBoundary({ x, y, width: textWidth, height: textHeight });
+            setTextPos({ x, y });
+            setTextValue('');
+            setShowTextInput(true);
         }
 
         setIsDrawing(false);
-        if (tool !== 'select' && tool !== 'laser') saveToHistory();
+        if (tool !== 'select' && tool !== 'laser' && tool !== 'text') saveToHistory();
     }, [isDrawing, getPosition, tool, color, strokeWidth, startPos, saveToHistory, emitDrawEvent]);
 
     // Download as image
@@ -909,6 +972,9 @@ export default function Whiteboard({
         if (tool === 'text') return 'text';
         if (tool === 'laser') return 'none';
         if (tool === 'highlighter') return 'crosshair';
+        // Pen cursor - pencil icon
+        if (tool === 'pen') return `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${encodeURIComponent(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>') 2 22, crosshair`;
+        if (tool === 'arrow') return 'crosshair';
         return 'crosshair';
     };
 
@@ -1378,6 +1444,7 @@ export default function Whiteboard({
                                 {[
                                     { id: 'plain', label: 'Plain' },
                                     { id: 'dotted', label: 'Dots' },
+                                    { id: 'dotted', label: 'Dots' },
                                     { id: 'grid', label: 'Grid' },
                                     { id: 'lined', label: 'Lines' }
                                 ].map(p => (
@@ -1390,9 +1457,32 @@ export default function Whiteboard({
                                     </button>
                                 ))}
                             </div>
+                            <p className="text-xs font-medium text-slate-500 mb-2">Extended Patterns</p>
+                            <div className="grid grid-cols-4 gap-1 mb-3">
+                                {[
+                                    { id: 'graph', label: 'Graph' },
+                                    { id: 'music', label: 'Music' },
+                                    { id: 'iso', label: 'Iso' },
+                                    { id: 'hex', label: 'Hex' }
+                                ].map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => setBgPattern(p.id)}
+                                        className={`p-2 rounded border text-xs ${bgPattern === p.id ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
                             <p className="text-xs font-medium text-slate-500 mb-2">Color</p>
                             <div className="grid grid-cols-5 gap-1">
-                                {['#ffffff', '#f8fafc', '#fef3c7', '#dcfce7', '#dbeafe', '#fce7f3', '#1e293b'].map(c => (
+                                {[
+                                    '#ffffff', '#f8fafc', '#f1f5f9', // White shades
+                                    '#fef3c7', '#fef9c3', '#ecfccb', // Warm yellows
+                                    '#dcfce7', '#d1fae5', '#ccfbf1', // Greens
+                                    '#dbeafe', '#e0f2fe', '#e0e7ff', // Blues
+                                    '#fce7f3', '#fae8ff', '#1e293b', // Pinks & dark
+                                ].map(c => (
                                     <button
                                         key={c}
                                         onClick={() => setBgColor(c)}
@@ -1564,14 +1654,39 @@ export default function Whiteboard({
                             width: isFullscreen ? 'auto' : undefined,
                             height: isFullscreen ? 'auto' : undefined,
                             backgroundColor: bgColor,
-                            backgroundImage: bgPattern === 'dotted'
-                                ? 'radial-gradient(circle, #ccc 1px, transparent 1px)'
-                                : bgPattern === 'grid'
-                                    ? 'linear-gradient(#e5e5e5 1px, transparent 1px), linear-gradient(90deg, #e5e5e5 1px, transparent 1px)'
-                                    : bgPattern === 'lined'
-                                        ? 'linear-gradient(#e5e5e5 1px, transparent 1px)'
-                                        : 'none',
-                            backgroundSize: bgPattern === 'dotted' ? '20px 20px' : bgPattern === 'grid' ? '20px 20px' : '100% 25px',
+                            backgroundImage: (() => {
+                                switch (bgPattern) {
+                                    case 'dotted':
+                                        return 'radial-gradient(circle, #ccc 1px, transparent 1px)';
+                                    case 'grid':
+                                        return 'linear-gradient(#e5e5e5 1px, transparent 1px), linear-gradient(90deg, #e5e5e5 1px, transparent 1px)';
+                                    case 'lined':
+                                        return 'linear-gradient(#e5e5e5 1px, transparent 1px)';
+                                    case 'graph':
+                                        return 'linear-gradient(#ddd 1px, transparent 1px), linear-gradient(90deg, #ddd 1px, transparent 1px), linear-gradient(#e8e8e8 0.5px, transparent 0.5px), linear-gradient(90deg, #e8e8e8 0.5px, transparent 0.5px)';
+                                    case 'music':
+                                        return 'repeating-linear-gradient(transparent, transparent 8px, #ccc 8px, #ccc 9px, transparent 9px, transparent 50px)';
+                                    case 'iso':
+                                        return 'linear-gradient(30deg, #e5e5e5 12%, transparent 12.5%, transparent 87%, #e5e5e5 87.5%, #e5e5e5), linear-gradient(150deg, #e5e5e5 12%, transparent 12.5%, transparent 87%, #e5e5e5 87.5%, #e5e5e5), linear-gradient(30deg, #e5e5e5 12%, transparent 12.5%, transparent 87%, #e5e5e5 87.5%, #e5e5e5), linear-gradient(150deg, #e5e5e5 12%, transparent 12.5%, transparent 87%, #e5e5e5 87.5%, #e5e5e5)';
+                                    case 'hex':
+                                        return 'radial-gradient(circle farthest-side at 0% 50%, transparent 47%, #e5e5e5 48%, #e5e5e5 52%, transparent 53%), radial-gradient(circle farthest-side at 100% 50%, transparent 47%, #e5e5e5 48%, #e5e5e5 52%, transparent 53%)';
+                                    default:
+                                        return 'none';
+                                }
+                            })(),
+                            backgroundSize: (() => {
+                                switch (bgPattern) {
+                                    case 'dotted': return '20px 20px';
+                                    case 'grid': return '20px 20px';
+                                    case 'lined': return '100% 25px';
+                                    case 'graph': return '100px 100px, 100px 100px, 20px 20px, 20px 20px';
+                                    case 'music': return '100% 50px';
+                                    case 'iso': return '40px 70px';
+                                    case 'hex': return '60px 35px';
+                                    default: return 'auto';
+                                }
+                            })(),
+                            backgroundPosition: bgPattern === 'iso' ? '0 0, 20px 35px, 0 0, 20px 35px' : (bgPattern === 'hex' ? '0 0' : undefined),
                             cursor: getCursor(),
                             border: '2px solid #e2e8f0',
                             outline: '1px solid #cbd5e1'
@@ -1587,7 +1702,7 @@ export default function Whiteboard({
                     />
 
                     {/* Live Preview Overlay - Shows dotted shape preview while drawing */}
-                    {isDrawing && (tool === 'line' || tool === 'arrow' || tool === 'rectangle' || tool === 'circle' || tool === 'select') && (
+                    {isDrawing && (tool === 'line' || tool === 'arrow' || tool === 'rectangle' || tool === 'circle' || tool === 'select' || tool === 'text') && (
                         <svg
                             className="absolute top-0 left-0 pointer-events-none"
                             width={canvasWidth}
@@ -1671,6 +1786,19 @@ export default function Whiteboard({
                                     strokeWidth={2}
                                     strokeDasharray="6,4"
                                     fill="rgba(59, 130, 246, 0.1)"
+                                />
+                            )}
+                            {/* Text boundary preview */}
+                            {tool === 'text' && (
+                                <rect
+                                    x={Math.min(startPos.x, currentPos.x)}
+                                    y={Math.min(startPos.y, currentPos.y)}
+                                    width={Math.max(100, Math.abs(currentPos.x - startPos.x))}
+                                    height={Math.max(30, Math.abs(currentPos.y - startPos.y))}
+                                    stroke="#000"
+                                    strokeWidth={1}
+                                    strokeDasharray="4,4"
+                                    fill="rgba(255, 255, 255, 0.8)"
                                 />
                             )}
                         </svg>
