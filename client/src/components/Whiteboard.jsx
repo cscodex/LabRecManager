@@ -192,6 +192,7 @@ export default function Whiteboard({
     // Text objects for manipulation (like images)
     const [pageTextObjects, setPageTextObjects] = useState({ 0: [] });
     const [selectedTextId, setSelectedTextId] = useState(null);
+    const [editingTextId, setEditingTextId] = useState(null); // For double-click edit mode
     const [textDragState, setTextDragState] = useState(null);
     const [textInputMode, setTextInputMode] = useState('create'); // 'create' or 'edit'
     const [textBoundary, setTextBoundary] = useState(null); // { x, y, width, height } - dotted boundary while creating
@@ -753,6 +754,7 @@ export default function Whiteboard({
     const handleCanvasClick = useCallback(() => {
         setSelectedImageId(null);
         setSelectedTextId(null);
+        setEditingTextId(null);
     }, []);
 
     // Get position from event (works for both mouse and touch)
@@ -1114,16 +1116,115 @@ export default function Whiteboard({
         if (tool !== 'select' && tool !== 'laser' && tool !== 'text') saveToHistory();
     }, [isDrawing, getPosition, tool, color, strokeWidth, startPos, saveToHistory, emitDrawEvent]);
 
-    // Download as image
+    // Download as image - Composites all layers (background, canvas, images, text)
     const handleDownload = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        // Create a composite canvas
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = canvas.width;
+        exportCanvas.height = canvas.height;
+        const ctx = exportCanvas.getContext('2d');
+
+        // 1. Draw background color
+        const currentBg = pageBackgrounds[currentPage] || { color: '#ffffff', pattern: 'none' };
+        ctx.fillStyle = currentBg.color;
+        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+        // 2. Draw background pattern if any
+        if (currentBg.pattern && currentBg.pattern !== 'none') {
+            ctx.save();
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = '#888888';
+            ctx.lineWidth = 1;
+
+            const patternSize = 20;
+            if (currentBg.pattern === 'grid') {
+                for (let x = 0; x <= exportCanvas.width; x += patternSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, exportCanvas.height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y <= exportCanvas.height; y += patternSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(exportCanvas.width, y);
+                    ctx.stroke();
+                }
+            } else if (currentBg.pattern === 'dots') {
+                ctx.fillStyle = '#888888';
+                for (let x = 0; x <= exportCanvas.width; x += patternSize) {
+                    for (let y = 0; y <= exportCanvas.height; y += patternSize) {
+                        ctx.beginPath();
+                        ctx.arc(x, y, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            } else if (currentBg.pattern === 'lines') {
+                for (let y = 0; y <= exportCanvas.height; y += patternSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(exportCanvas.width, y);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // 3. Draw the main canvas (drawings)
+        ctx.drawImage(canvas, 0, 0);
+
+        // 4. Draw image objects
+        const currentImageObjects = pageImageObjects[currentPage] || [];
+        currentImageObjects.forEach(imgObj => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = imgObj.src;
+
+            ctx.save();
+            const centerX = imgObj.x + imgObj.width / 2;
+            const centerY = imgObj.y + imgObj.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((imgObj.rotation || 0) * Math.PI / 180);
+            ctx.drawImage(img, -imgObj.width / 2, -imgObj.height / 2, imgObj.width, imgObj.height);
+            ctx.restore();
+        });
+
+        // 5. Draw text objects
+        const currentTextObjects = pageTextObjects[currentPage] || [];
+        currentTextObjects.forEach(txtObj => {
+            ctx.save();
+            const centerX = txtObj.x + txtObj.width / 2;
+            const centerY = txtObj.y + txtObj.height / 2;
+            ctx.translate(centerX, centerY);
+            ctx.rotate((txtObj.rotation || 0) * Math.PI / 180);
+
+            ctx.font = `${txtObj.fontStyle || 'normal'} ${txtObj.fontWeight || 'normal'} ${txtObj.fontSize}px ${txtObj.fontFamily || 'sans-serif'}`;
+            ctx.fillStyle = txtObj.color;
+            ctx.textAlign = txtObj.textAlign || 'left';
+            ctx.textBaseline = 'top';
+
+            // Handle multi-line text
+            const lines = txtObj.text.split('\n');
+            const lineHeight = txtObj.fontSize * 1.3;
+            const startX = -txtObj.width / 2 + 8; // padding
+            let startY = -txtObj.height / 2 + 8;
+
+            lines.forEach(line => {
+                ctx.fillText(line, startX, startY);
+                startY += lineHeight;
+            });
+            ctx.restore();
+        });
+
+        // Download
         const link = document.createElement('a');
-        link.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
-        link.href = canvas.toDataURL('image/png');
+        link.download = `whiteboard-page${currentPage + 1}-${new Date().toISOString().slice(0, 10)}.png`;
+        link.href = exportCanvas.toDataURL('image/png');
         link.click();
-    }, []);
+    }, [currentPage, pageBackgrounds, pageImageObjects, pageTextObjects]);
 
     // Save and return data
     const handleSave = useCallback(() => {
@@ -2257,9 +2358,10 @@ export default function Whiteboard({
                         );
                     })}
 
-                    {/* Text Objects Layer - Selectable, Movable, Resizable, Rotatable */}
+                    {/* Text Objects Layer - Selectable, Movable, Resizable, Rotatable, Editable */}
                     {textObjects.map((txtObj) => {
                         const isSelected = selectedTextId === txtObj.id;
+                        const isEditing = editingTextId === txtObj.id;
                         const handleSize = 10;
 
                         return (
@@ -2273,16 +2375,24 @@ export default function Whiteboard({
                                     minHeight: txtObj.height,
                                     transform: `rotate(${txtObj.rotation || 0}deg)`,
                                     transformOrigin: 'center center',
-                                    cursor: isSelected ? 'move' : 'pointer',
-                                    zIndex: isSelected ? 25 : 15,
-                                    pointerEvents: tool === 'select' && !isSelected ? 'none' : 'auto',
+                                    cursor: isEditing ? 'text' : isSelected ? 'move' : 'pointer',
+                                    zIndex: isEditing ? 30 : isSelected ? 25 : 15,
+                                    pointerEvents: tool === 'select' && !isSelected && !isEditing ? 'none' : 'auto',
                                 }}
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    if (!isEditing) {
+                                        setSelectedTextId(txtObj.id);
+                                        setSelectedImageId(null);
+                                    }
+                                }}
+                                onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTextId(txtObj.id);
                                     setSelectedTextId(txtObj.id);
-                                    setSelectedImageId(null);
                                 }}
                                 onMouseDown={(e) => {
+                                    if (isEditing) return; // Don't drag while editing
                                     if (!isSelected) {
                                         setSelectedTextId(txtObj.id);
                                         setSelectedImageId(null);
@@ -2299,45 +2409,103 @@ export default function Whiteboard({
                                     });
                                 }}
                             >
-                                {/* Text Content */}
-                                <div
-                                    className="w-full h-full p-2 whitespace-pre-wrap break-words select-none"
-                                    style={{
-                                        color: txtObj.color,
-                                        fontSize: `${txtObj.fontSize}px`,
-                                        fontWeight: txtObj.fontWeight || 'normal',
-                                        fontStyle: txtObj.fontStyle || 'normal',
-                                        textAlign: txtObj.textAlign || 'left',
-                                        lineHeight: 1.3,
-                                    }}
-                                >
-                                    {txtObj.text}
-                                </div>
+                                {/* Text Content or Edit Textarea */}
+                                {isEditing ? (
+                                    <textarea
+                                        defaultValue={txtObj.text}
+                                        autoFocus
+                                        className="w-full h-full p-2 bg-white border-2 border-blue-500 rounded resize-none focus:outline-none"
+                                        style={{
+                                            color: txtObj.color,
+                                            fontSize: `${txtObj.fontSize}px`,
+                                            fontWeight: txtObj.fontWeight || 'normal',
+                                            fontStyle: txtObj.fontStyle || 'normal',
+                                            fontFamily: txtObj.fontFamily || 'sans-serif',
+                                            textAlign: txtObj.textAlign || 'left',
+                                            lineHeight: 1.3,
+                                            minHeight: txtObj.height,
+                                        }}
+                                        onBlur={(e) => {
+                                            const newText = e.target.value;
+                                            if (newText.trim()) {
+                                                setTextObjects(prev => prev.map(t =>
+                                                    t.id === txtObj.id ? { ...t, text: newText } : t
+                                                ));
+                                            }
+                                            setEditingTextId(null);
+                                            saveToHistory();
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Escape') {
+                                                setEditingTextId(null);
+                                            }
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                e.target.blur();
+                                            }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <div
+                                        className="w-full h-full p-2 whitespace-pre-wrap break-words select-none"
+                                        style={{
+                                            color: txtObj.color,
+                                            fontSize: `${txtObj.fontSize}px`,
+                                            fontWeight: txtObj.fontWeight || 'normal',
+                                            fontStyle: txtObj.fontStyle || 'normal',
+                                            fontFamily: txtObj.fontFamily || 'sans-serif',
+                                            textAlign: txtObj.textAlign || 'left',
+                                            lineHeight: 1.3,
+                                        }}
+                                    >
+                                        {txtObj.text}
+                                    </div>
+                                )}
 
-                                {/* Selection Border & Handles */}
-                                {isSelected && (
+                                {/* Selection Border & Handles (not shown when editing) */}
+                                {isSelected && !isEditing && (
                                     <>
                                         <div className="absolute inset-0 border-2 border-green-500 pointer-events-none" />
 
                                         {/* Formatting Toolbar */}
                                         <div
-                                            className="absolute -top-12 left-0 flex items-center gap-1 bg-white rounded-lg shadow-lg border border-slate-200 p-1 pointer-events-auto z-40"
+                                            className="absolute -top-14 left-0 flex items-center gap-1 bg-white rounded-lg shadow-lg border border-slate-200 p-1.5 pointer-events-auto z-40"
                                             onClick={e => e.stopPropagation()}
+                                            onMouseDown={e => e.stopPropagation()}
                                         >
+                                            {/* Font Family */}
+                                            <select
+                                                value={txtObj.fontFamily || 'sans-serif'}
+                                                onChange={(e) => {
+                                                    setTextObjects(prev => prev.map(t =>
+                                                        t.id === txtObj.id ? { ...t, fontFamily: e.target.value } : t
+                                                    ));
+                                                }}
+                                                className="h-7 px-1 text-xs border border-slate-200 rounded bg-white max-w-[100px]"
+                                                title="Font Family"
+                                            >
+                                                <option value="sans-serif">Sans Serif</option>
+                                                <option value="Arial, sans-serif">Arial</option>
+                                                <option value="'Times New Roman', serif">Times New Roman</option>
+                                                <option value="Georgia, serif">Georgia</option>
+                                                <option value="'Courier New', monospace">Courier New</option>
+                                                <option value="Verdana, sans-serif">Verdana</option>
+                                                <option value="'Comic Sans MS', cursive">Comic Sans</option>
+                                                <option value="Impact, sans-serif">Impact</option>
+                                            </select>
                                             {/* Color Picker */}
-                                            <div className="relative">
-                                                <input
-                                                    type="color"
-                                                    value={txtObj.color}
-                                                    onChange={(e) => {
-                                                        setTextObjects(prev => prev.map(t =>
-                                                            t.id === txtObj.id ? { ...t, color: e.target.value } : t
-                                                        ));
-                                                    }}
-                                                    className="w-6 h-6 border-0 cursor-pointer rounded"
-                                                    title="Text Color"
-                                                />
-                                            </div>
+                                            <input
+                                                type="color"
+                                                value={txtObj.color}
+                                                onChange={(e) => {
+                                                    setTextObjects(prev => prev.map(t =>
+                                                        t.id === txtObj.id ? { ...t, color: e.target.value } : t
+                                                    ));
+                                                }}
+                                                className="w-7 h-7 border border-slate-200 cursor-pointer rounded"
+                                                title="Text Color"
+                                            />
                                             {/* Bold */}
                                             <button
                                                 onClick={() => {
@@ -2345,7 +2513,7 @@ export default function Whiteboard({
                                                         t.id === txtObj.id ? { ...t, fontWeight: t.fontWeight === 'bold' ? 'normal' : 'bold' } : t
                                                     ));
                                                 }}
-                                                className={`w-7 h-7 flex items-center justify-center rounded text-sm font-bold ${txtObj.fontWeight === 'bold' ? 'bg-slate-200' : 'hover:bg-slate-100'}`}
+                                                className={`w-7 h-7 flex items-center justify-center rounded text-sm font-bold border ${txtObj.fontWeight === 'bold' ? 'bg-blue-100 border-blue-400' : 'border-slate-200 hover:bg-slate-100'}`}
                                                 title="Bold"
                                             >
                                                 B
@@ -2357,7 +2525,7 @@ export default function Whiteboard({
                                                         t.id === txtObj.id ? { ...t, fontStyle: t.fontStyle === 'italic' ? 'normal' : 'italic' } : t
                                                     ));
                                                 }}
-                                                className={`w-7 h-7 flex items-center justify-center rounded text-sm italic ${txtObj.fontStyle === 'italic' ? 'bg-slate-200' : 'hover:bg-slate-100'}`}
+                                                className={`w-7 h-7 flex items-center justify-center rounded text-sm italic border ${txtObj.fontStyle === 'italic' ? 'bg-blue-100 border-blue-400' : 'border-slate-200 hover:bg-slate-100'}`}
                                                 title="Italic"
                                             >
                                                 I
@@ -2373,10 +2541,18 @@ export default function Whiteboard({
                                                 className="h-7 px-1 text-xs border border-slate-200 rounded bg-white"
                                                 title="Font Size"
                                             >
-                                                {[12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64].map(size => (
-                                                    <option key={size} value={size}>{size}px</option>
+                                                {[10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64, 72].map(size => (
+                                                    <option key={size} value={size}>{size}</option>
                                                 ))}
                                             </select>
+                                            {/* Edit Button */}
+                                            <button
+                                                onClick={() => setEditingTextId(txtObj.id)}
+                                                className="px-2 h-7 flex items-center justify-center rounded text-xs border border-slate-200 hover:bg-slate-100"
+                                                title="Edit Text"
+                                            >
+                                                Edit
+                                            </button>
                                         </div>
 
                                         {/* Corner Resize Handles */}
@@ -2392,7 +2568,7 @@ export default function Whiteboard({
                                                 <div
                                                     key={corner}
                                                     data-handle={corner}
-                                                    className="absolute bg-white border-2 border-green-500 rounded-sm z-30"
+                                                    className="absolute bg-white border-2 border-green-500 z-30"
                                                     style={{
                                                         width: handleSize,
                                                         height: handleSize,
@@ -2403,6 +2579,39 @@ export default function Whiteboard({
                                                         setTextDragState({
                                                             id: txtObj.id,
                                                             action: `resize-${corner}`,
+                                                            startX: e.clientX,
+                                                            startY: e.clientY,
+                                                            startObj: { ...txtObj }
+                                                        });
+                                                    }}
+                                                />
+                                            );
+                                        })}
+
+                                        {/* Edge Resize Handles */}
+                                        {['n', 'e', 's', 'w'].map(edge => {
+                                            const pos = {
+                                                n: { left: '50%', top: -handleSize / 2, transform: 'translateX(-50%)', cursor: 'ns-resize' },
+                                                s: { left: '50%', bottom: -handleSize / 2, transform: 'translateX(-50%)', cursor: 'ns-resize' },
+                                                e: { right: -handleSize / 2, top: '50%', transform: 'translateY(-50%)', cursor: 'ew-resize' },
+                                                w: { left: -handleSize / 2, top: '50%', transform: 'translateY(-50%)', cursor: 'ew-resize' },
+                                            }[edge];
+
+                                            return (
+                                                <div
+                                                    key={edge}
+                                                    data-handle={edge}
+                                                    className="absolute bg-white border-2 border-green-500 z-30"
+                                                    style={{
+                                                        width: handleSize,
+                                                        height: handleSize,
+                                                        ...pos,
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        setTextDragState({
+                                                            id: txtObj.id,
+                                                            action: `resize-${edge}`,
                                                             startX: e.clientX,
                                                             startY: e.clientY,
                                                             startObj: { ...txtObj }
