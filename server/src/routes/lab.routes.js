@@ -576,7 +576,8 @@ router.post('/', authenticate, authorize('admin', 'principal'), [
  */
 router.put('/:id', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
     const lab = await prisma.lab.findFirst({
-        where: { id: req.params.id, schoolId: req.user.schoolId }
+        where: { id: req.params.id, schoolId: req.user.schoolId },
+        include: { incharge: { select: { id: true, firstName: true, lastName: true } } }
     });
 
     if (!lab) {
@@ -593,6 +594,32 @@ router.put('/:id', authenticate, authorize('admin', 'principal'), asyncHandler(a
             incharge: { select: { id: true, firstName: true, lastName: true } }
         }
     });
+
+    // Log incharge change if it changed
+    const oldInchargeId = lab.inchargeId || null;
+    const newInchargeId = inchargeId || null;
+
+    if (oldInchargeId !== newInchargeId) {
+        const eventType = !oldInchargeId && newInchargeId ? 'incharge_assigned' :
+            oldInchargeId && !newInchargeId ? 'incharge_removed' : 'incharge_changed';
+
+        const oldName = lab.incharge ? `${lab.incharge.firstName} ${lab.incharge.lastName}` : null;
+        const newName = updated.incharge ? `${updated.incharge.firstName} ${updated.incharge.lastName}` : null;
+
+        await prisma.labEventHistory.create({
+            data: {
+                labId: lab.id,
+                eventType,
+                description: eventType === 'incharge_assigned' ? `Incharge assigned: ${newName}` :
+                    eventType === 'incharge_removed' ? `Incharge removed: ${oldName}` :
+                        `Incharge changed from ${oldName} to ${newName}`,
+                oldInchargeId: oldInchargeId,
+                newInchargeId: newInchargeId,
+                performedById: req.user.id
+            }
+        });
+        console.log(`[Lab Update] Logged incharge change: ${eventType}`);
+    }
 
     res.json({
         success: true,
@@ -762,6 +789,39 @@ router.get('/:id/maintenance-history', authenticate, authorize('admin', 'princip
 }));
 
 /**
+ * @route   GET /api/labs/:id/event-history
+ * @desc    Get comprehensive event history for a lab (inventory additions, incharge changes, procurement items)
+ * @access  Private (Admin/Principal/Lab Assistant)
+ */
+router.get('/:id/event-history', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
+    const labId = req.params.id;
+    const { eventType, limit = 50 } = req.query;
+    console.log('[Event History] Fetching for labId:', labId, 'eventType:', eventType);
+
+    const where = { labId };
+    if (eventType) {
+        where.eventType = eventType;
+    }
+
+    const history = await prisma.labEventHistory.findMany({
+        where,
+        include: {
+            item: { select: { id: true, itemNumber: true, itemType: true, brand: true } },
+            oldIncharge: { select: { id: true, firstName: true, lastName: true } },
+            newIncharge: { select: { id: true, firstName: true, lastName: true } },
+            procurementRequest: { select: { id: true, title: true, poNumber: true } },
+            procurementItem: { select: { id: true, itemName: true, quantity: true } },
+            performedBy: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: parseInt(limit)
+    });
+
+    console.log('[Event History] Found', history.length, 'records');
+    res.json({ success: true, data: { history } });
+}));
+
+/**
  * @route   DELETE /api/labs/:id
  * @desc    Delete a lab
  * @access  Private (Admin)
@@ -853,6 +913,26 @@ router.post('/:labId/items', authenticate, authorize('admin', 'principal', 'lab_
             warrantyEnd: warrantyEnd ? new Date(warrantyEnd) : null
         }
     });
+
+    // Log item addition event
+    await prisma.labEventHistory.create({
+        data: {
+            labId: req.params.labId,
+            eventType: 'item_added',
+            description: `Added ${ITEM_TYPES[itemType]?.label || itemType}: ${itemNumber}`,
+            itemId: item.id,
+            itemDetails: {
+                itemType,
+                itemNumber,
+                brand,
+                modelNo,
+                serialNo,
+                quantity: 1
+            },
+            performedById: req.user.id
+        }
+    });
+    console.log(`[Lab Items] Logged item addition: ${itemNumber}`);
 
     res.status(201).json({
         success: true,

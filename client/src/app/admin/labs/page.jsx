@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle, Clock, Laptop, Barcode, ClipboardList } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, X, Search, ArrowLeft, Building, Printer, Wifi, Speaker, Armchair, Table, Projector, Package, BarChart3, History, ArrowRightLeft, Camera, Network, Volume2, User, Wrench, CheckCircle, AlertTriangle, Clock, Laptop, Barcode, ClipboardList, PackagePlus, UserPlus, UserMinus, ShoppingCart } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { labsAPI, usersAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -45,10 +45,12 @@ export default function LabsPage() {
     const [maintenanceData, setMaintenanceData] = useState({ reason: '', endDate: '' });
     const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
-    // Maintenance history modal
+    // History modal (comprehensive: maintenance + events)
     const [historyModal, setHistoryModal] = useState({ open: false, lab: null });
     const [maintenanceHistory, setMaintenanceHistory] = useState([]);
+    const [eventHistory, setEventHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyTab, setHistoryTab] = useState('all'); // 'all', 'maintenance', 'inventory', 'incharge'
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -153,17 +155,24 @@ export default function LabsPage() {
     };
 
     const loadMaintenanceHistory = async (lab) => {
-        console.log('[Debug] Loading maintenance history for lab:', lab.id, lab.name);
+        console.log('[Debug] Loading history for lab:', lab.id, lab.name);
         setHistoryModal({ open: true, lab });
         setHistoryLoading(true);
+        setHistoryTab('all');
         try {
-            const res = await labsAPI.getMaintenanceHistory(lab.id);
-            console.log('[Debug] Maintenance history response:', res.data);
-            setMaintenanceHistory(res.data.data.history || []);
+            const [maintenanceRes, eventRes] = await Promise.all([
+                labsAPI.getMaintenanceHistory(lab.id),
+                labsAPI.getEventHistory(lab.id)
+            ]);
+            console.log('[Debug] Maintenance history response:', maintenanceRes.data);
+            console.log('[Debug] Event history response:', eventRes.data);
+            setMaintenanceHistory(maintenanceRes.data.data.history || []);
+            setEventHistory(eventRes.data.data.history || []);
         } catch (error) {
-            console.error('[Debug] Maintenance history error:', error);
-            toast.error('Failed to load maintenance history');
+            console.error('[Debug] History loading error:', error);
+            toast.error('Failed to load history');
             setMaintenanceHistory([]);
+            setEventHistory([]);
         } finally {
             setHistoryLoading(false);
         }
@@ -497,95 +506,224 @@ export default function LabsPage() {
                 </div>
             )}
 
-            {/* Maintenance History Modal */}
-            {historyModal.open && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Maintenance History</h3>
-                                <p className="text-sm text-slate-500">{historyModal.lab?.name}</p>
-                            </div>
-                            <button onClick={() => setHistoryModal({ open: false, lab: null })} className="p-2 hover:bg-slate-100 rounded-lg">
-                                <X className="w-5 h-5 text-slate-500" />
-                            </button>
-                        </div>
-                        <div className="p-6 overflow-y-auto max-h-[60vh]">
-                            {historyLoading ? (
-                                <div className="flex justify-center py-8">
-                                    <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full"></div>
+            {/* Lab History Modal (Comprehensive) */}
+            {historyModal.open && (() => {
+                // Filter event history based on selected tab
+                const filteredEvents = historyTab === 'all' ? eventHistory :
+                    historyTab === 'inventory' ? eventHistory.filter(e => e.eventType === 'item_added' || e.eventType === 'procurement_received') :
+                        historyTab === 'incharge' ? eventHistory.filter(e => e.eventType.includes('incharge')) :
+                            [];
+                const showMaintenance = historyTab === 'all' || historyTab === 'maintenance';
+                const showEvents = historyTab !== 'maintenance';
+
+                // Combine maintenance and events for "all" tab, sorted by date
+                const allHistory = historyTab === 'all' ? [
+                    ...maintenanceHistory.map(m => ({ ...m, _type: 'maintenance' })),
+                    ...eventHistory.map(e => ({ ...e, _type: 'event' }))
+                ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
+
+                return (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden">
+                            <div className="p-6 border-b border-slate-200">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-slate-900">Lab History</h3>
+                                        <p className="text-sm text-slate-500">{historyModal.lab?.name}</p>
+                                    </div>
+                                    <button onClick={() => setHistoryModal({ open: false, lab: null })} className="p-2 hover:bg-slate-100 rounded-lg">
+                                        <X className="w-5 h-5 text-slate-500" />
+                                    </button>
                                 </div>
-                            ) : maintenanceHistory.length === 0 ? (
-                                <div className="text-center py-8 text-slate-500">
-                                    <Clock className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                                    <p>No maintenance history yet</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {maintenanceHistory.map((entry) => (
-                                        <div key={entry.id} className="border-l-4 border-purple-500 pl-4 py-3 bg-slate-50 rounded-r-lg">
-                                            {/* ID and Action Badge */}
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-xs font-mono text-slate-400">#{entry.id.slice(0, 8)}</span>
-                                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.action === 'started' ? 'bg-amber-100 text-amber-700' :
-                                                    entry.action === 'ended' ? 'bg-emerald-100 text-emerald-700' :
-                                                        'bg-purple-100 text-purple-700'
-                                                    }`}>
-                                                    {entry.action.toUpperCase()}
-                                                </span>
-                                            </div>
-
-                                            {/* Status Change */}
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-sm font-medium text-slate-700">
-                                                    {entry.previousStatus} → {entry.newStatus}
-                                                </span>
-                                            </div>
-
-                                            {/* Start / End Dates */}
-                                            <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
-                                                <div className="bg-white rounded p-2 border">
-                                                    <p className="text-slate-400 mb-1">Started</p>
-                                                    <p className="font-medium text-slate-700">
-                                                        {entry.startedAt ? new Date(entry.startedAt).toLocaleString('en-IN', {
-                                                            day: 'numeric', month: 'short', year: 'numeric',
-                                                            hour: '2-digit', minute: '2-digit'
-                                                        }) : '—'}
-                                                    </p>
-                                                </div>
-                                                <div className="bg-white rounded p-2 border">
-                                                    <p className="text-slate-400 mb-1">Ended</p>
-                                                    <p className="font-medium text-slate-700">
-                                                        {entry.endedAt ? new Date(entry.endedAt).toLocaleString('en-IN', {
-                                                            day: 'numeric', month: 'short', year: 'numeric',
-                                                            hour: '2-digit', minute: '2-digit'
-                                                        }) : '—'}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {entry.reason && (
-                                                <p className="text-sm text-slate-600 mb-2">💬 {entry.reason}</p>
-                                            )}
-                                            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                                                {entry.expectedEndDate && (
-                                                    <span>⏰ Expected: {new Date(entry.expectedEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                                )}
-                                                {entry.performedBy && (
-                                                    <span>👤 {entry.performedBy.firstName} {entry.performedBy.lastName}</span>
-                                                )}
-                                                <span className="text-slate-400">📅 Created: {new Date(entry.createdAt).toLocaleString('en-IN', {
-                                                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                                                })}</span>
-                                            </div>
-                                        </div>
+                                {/* Tabs */}
+                                <div className="flex gap-2 flex-wrap">
+                                    {[
+                                        { id: 'all', label: 'All', icon: History },
+                                        { id: 'maintenance', label: 'Maintenance', icon: Wrench },
+                                        { id: 'inventory', label: 'Inventory', icon: Package },
+                                        { id: 'incharge', label: 'Incharge', icon: User }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setHistoryTab(tab.id)}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${historyTab === tab.id ? 'bg-primary-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                }`}
+                                        >
+                                            <tab.icon className="w-4 h-4" />
+                                            {tab.label}
+                                        </button>
                                     ))}
                                 </div>
-                            )}
+                            </div>
+                            <div className="p-6 overflow-y-auto max-h-[60vh]">
+                                {historyLoading ? (
+                                    <div className="flex justify-center py-8">
+                                        <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full"></div>
+                                    </div>
+                                ) : (historyTab === 'all' ? allHistory.length === 0 :
+                                    historyTab === 'maintenance' ? maintenanceHistory.length === 0 : filteredEvents.length === 0) ? (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <Clock className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                                        <p>No history records found</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* All tab - Combined view */}
+                                        {historyTab === 'all' && allHistory.map((entry) => (
+                                            <div key={entry.id} className={`border-l-4 pl-4 py-3 bg-slate-50 rounded-r-lg ${entry._type === 'maintenance' ? 'border-purple-500' :
+                                                    entry.eventType === 'item_added' ? 'border-blue-500' :
+                                                        entry.eventType === 'procurement_received' ? 'border-green-500' :
+                                                            entry.eventType?.includes('incharge') ? 'border-amber-500' : 'border-slate-400'
+                                                }`}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        {entry._type === 'maintenance' ? <Wrench className="w-4 h-4 text-purple-600" /> :
+                                                            entry.eventType === 'item_added' ? <PackagePlus className="w-4 h-4 text-blue-600" /> :
+                                                                entry.eventType === 'procurement_received' ? <ShoppingCart className="w-4 h-4 text-green-600" /> :
+                                                                    entry.eventType === 'incharge_assigned' ? <UserPlus className="w-4 h-4 text-amber-600" /> :
+                                                                        entry.eventType === 'incharge_removed' ? <UserMinus className="w-4 h-4 text-red-600" /> :
+                                                                            <User className="w-4 h-4 text-amber-600" />}
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry._type === 'maintenance' ? 'bg-purple-100 text-purple-700' :
+                                                                entry.eventType === 'item_added' ? 'bg-blue-100 text-blue-700' :
+                                                                    entry.eventType === 'procurement_received' ? 'bg-green-100 text-green-700' :
+                                                                        'bg-amber-100 text-amber-700'
+                                                            }`}>
+                                                            {entry._type === 'maintenance' ? entry.action?.toUpperCase() : entry.eventType?.replace(/_/g, ' ').toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs text-slate-400">
+                                                        {new Date(entry.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-slate-700 mb-2">
+                                                    {entry._type === 'maintenance' ?
+                                                        `${entry.previousStatus || 'active'} → ${entry.newStatus}${entry.reason ? `: ${entry.reason}` : ''}` :
+                                                        entry.description}
+                                                </p>
+                                                {entry.performedBy && (
+                                                    <span className="text-xs text-slate-500">👤 {entry.performedBy.firstName} {entry.performedBy.lastName}</span>
+                                                )}
+                                                {entry.procurementRequest && (
+                                                    <span className="text-xs text-slate-500 ml-3">📦 PO: {entry.procurementRequest.poNumber || entry.procurementRequest.title}</span>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                        {/* Maintenance tab */}
+                                        {historyTab === 'maintenance' && maintenanceHistory.map((entry) => (
+                                            <div key={entry.id} className="border-l-4 border-purple-500 pl-4 py-3 bg-slate-50 rounded-r-lg">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-xs font-mono text-slate-400">#{entry.id.slice(0, 8)}</span>
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.action === 'started' ? 'bg-amber-100 text-amber-700' :
+                                                        entry.action === 'ended' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                        {entry.action.toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-sm font-medium text-slate-700">{entry.previousStatus} → {entry.newStatus}</span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                                                    <div className="bg-white rounded p-2 border">
+                                                        <p className="text-slate-400 mb-1">Started</p>
+                                                        <p className="font-medium text-slate-700">{entry.startedAt ? new Date(entry.startedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
+                                                    </div>
+                                                    <div className="bg-white rounded p-2 border">
+                                                        <p className="text-slate-400 mb-1">Ended</p>
+                                                        <p className="font-medium text-slate-700">{entry.endedAt ? new Date(entry.endedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
+                                                    </div>
+                                                </div>
+                                                {entry.reason && <p className="text-sm text-slate-600 mb-2">💬 {entry.reason}</p>}
+                                                <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                                                    {entry.expectedEndDate && <span>⏰ Expected: {new Date(entry.expectedEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                                                    {entry.performedBy && <span>👤 {entry.performedBy.firstName} {entry.performedBy.lastName}</span>}
+                                                    <span className="text-slate-400">📅 Created: {new Date(entry.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Inventory tab */}
+                                        {historyTab === 'inventory' && filteredEvents.map((entry) => (
+                                            <div key={entry.id} className={`border-l-4 pl-4 py-3 bg-slate-50 rounded-r-lg ${entry.eventType === 'procurement_received' ? 'border-green-500' : 'border-blue-500'
+                                                }`}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        {entry.eventType === 'procurement_received' ?
+                                                            <ShoppingCart className="w-4 h-4 text-green-600" /> :
+                                                            <PackagePlus className="w-4 h-4 text-blue-600" />}
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.eventType === 'procurement_received' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                            {entry.eventType === 'procurement_received' ? 'FROM PROCUREMENT' : 'ITEM ADDED'}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs text-slate-400">
+                                                        {new Date(entry.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-slate-700 mb-2">{entry.description}</p>
+                                                {entry.itemDetails && (
+                                                    <div className="bg-white rounded p-2 border mb-2 text-xs">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div><span className="text-slate-400">Type:</span> <span className="font-medium">{entry.itemDetails.itemType}</span></div>
+                                                            <div><span className="text-slate-400">Number:</span> <span className="font-medium">{entry.itemDetails.itemNumber}</span></div>
+                                                            {entry.itemDetails.brand && <div><span className="text-slate-400">Brand:</span> <span className="font-medium">{entry.itemDetails.brand}</span></div>}
+                                                            {entry.itemDetails.quantity && <div><span className="text-slate-400">Qty:</span> <span className="font-medium">{entry.itemDetails.quantity}</span></div>}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                                                    {entry.performedBy && <span>👤 {entry.performedBy.firstName} {entry.performedBy.lastName}</span>}
+                                                    {entry.procurementRequest && (
+                                                        <span className="text-green-600">📦 {entry.procurementRequest.poNumber || entry.procurementRequest.title}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Incharge tab */}
+                                        {historyTab === 'incharge' && filteredEvents.map((entry) => (
+                                            <div key={entry.id} className={`border-l-4 pl-4 py-3 bg-slate-50 rounded-r-lg ${entry.eventType === 'incharge_assigned' ? 'border-emerald-500' :
+                                                    entry.eventType === 'incharge_removed' ? 'border-red-500' : 'border-amber-500'
+                                                }`}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        {entry.eventType === 'incharge_assigned' ? <UserPlus className="w-4 h-4 text-emerald-600" /> :
+                                                            entry.eventType === 'incharge_removed' ? <UserMinus className="w-4 h-4 text-red-600" /> :
+                                                                <ArrowRightLeft className="w-4 h-4 text-amber-600" />}
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.eventType === 'incharge_assigned' ? 'bg-emerald-100 text-emerald-700' :
+                                                                entry.eventType === 'incharge_removed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                                                            }`}>
+                                                            {entry.eventType.replace(/_/g, ' ').toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs text-slate-400">
+                                                        {new Date(entry.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-slate-700 mb-2">{entry.description}</p>
+                                                <div className="flex gap-4 text-xs mb-2">
+                                                    {entry.oldIncharge && (
+                                                        <div className="bg-red-50 rounded px-2 py-1">
+                                                            <span className="text-red-400">Previous:</span> <span className="font-medium text-red-700">{entry.oldIncharge.firstName} {entry.oldIncharge.lastName}</span>
+                                                        </div>
+                                                    )}
+                                                    {entry.newIncharge && (
+                                                        <div className="bg-emerald-50 rounded px-2 py-1">
+                                                            <span className="text-emerald-400">New:</span> <span className="font-medium text-emerald-700">{entry.newIncharge.firstName} {entry.newIncharge.lastName}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {entry.performedBy && (
+                                                    <span className="text-xs text-slate-500">👤 Changed by: {entry.performedBy.firstName} {entry.performedBy.lastName}</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div >
     );
 }

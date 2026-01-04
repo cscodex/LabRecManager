@@ -851,14 +851,17 @@ router.post('/requests/:id/items/:itemId/receive', authenticate, asyncHandler(as
 
     // Create inventory item if requested
     if (addToInventory && labId) {
+        const itemType = procItem.itemName.toLowerCase().includes('chair') ? 'chair' :
+            procItem.itemName.toLowerCase().includes('table') ? 'table' :
+                procItem.itemName.toLowerCase().includes('pc') ? 'pc' : 'other';
+        const itemNumber = barcode || serialNo || `PROC-${procItem.id.substring(0, 8)}`;
+
         const inventoryItem = await prisma.labItem.create({
             data: {
                 labId,
                 schoolId: procItem.request.schoolId,
-                itemType: procItem.itemName.toLowerCase().includes('chair') ? 'chair' :
-                    procItem.itemName.toLowerCase().includes('table') ? 'table' :
-                        procItem.itemName.toLowerCase().includes('pc') ? 'pc' : 'other',
-                itemNumber: barcode || serialNo || `PROC-${procItem.id.substring(0, 8)}`,
+                itemType,
+                itemNumber,
                 serialNo: serialNo || barcode,
                 brand: procItem.specifications?.split(' ')[0] || null,
                 status: 'active',
@@ -868,6 +871,28 @@ router.post('/requests/:id/items/:itemId/receive', authenticate, asyncHandler(as
             }
         });
         inventoryItemId = inventoryItem.id;
+
+        // Log procurement item addition to lab event history
+        await prisma.labEventHistory.create({
+            data: {
+                labId,
+                eventType: 'procurement_received',
+                description: `Received from procurement: ${procItem.itemName} (Qty: ${receivedQty || procItem.quantity})`,
+                itemId: inventoryItem.id,
+                itemDetails: {
+                    itemType,
+                    itemNumber,
+                    brand: procItem.specifications?.split(' ')[0] || null,
+                    serialNo: serialNo || barcode,
+                    quantity: receivedQty || procItem.quantity,
+                    procurementItemName: procItem.itemName
+                },
+                procurementRequestId: req.params.id,
+                procurementItemId: req.params.itemId,
+                performedById: req.user.id
+            }
+        });
+        console.log(`[Procurement] Logged item addition to lab: ${itemNumber}`);
     }
 
     // Update procurement item

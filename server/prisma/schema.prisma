@@ -193,6 +193,9 @@ model User {
   whiteboardSessionsAsHost                       WhiteboardSession[]      @relation("WhiteboardHost")
   whiteboardRecordings                           WhiteboardRecording[]
   procurementItemsReceived                       ProcurementItem[]        @relation("ProcurementItemReceivedBy")
+  labEventsPerformed                             LabEventHistory[]        @relation("LabEventPerformer")
+  labEventsAsOldIncharge                         LabEventHistory[]        @relation("LabEventOldIncharge")
+  labEventsAsNewIncharge                         LabEventHistory[]        @relation("LabEventNewIncharge")
 
   @@unique([schoolId, studentId], map: "unique_student_id_per_school")
   @@index([email], map: "idx_users_email")
@@ -389,6 +392,7 @@ model Lab {
   school               School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   subject              Subject?                @relation(fields: [subjectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tickets              Ticket[]
+  eventHistory         LabEventHistory[]
 
   @@map("labs")
 }
@@ -409,6 +413,43 @@ model LabMaintenanceHistory {
   performedBy     User?     @relation("LabMaintenancePerformer", fields: [performedById], references: [id])
 
   @@map("lab_maintenance_history")
+}
+
+model LabEventHistory {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId                String              @map("lab_id") @db.Uuid
+  eventType            String              @map("event_type") @db.VarChar(50)
+  description          String?
+  
+  // For item-related events
+  itemId               String?             @map("item_id") @db.Uuid
+  itemDetails          Json?               @map("item_details")
+  
+  // For incharge-related events
+  oldInchargeId        String?             @map("old_incharge_id") @db.Uuid
+  newInchargeId        String?             @map("new_incharge_id") @db.Uuid
+  
+  // For procurement-sourced items
+  procurementRequestId String?             @map("procurement_request_id") @db.Uuid
+  procurementItemId    String?             @map("procurement_item_id") @db.Uuid
+  
+  // Metadata
+  performedById        String              @map("performed_by_id") @db.Uuid
+  createdAt            DateTime?           @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  // Relations
+  lab                  Lab                 @relation(fields: [labId], references: [id], onDelete: Cascade)
+  item                 LabItem?            @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  oldIncharge          User?               @relation("LabEventOldIncharge", fields: [oldInchargeId], references: [id], onDelete: SetNull)
+  newIncharge          User?               @relation("LabEventNewIncharge", fields: [newInchargeId], references: [id], onDelete: SetNull)
+  procurementRequest   ProcurementRequest? @relation(fields: [procurementRequestId], references: [id], onDelete: SetNull)
+  procurementItem      ProcurementItem?    @relation(fields: [procurementItemId], references: [id], onDelete: SetNull)
+  performedBy          User                @relation("LabEventPerformer", fields: [performedById], references: [id])
+
+  @@index([labId], map: "idx_lab_event_history_lab_id")
+  @@index([eventType], map: "idx_lab_event_history_event_type")
+  @@index([createdAt(sort: Desc)], map: "idx_lab_event_history_created_at")
+  @@map("lab_event_history")
 }
 
 model LabItem {
@@ -438,6 +479,7 @@ model LabItem {
   procurementItems   ProcurementItem[]
   assignedGroups     StudentGroup[]
   tickets            Ticket[]
+  eventHistory       LabEventHistory[]
 
   @@unique([labId, itemNumber])
   @@map("lab_items")
@@ -1364,6 +1406,7 @@ model ProcurementRequest {
   receivedBy         User?                  @relation("ProcurementReceivedBy", fields: [receivedById], references: [id])
   school             School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   quotations         VendorQuotation[]
+  labEventHistory    LabEventHistory[]
 
   @@index([schoolId])
   @@index([status])
@@ -1393,6 +1436,7 @@ model ProcurementItem {
   request            ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   receivedBy         User?              @relation("ProcurementItemReceivedBy", fields: [receivedById], references: [id])
   quotationItems     QuotationItem[]
+  labEventHistory    LabEventHistory[]
 
   @@index([requestId])
   @@index([isReceived])
