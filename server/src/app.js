@@ -38,6 +38,7 @@ const procurementRoutes = require('./routes/procurement.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const queryLogRoutes = require('./routes/querylog.routes');
 const recordingRoutes = require('./routes/recording.routes');
+const storageRoutes = require('./routes/storage.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -103,6 +104,8 @@ app.use('/api/procurement', procurementRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin/query-logs', queryLogRoutes);
 app.use('/api/recordings', recordingRoutes);
+app.use('/api/storage', storageRoutes);
+app.use('/api/folders', require('./routes/folder.routes'));
 
 const prisma = require('./config/database');
 

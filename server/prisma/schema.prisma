@@ -49,6 +49,7 @@ model School {
   vendors                 Vendor[]
   whiteboardSessions      WhiteboardSession[]
   whiteboardRecordings    WhiteboardRecording[]
+  documentFolders         DocumentFolder[]
 
   @@map("schools")
 }
@@ -137,6 +138,8 @@ model User {
   studentId                                      String?                  @map("student_id") @db.VarChar(50)
   resetPin                                       String?                  @map("reset_pin") @db.VarChar(255)
   pinExpiresAt                                   DateTime?                @map("pin_expires_at") @db.Timestamp(6)
+  storageQuotaMb                                 Int?                     @default(500) @map("storage_quota_mb")
+  storageUsedBytes                               BigInt?                  @default(0) @map("storage_used_bytes")
   activityLogs                                   ActivityLog[]
   assignmentsAssigned                            AssignmentTarget[]
   assignmentsCreated                             Assignment[]
@@ -149,6 +152,8 @@ model User {
   documentSharesSent                             DocumentShare[]          @relation("DocumentSharedBy")
   documentSharesReceived                         DocumentShare[]          @relation("DocumentSharedToUser")
   documents                                      Document[]               @relation("DocumentUploadedBy")
+  documentsDeleted                               Document[]               @relation("DocumentDeletedBy")
+  foldersCreated                                 DocumentFolder[]         @relation("FolderCreatedBy")
   shiftHistoryApproved                           EquipmentShiftHistory[]  @relation("ShiftHistoryApprovedBy")
   shiftHistoryPerformed                          EquipmentShiftHistory[]  @relation("ShiftedBy")
   shiftRequestsApproved                          EquipmentShiftRequest[]  @relation("ShiftApprovedBy")
@@ -574,6 +579,7 @@ model Document {
   id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   schoolId     String          @map("school_id") @db.Uuid
   uploadedById String          @map("uploaded_by") @db.Uuid
+  folderId     String?         @map("folder_id") @db.Uuid
   name         String          @db.VarChar(255)
   description  String?
   fileName     String          @map("file_name") @db.VarChar(255)
@@ -586,14 +592,41 @@ model Document {
   category     String?         @db.VarChar(100)
   createdAt    DateTime?       @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt    DateTime?       @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt    DateTime?       @map("deleted_at") @db.Timestamp(6)
+  deletedById  String?         @map("deleted_by") @db.Uuid
   shares       DocumentShare[]
   school       School          @relation(fields: [schoolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   uploadedBy   User            @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedBy    User?           @relation("DocumentDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([schoolId], map: "idx_documents_school_id")
   @@index([uploadedById], map: "idx_documents_uploaded_by")
+  @@index([deletedAt], map: "idx_documents_deleted_at")
+  @@index([folderId], map: "idx_documents_folder_id")
   @@map("documents")
 }
+
+model DocumentFolder {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  schoolId     String           @map("school_id") @db.Uuid
+  parentId     String?          @map("parent_id") @db.Uuid
+  name         String           @db.VarChar(255)
+  createdById  String           @map("created_by") @db.Uuid
+  createdAt    DateTime?        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt    DateTime?        @map("deleted_at") @db.Timestamp(6)
+  school       School           @relation(fields: [schoolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy    User             @relation("FolderCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parent       DocumentFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  children     DocumentFolder[] @relation("FolderHierarchy")
+  documents    Document[]
+
+  @@index([schoolId], map: "idx_document_folders_school_id")
+  @@index([parentId], map: "idx_document_folders_parent_id")
+  @@map("document_folders")
+}
+
 
 model DocumentShare {
   id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

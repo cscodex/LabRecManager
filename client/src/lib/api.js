@@ -97,6 +97,29 @@ export const documentsAPI = {
     getShared: (params) => api.get('/documents/shared', { params }),
     getShares: (id) => api.get(`/documents/${id}/shares`),
     removeShare: (shareId) => api.delete(`/documents/shares/${shareId}`),
+    // Trash / Recycle Bin
+    getTrash: () => api.get('/documents/trash'),
+    restore: (id) => api.post(`/documents/${id}/restore`),
+    permanentDelete: (id) => api.delete(`/documents/${id}/permanent`),
+};
+
+// Storage API - Quota management
+export const storageAPI = {
+    getUsage: () => api.get('/storage/usage'),
+    getUsers: () => api.get('/storage/users'),
+    setQuota: (userId, quotaMb) => api.put(`/storage/users/${userId}/quota`, { quotaMb }),
+    setBulkQuota: (data) => api.put('/storage/users/bulk-quota', data),
+    recalculate: () => api.post('/storage/recalculate'),
+};
+
+// Folders API - Document folder management
+export const foldersAPI = {
+    getAll: (parentId) => api.get('/folders', { params: parentId ? { parentId } : {} }),
+    getById: (id) => api.get(`/folders/${id}`),
+    create: (data) => api.post('/folders', data),
+    update: (id, data) => api.put(`/folders/${id}`, data),
+    delete: (id) => api.delete(`/folders/${id}`),
+    moveDocuments: (folderId, documentIds) => api.post(`/folders/${folderId}/move-documents`, { documentIds }),
 };
 
 // Devices API - for camera, mic, speaker testing

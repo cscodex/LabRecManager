@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap } from 'lucide-react';
+import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap, ChevronUp, ChevronDown, RotateCcw, Trash, HardDrive } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { documentsAPI, classesAPI } from '@/lib/api';
+import { documentsAPI, classesAPI, storageAPI } from '@/lib/api';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -41,13 +41,17 @@ export default function DocumentsPage() {
 
     const [documents, setDocuments] = useState([]);
     const [sharedDocuments, setSharedDocuments] = useState([]);
+    const [trashDocuments, setTrashDocuments] = useState([]);
+    const [storageInfo, setStorageInfo] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list' - default to list
-    const [activeTab, setActiveTab] = useState('my'); // 'my' or 'shared'
+    const [activeTab, setActiveTab] = useState('my'); // 'my', 'shared', or 'trash'
+    const [sortField, setSortField] = useState('createdAt'); // 'name', 'fileType', 'fileSize', 'createdAt'
+    const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
 
     // Upload modal state
     const [showUpload, setShowUpload] = useState(false);
@@ -89,7 +93,9 @@ export default function DocumentsPage() {
         if (!isAuthenticated) { router.push('/login'); return; }
         loadDocuments();
         loadSharedDocuments();
+        loadTrash();
         loadShareOptions();
+        loadStorage();
     }, [_hasHydrated, isAuthenticated]);
 
     const loadDocuments = async () => {
@@ -123,6 +129,46 @@ export default function DocumentsPage() {
             setSharedDocuments(res.data.data.documents || []);
         } catch (err) {
             console.error('Failed to load shared documents:', err);
+        }
+    };
+
+    const loadTrash = async () => {
+        try {
+            const res = await documentsAPI.getTrash();
+            setTrashDocuments(res.data.data.documents || []);
+        } catch (err) {
+            console.error('Failed to load trash:', err);
+        }
+    };
+
+    const handleRestore = async (doc) => {
+        try {
+            await documentsAPI.restore(doc.id);
+            toast.success('Document restored successfully');
+            loadTrash();
+            loadDocuments();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to restore document');
+        }
+    };
+
+    const handlePermanentDelete = async (doc) => {
+        if (!confirm(`Permanently delete "${doc.name}"? This cannot be undone.`)) return;
+        try {
+            await documentsAPI.permanentDelete(doc.id);
+            toast.success('Document permanently deleted');
+            loadTrash();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete document');
+        }
+    };
+
+    const loadStorage = async () => {
+        try {
+            const res = await storageAPI.getUsage();
+            setStorageInfo(res.data.data);
+        } catch (err) {
+            console.error('Failed to load storage info:', err);
         }
     };
 
@@ -319,6 +365,56 @@ export default function DocumentsPage() {
         return true;
     });
 
+    // Sort documents
+    const sortedDocuments = [...filteredDocuments].sort((a, b) => {
+        const docA = activeTab === 'my' ? a : a.document;
+        const docB = activeTab === 'my' ? b : b.document;
+        if (!docA || !docB) return 0;
+
+        let valueA, valueB;
+        switch (sortField) {
+            case 'name':
+                valueA = docA.name?.toLowerCase() || '';
+                valueB = docB.name?.toLowerCase() || '';
+                break;
+            case 'fileType':
+                valueA = docA.fileType?.toLowerCase() || '';
+                valueB = docB.fileType?.toLowerCase() || '';
+                break;
+            case 'fileSize':
+                valueA = docA.fileSize || 0;
+                valueB = docB.fileSize || 0;
+                break;
+            case 'createdAt':
+            default:
+                valueA = new Date(activeTab === 'shared' ? a.sharedAt : docA.createdAt).getTime();
+                valueB = new Date(activeTab === 'shared' ? b.sharedAt : docB.createdAt).getTime();
+                break;
+        }
+
+        if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+        if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Handle column header click for sorting
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
+    // Sort indicator component
+    const SortIndicator = ({ field }) => {
+        if (sortField !== field) return null;
+        return sortDirection === 'asc'
+            ? <ChevronUp className="w-4 h-4 inline ml-1" />
+            : <ChevronDown className="w-4 h-4 inline ml-1" />;
+    };
+
     // Check if user can upload (admin, principal, lab_assistant, instructor)
     const canUpload = ['admin', 'principal', 'lab_assistant', 'instructor'].includes(user?.role);
 
@@ -330,15 +426,36 @@ export default function DocumentsPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
                     <p className="text-slate-500">Upload and manage PDFs, documents, and spreadsheets</p>
                 </div>
-                {canUpload && (
-                    <button onClick={() => setShowUpload(true)} className="btn btn-primary">
-                        <Upload className="w-4 h-4" /> Upload Document
-                    </button>
-                )}
+                <div className="flex items-center gap-4">
+                    {/* Storage Indicator */}
+                    {storageInfo && canUpload && (
+                        <div className="hidden sm:flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2">
+                            <HardDrive className="w-4 h-4 text-slate-500" />
+                            <div className="flex flex-col">
+                                <span className="text-xs text-slate-600">
+                                    {storageInfo.usedFormatted} / {storageInfo.quotaFormatted}
+                                </span>
+                                <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all ${storageInfo.percentUsed >= 90 ? 'bg-red-500' :
+                                            storageInfo.percentUsed >= 70 ? 'bg-yellow-500' : 'bg-emerald-500'
+                                            }`}
+                                        style={{ width: `${Math.min(100, storageInfo.percentUsed)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {canUpload && (
+                        <button onClick={() => setShowUpload(true)} className="btn btn-primary">
+                            <Upload className="w-4 h-4" /> Upload Document
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 flex-wrap">
                 <button
                     onClick={() => setActiveTab('my')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'my'
@@ -362,6 +479,22 @@ export default function DocumentsPage() {
                         </span>
                     )}
                 </button>
+                {canUpload && (
+                    <button
+                        onClick={() => setActiveTab('trash')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${activeTab === 'trash'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        <Trash className="w-4 h-4" />
+                        Trash
+                        {trashDocuments.length > 0 && (
+                            <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                                {trashDocuments.length}
+                            </span>
+                        )}
+                    </button>
+                )}
             </div>
 
             {/* Filters */}
@@ -422,6 +555,69 @@ export default function DocumentsPage() {
             {/* Documents Grid */}
             {loading ? (
                 <div className="text-center py-12 text-slate-500">Loading...</div>
+            ) : activeTab === 'trash' ? (
+                /* Trash View */
+                trashDocuments.length === 0 ? (
+                    <div className="text-center py-12">
+                        <Trash className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                        <p className="text-slate-500">Trash is empty</p>
+                        <p className="text-sm text-slate-400 mt-2">Deleted documents will appear here for 30 days</p>
+                    </div>
+                ) : (
+                    <div className="card overflow-hidden">
+                        <table className="w-full">
+                            <thead className="bg-red-50 border-b border-red-200">
+                                <tr>
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Name</th>
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Type</th>
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Size</th>
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Deleted</th>
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Deleted By</th>
+                                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {trashDocuments.map(doc => (
+                                    <tr key={doc.id} className="border-b border-slate-100 hover:bg-red-50/50">
+                                        <td className="p-3">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xl opacity-50">{FILE_ICONS[doc.fileType] || FILE_ICONS.file}</span>
+                                                <div>
+                                                    <p className="font-medium text-slate-700">{doc.name}</p>
+                                                    {doc.description && <p className="text-xs text-slate-500 truncate max-w-xs">{doc.description}</p>}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileType?.toUpperCase()}</td>
+                                        <td className="p-3 text-sm text-slate-600 hidden md:table-cell">{doc.fileSizeFormatted || ''}</td>
+                                        <td className="p-3 text-sm text-slate-500 hidden lg:table-cell">{formatDate(doc.deletedAt)}</td>
+                                        <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">
+                                            {doc.deletedBy ? `${doc.deletedBy.firstName} ${doc.deletedBy.lastName}` : '-'}
+                                        </td>
+                                        <td className="p-3">
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleRestore(doc)}
+                                                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                                                    title="Restore"
+                                                >
+                                                    <RotateCcw className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePermanentDelete(doc)}
+                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                                    title="Delete Permanently"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )
             ) : filteredDocuments.length === 0 ? (
                 <div className="text-center py-12">
                     <FileText className="w-12 h-12 mx-auto text-slate-300 mb-3" />
@@ -432,7 +628,7 @@ export default function DocumentsPage() {
                 </div>
             ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDocuments.map(item => {
+                    {sortedDocuments.map(item => {
                         const doc = activeTab === 'my' ? item : item.document;
                         const shareInfo = activeTab === 'shared' ? item : null;
                         if (!doc) return null;
@@ -527,9 +723,24 @@ export default function DocumentsPage() {
                     <table className="w-full">
                         <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                                <th className="text-left p-3 text-sm font-semibold text-slate-700">Name</th>
-                                <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Type</th>
-                                <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell">Size</th>
+                                <th
+                                    onClick={() => handleSort('name')}
+                                    className="text-left p-3 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 select-none"
+                                >
+                                    Name<SortIndicator field="name" />
+                                </th>
+                                <th
+                                    onClick={() => handleSort('fileType')}
+                                    className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell cursor-pointer hover:bg-slate-100 select-none"
+                                >
+                                    Type<SortIndicator field="fileType" />
+                                </th>
+                                <th
+                                    onClick={() => handleSort('fileSize')}
+                                    className="text-left p-3 text-sm font-semibold text-slate-700 hidden md:table-cell cursor-pointer hover:bg-slate-100 select-none"
+                                >
+                                    Size<SortIndicator field="fileSize" />
+                                </th>
                                 {activeTab === 'my' ? (
                                     <>
                                         <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Category</th>
@@ -538,12 +749,17 @@ export default function DocumentsPage() {
                                 ) : (
                                     <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">Shared By</th>
                                 )}
-                                <th className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell">{activeTab === 'my' ? 'Uploaded' : 'Shared On'}</th>
+                                <th
+                                    onClick={() => handleSort('createdAt')}
+                                    className="text-left p-3 text-sm font-semibold text-slate-700 hidden lg:table-cell cursor-pointer hover:bg-slate-100 select-none"
+                                >
+                                    {activeTab === 'my' ? 'Uploaded' : 'Shared On'}<SortIndicator field="createdAt" />
+                                </th>
                                 <th className="text-left p-3 text-sm font-semibold text-slate-700">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredDocuments.map(item => {
+                            {sortedDocuments.map(item => {
                                 const doc = activeTab === 'my' ? item : item.document;
                                 const shareInfo = activeTab === 'shared' ? item : null;
                                 if (!doc) return null;

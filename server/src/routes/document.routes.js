@@ -67,7 +67,7 @@ function formatSize(bytes) {
 router.get('/', authenticate, asyncHandler(async (req, res) => {
     const { category, search } = req.query;
 
-    const where = { schoolId: req.user.schoolId };
+    const where = { schoolId: req.user.schoolId, deletedAt: null };
     if (category) where.category = category;
     if (search) {
         where.OR = [
@@ -177,6 +177,25 @@ router.post('/', authenticate, authorize('admin', 'principal', 'lab_assistant'),
         return res.status(503).json({ success: false, message: 'File storage not configured' });
     }
 
+    // Check storage quota before upload
+    const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { storageQuotaMb: true, storageUsedBytes: true }
+    });
+
+    const quotaBytes = (user.storageQuotaMb || 500) * 1024 * 1024;
+    const currentUsed = Number(user.storageUsedBytes || 0);
+    const newFileSize = req.file.size;
+
+    if (currentUsed + newFileSize > quotaBytes) {
+        const quotaMb = Math.round(quotaBytes / (1024 * 1024));
+        const usedMb = Math.round(currentUsed / (1024 * 1024));
+        return res.status(400).json({
+            success: false,
+            message: `Storage quota exceeded. You have ${usedMb} MB used of ${quotaMb} MB. File size: ${formatSize(newFileSize)}`
+        });
+    }
+
     const { name, description, category, isPublic } = req.body;
 
     // Upload to Cloudinary
@@ -205,6 +224,12 @@ router.post('/', authenticate, authorize('admin', 'principal', 'lab_assistant'),
         include: {
             uploadedBy: { select: { id: true, firstName: true, lastName: true } }
         }
+    });
+
+    // Update user's storage used
+    await prisma.user.update({
+        where: { id: req.user.id },
+        data: { storageUsedBytes: currentUsed + newFileSize }
     });
 
     res.status(201).json({
@@ -262,10 +287,94 @@ router.put('/:id', authenticate, authorize('admin', 'principal', 'lab_assistant'
 
 /**
  * @route   DELETE /api/documents/:id
- * @desc    Delete a document
+ * @desc    Soft delete a document (move to trash)
  * @access  Private (Admin/Principal)
  */
 router.delete('/:id', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const doc = await prisma.document.findFirst({
+        where: { id: req.params.id, schoolId: req.user.schoolId, deletedAt: null }
+    });
+
+    if (!doc) {
+        return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    // Soft delete - set deletedAt timestamp
+    await prisma.document.update({
+        where: { id: req.params.id },
+        data: {
+            deletedAt: new Date(),
+            deletedById: req.user.id
+        }
+    });
+
+    res.json({ success: true, message: 'Document moved to trash' });
+}));
+
+/**
+ * @route   GET /api/documents/trash
+ * @desc    Get all trashed documents
+ * @access  Private (Admin/Principal)
+ */
+router.get('/trash', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const documents = await prisma.document.findMany({
+        where: {
+            schoolId: req.user.schoolId,
+            deletedAt: { not: null }
+        },
+        include: {
+            uploadedBy: { select: { id: true, firstName: true, lastName: true } },
+            deletedBy: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: { deletedAt: 'desc' }
+    });
+
+    res.json({
+        success: true,
+        data: {
+            documents: documents.map(d => ({
+                ...d,
+                fileSizeFormatted: formatSize(d.fileSize)
+            }))
+        }
+    });
+}));
+
+/**
+ * @route   POST /api/documents/:id/restore
+ * @desc    Restore a document from trash
+ * @access  Private (Admin/Principal)
+ */
+router.post('/:id/restore', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
+    const doc = await prisma.document.findFirst({
+        where: {
+            id: req.params.id,
+            schoolId: req.user.schoolId,
+            deletedAt: { not: null }
+        }
+    });
+
+    if (!doc) {
+        return res.status(404).json({ success: false, message: 'Document not found in trash' });
+    }
+
+    await prisma.document.update({
+        where: { id: req.params.id },
+        data: {
+            deletedAt: null,
+            deletedById: null
+        }
+    });
+
+    res.json({ success: true, message: 'Document restored successfully' });
+}));
+
+/**
+ * @route   DELETE /api/documents/:id/permanent
+ * @desc    Permanently delete a document
+ * @access  Private (Admin/Principal)
+ */
+router.delete('/:id/permanent', authenticate, authorize('admin', 'principal'), asyncHandler(async (req, res) => {
     const doc = await prisma.document.findFirst({
         where: { id: req.params.id, schoolId: req.user.schoolId }
     });
@@ -281,10 +390,23 @@ router.delete('/:id', authenticate, authorize('admin', 'principal'), asyncHandle
         console.error('Cloudinary delete error:', err.message);
     }
 
-    // Delete from database
+    // Decrement storage used for the document owner
+    const owner = await prisma.user.findUnique({
+        where: { id: doc.uploadedById },
+        select: { storageUsedBytes: true }
+    });
+    if (owner) {
+        const newUsed = Math.max(0, Number(owner.storageUsedBytes || 0) - doc.fileSize);
+        await prisma.user.update({
+            where: { id: doc.uploadedById },
+            data: { storageUsedBytes: newUsed }
+        });
+    }
+
+    // Permanently delete from database
     await prisma.document.delete({ where: { id: req.params.id } });
 
-    res.json({ success: true, message: 'Document deleted' });
+    res.json({ success: true, message: 'Document permanently deleted' });
 }));
 
 /**
