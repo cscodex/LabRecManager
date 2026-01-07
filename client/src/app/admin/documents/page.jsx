@@ -60,17 +60,20 @@ export default function DocumentsPage() {
     // Upload modal state
     const [showUpload, setShowUpload] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
+    const [uploadFiles, setUploadFiles] = useState([]); // For folder upload (multiple files)
+    const [uploadMode, setUploadMode] = useState('file'); // 'file' or 'folder'
     const [uploadData, setUploadData] = useState({ name: '', description: '', category: '', isPublic: false });
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStartTime, setUploadStartTime] = useState(null);
+    const [uploadCurrentFile, setUploadCurrentFile] = useState('');
 
     // Create Folder modal
     const [showCreateFolder, setShowCreateFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
 
     // Move Document modal
-    const [moveDialog, setMoveDialog] = useState({ open: false, doc: null });
+    const [moveDialog, setMoveDialog] = useState({ open: false, doc: null, folder: null });
     const [moveCurrentFolder, setMoveCurrentFolder] = useState(null); // navigation inside modal
     const [moveFolders, setMoveFolders] = useState([]); // list of folders in modal
 
@@ -328,37 +331,120 @@ export default function DocumentsPage() {
     };
 
     const handleUpload = async () => {
-        if (!uploadFile) { toast.error('Select a file'); return; }
-        if (!uploadData.name) { toast.error('Name is required'); return; }
+        if (uploadMode === 'file') {
+            // Single file upload
+            if (!uploadFile) { toast.error('Select a file'); return; }
+            if (!uploadData.name) { toast.error('Name is required'); return; }
 
-        setUploading(true);
-        setUploadProgress(0);
-        setUploadStartTime(Date.now());
-
-        try {
-            const dataWithFolder = {
-                ...uploadData,
-                folderId: currentFolder ? currentFolder.id : null
-            };
-
-            await documentsAPI.upload(uploadFile, dataWithFolder, (percent, loaded, total) => {
-                setUploadProgress(percent);
-            });
-
-            toast.success('Document uploaded!');
-            setShowUpload(false);
-            setUploadFile(null);
-            setUploadData({ name: '', description: '', category: '', isPublic: false });
+            setUploading(true);
             setUploadProgress(0);
-            setUploadStartTime(null);
-            loadDocuments();
-            loadStorage();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Upload failed');
-        } finally {
-            setUploading(false);
+            setUploadStartTime(Date.now());
+
+            try {
+                const dataWithFolder = {
+                    ...uploadData,
+                    folderId: currentFolder ? currentFolder.id : null
+                };
+
+                await documentsAPI.upload(uploadFile, dataWithFolder, (percent, loaded, total) => {
+                    setUploadProgress(percent);
+                });
+
+                toast.success('Document uploaded!');
+                setShowUpload(false);
+                setUploadFile(null);
+                setUploadData({ name: '', description: '', category: '', isPublic: false });
+                setUploadProgress(0);
+                setUploadStartTime(null);
+                loadDocuments();
+                loadStorage();
+            } catch (err) {
+                toast.error(err.response?.data?.message || 'Upload failed');
+            } finally {
+                setUploading(false);
+                setUploadProgress(0);
+                setUploadStartTime(null);
+            }
+        } else {
+            // Folder upload - multiple files with paths
+            if (uploadFiles.length === 0) { toast.error('Select a folder'); return; }
+
+            setUploading(true);
             setUploadProgress(0);
-            setUploadStartTime(null);
+            setUploadStartTime(Date.now());
+
+            try {
+                // Get folder name from first file's path
+                const firstPath = uploadFiles[0].webkitRelativePath || uploadFiles[0].name;
+                const folderName = firstPath.split('/')[0];
+
+                // Create the root folder for this upload
+                const createRes = await foldersAPI.create({
+                    name: folderName,
+                    parentId: currentFolder ? currentFolder.id : null
+                });
+                const rootFolderId = createRes.data.data.folder.id;
+
+                // Map to track created subfolders: { 'path/to/folder': folderId }
+                const createdFolders = { '': rootFolderId };
+
+                // Upload each file
+                for (let i = 0; i < uploadFiles.length; i++) {
+                    const file = uploadFiles[i];
+                    const relativePath = file.webkitRelativePath || file.name;
+                    const pathParts = relativePath.split('/');
+                    const fileName = pathParts.pop(); // File name
+                    pathParts.shift(); // Remove root folder name (already created)
+
+                    // Get or create parent folder
+                    let parentFolderId = rootFolderId;
+                    let currentPath = '';
+
+                    for (const part of pathParts) {
+                        currentPath = currentPath ? `${currentPath}/${part}` : part;
+                        if (!createdFolders[currentPath]) {
+                            // Create this subfolder
+                            const subRes = await foldersAPI.create({
+                                name: part,
+                                parentId: parentFolderId
+                            });
+                            createdFolders[currentPath] = subRes.data.data.folder.id;
+                        }
+                        parentFolderId = createdFolders[currentPath];
+                    }
+
+                    // Upload the file to the correct folder
+                    setUploadCurrentFile(fileName);
+                    setUploadProgress(Math.round(((i + 1) / uploadFiles.length) * 100));
+
+                    const fileData = {
+                        name: fileName.replace(/\.[^.]+$/, ''),
+                        folderId: parentFolderId,
+                        category: uploadData.category || null,
+                        isPublic: uploadData.isPublic
+                    };
+
+                    await documentsAPI.upload(file, fileData);
+                }
+
+                toast.success(`Uploaded ${uploadFiles.length} files!`);
+                setShowUpload(false);
+                setUploadFiles([]);
+                setUploadMode('file');
+                setUploadData({ name: '', description: '', category: '', isPublic: false });
+                setUploadCurrentFile('');
+                loadDocuments();
+                loadFolders();
+                loadStorage();
+            } catch (err) {
+                console.error(err);
+                toast.error(err.response?.data?.message || 'Folder upload failed');
+            } finally {
+                setUploading(false);
+                setUploadProgress(0);
+                setUploadStartTime(null);
+                setUploadCurrentFile('');
+            }
         }
     };
 
@@ -371,6 +457,15 @@ export default function DocumentsPage() {
         if (remaining < 1000) return 'Almost done...';
         if (remaining < 60000) return `${Math.ceil(remaining / 1000)}s remaining`;
         return `${Math.ceil(remaining / 60000)}m remaining`;
+    };
+
+    // Handle folder selection
+    const handleFolderSelect = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) {
+            setUploadFiles(files);
+            setUploadMode('folder');
+        }
     };
 
     const handleEdit = (doc) => {
@@ -524,14 +619,47 @@ export default function DocumentsPage() {
     };
 
     const handleMoveSubmit = async () => {
-        if (!moveDialog.doc) return;
+        if (!moveDialog.doc && !moveDialog.folder) return;
         try {
-            await foldersAPI.moveDocuments(moveCurrentFolder ? moveCurrentFolder.id : 'root', [moveDialog.doc.id]);
-            toast.success('Document moved successfully');
-            setMoveDialog({ open: false, doc: null });
-            loadDocuments(); // Refresh list
+            if (moveDialog.doc) {
+                // Moving a document
+                await foldersAPI.moveDocuments(moveCurrentFolder ? moveCurrentFolder.id : 'root', [moveDialog.doc.id]);
+                toast.success('Document moved successfully');
+            } else if (moveDialog.folder) {
+                // Moving a folder
+                const targetId = moveCurrentFolder ? moveCurrentFolder.id : null;
+                if (moveDialog.folder.id === targetId) {
+                    toast.error("Cannot move folder into itself");
+                    return;
+                }
+                await foldersAPI.update(moveDialog.folder.id, { parentId: targetId });
+                toast.success('Folder moved successfully');
+            }
+            setMoveDialog({ open: false, doc: null, folder: null });
+            loadDocuments();
+            loadFolders();
         } catch (err) {
-            toast.error('Failed to move document');
+            toast.error('Failed to move item');
+        }
+    };
+
+    // Open move dialog for folder
+    const handleOpenFolderMoveDialog = (folder) => {
+        setMoveDialog({ open: true, doc: null, folder });
+        setMoveCurrentFolder(null);
+        loadMoveFolders(null);
+    };
+
+    // Delete folder
+    const handleDeleteFolder = async (folder) => {
+        if (!confirm(`Delete folder "${folder.name}" and all its contents?`)) return;
+        try {
+            await foldersAPI.delete(folder.id);
+            toast.success('Folder deleted');
+            loadFolders();
+            loadDocuments();
+        } catch (err) {
+            toast.error('Failed to delete folder');
         }
     };
 
@@ -1027,6 +1155,21 @@ export default function DocumentsPage() {
                                         </div>
                                     </div>
                                 </div>
+                                {/* Folder Actions */}
+                                <div className="flex gap-1 mt-3 pt-3 border-t border-slate-100">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleOpenFolderMoveDialog(folder); }}
+                                        className="flex-1 p-1.5 text-xs text-slate-500 hover:text-orange-600 hover:bg-orange-50 rounded flex items-center justify-center gap-1"
+                                    >
+                                        <FolderInput className="w-3 h-3" /> Move
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
+                                        className="flex-1 p-1.5 text-xs text-slate-500 hover:text-red-600 hover:bg-red-50 rounded flex items-center justify-center gap-1"
+                                    >
+                                        <Trash2 className="w-3 h-3" /> Delete
+                                    </button>
+                                </div>
                             </div>
                         ))}
                         {sortedDocuments.map(item => {
@@ -1219,7 +1362,22 @@ export default function DocumentsPage() {
                                         )}
                                         <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">{formatDate(folder.createdAt)}</td>
                                         <td className="p-3">
-                                            {/* Folder Actions Placeholder */}
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleOpenFolderMoveDialog(folder); }}
+                                                    className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded"
+                                                    title="Move"
+                                                >
+                                                    <FolderInput className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
+                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -1319,43 +1477,95 @@ export default function DocumentsPage() {
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                         <div className="bg-white rounded-2xl max-w-md w-full">
                             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                                <h3 className="text-xl font-semibold">Upload Document</h3>
-                                <button onClick={() => setShowUpload(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                                <h3 className="text-xl font-semibold">Upload {uploadMode === 'folder' ? 'Folder' : 'Document'}</h3>
+                                <button onClick={() => { setShowUpload(false); setUploadMode('file'); setUploadFiles([]); setUploadFile(null); }} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
                             </div>
                             <div className="p-6 space-y-4">
-                                {/* File Drop Zone */}
-                                <div
-                                    className={`border-2 border-dashed rounded-xl p-6 text-center ${uploadFile ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300'}`}
-                                    onDragOver={(e) => e.preventDefault()}
-                                    onDrop={(e) => { e.preventDefault(); handleFileSelect({ target: { files: e.dataTransfer.files } }); }}
-                                >
-                                    {uploadFile ? (
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">{FILE_ICONS[uploadFile.name.split('.').pop()] || FILE_ICONS.file}</span>
-                                            <div className="text-left flex-1">
-                                                <p className="font-medium truncate">{uploadFile.name}</p>
-                                                <p className="text-sm text-slate-500">{(uploadFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                                            </div>
-                                            <button onClick={() => setUploadFile(null)} className="text-red-500"><X className="w-5 h-5" /></button>
-                                        </div>
-                                    ) : (
-                                        <label className="cursor-pointer">
-                                            <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-                                            <p className="text-slate-600">Drag & drop or click to select</p>
-                                            <p className="text-xs text-slate-400 mt-1">PDF, DOC, XLS, CSV, TXT, Images • Max 100MB</p>
-                                            <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp" onChange={handleFileSelect} />
-                                        </label>
-                                    )}
+                                {/* Mode Toggle */}
+                                <div className="flex gap-2 p-1 bg-slate-100 rounded-lg">
+                                    <button
+                                        onClick={() => { setUploadMode('file'); setUploadFiles([]); }}
+                                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${uploadMode === 'file' ? 'bg-white shadow text-primary-600' : 'text-slate-600 hover:text-slate-900'}`}
+                                    >
+                                        <FileText className="w-4 h-4 inline mr-1" /> File
+                                    </button>
+                                    <button
+                                        onClick={() => { setUploadMode('folder'); setUploadFile(null); }}
+                                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${uploadMode === 'folder' ? 'bg-white shadow text-primary-600' : 'text-slate-600 hover:text-slate-900'}`}
+                                    >
+                                        <Folder className="w-4 h-4 inline mr-1" /> Folder
+                                    </button>
                                 </div>
 
-                                <div>
-                                    <label className="label">Name</label>
-                                    <input type="text" value={uploadData.name} onChange={(e) => setUploadData({ ...uploadData, name: e.target.value })} className="input" placeholder="Document name" />
-                                </div>
-                                <div>
-                                    <label className="label">Description</label>
-                                    <textarea value={uploadData.description} onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })} className="input" rows={2} placeholder="Optional description" />
-                                </div>
+                                {/* File/Folder Drop Zone */}
+                                {uploadMode === 'file' ? (
+                                    <div
+                                        className={`border-2 border-dashed rounded-xl p-6 text-center ${uploadFile ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300'}`}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={(e) => { e.preventDefault(); handleFileSelect({ target: { files: e.dataTransfer.files } }); }}
+                                    >
+                                        {uploadFile ? (
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-3xl">{FILE_ICONS[uploadFile.name.split('.').pop()] || FILE_ICONS.file}</span>
+                                                <div className="text-left flex-1">
+                                                    <p className="font-medium truncate">{uploadFile.name}</p>
+                                                    <p className="text-sm text-slate-500">{(uploadFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                </div>
+                                                <button onClick={() => setUploadFile(null)} className="text-red-500"><X className="w-5 h-5" /></button>
+                                            </div>
+                                        ) : (
+                                            <label className="cursor-pointer">
+                                                <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+                                                <p className="text-slate-600">Drag & drop or click to select</p>
+                                                <p className="text-xs text-slate-400 mt-1">PDF, DOC, XLS, CSV, TXT, Images • Max 100MB</p>
+                                                <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp" onChange={handleFileSelect} />
+                                            </label>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div
+                                        className={`border-2 border-dashed rounded-xl p-6 text-center ${uploadFiles.length > 0 ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300'}`}
+                                    >
+                                        {uploadFiles.length > 0 ? (
+                                            <div className="flex items-center gap-3">
+                                                <Folder className="w-10 h-10 text-yellow-500 fill-yellow-100" />
+                                                <div className="text-left flex-1">
+                                                    <p className="font-medium truncate">{(uploadFiles[0].webkitRelativePath || '').split('/')[0] || 'Folder'}</p>
+                                                    <p className="text-sm text-slate-500">{uploadFiles.length} files</p>
+                                                </div>
+                                                <button onClick={() => setUploadFiles([])} className="text-red-500"><X className="w-5 h-5" /></button>
+                                            </div>
+                                        ) : (
+                                            <label className="cursor-pointer">
+                                                <FolderPlus className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+                                                <p className="text-slate-600">Click to select a folder</p>
+                                                <p className="text-xs text-slate-400 mt-1">All files in the folder will be uploaded</p>
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    webkitdirectory=""
+                                                    directory=""
+                                                    multiple
+                                                    onChange={handleFolderSelect}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Form fields - only show name for file mode */}
+                                {uploadMode === 'file' && (
+                                    <div>
+                                        <label className="label">Name</label>
+                                        <input type="text" value={uploadData.name} onChange={(e) => setUploadData({ ...uploadData, name: e.target.value })} className="input" placeholder="Document name" />
+                                    </div>
+                                )}
+                                {uploadMode === 'file' && (
+                                    <div>
+                                        <label className="label">Description</label>
+                                        <textarea value={uploadData.description} onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })} className="input" rows={2} placeholder="Optional description" />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="label">Category</label>
                                     <select value={uploadData.category} onChange={(e) => setUploadData({ ...uploadData, category: e.target.value })} className="input">
@@ -1369,8 +1579,12 @@ export default function DocumentsPage() {
                                 </label>
 
                                 <div className="flex gap-3 pt-2">
-                                    <button onClick={() => setShowUpload(false)} disabled={uploading} className="btn btn-secondary flex-1">Cancel</button>
-                                    <button onClick={handleUpload} disabled={uploading || !uploadFile} className="btn btn-primary flex-1 relative overflow-hidden">
+                                    <button onClick={() => { setShowUpload(false); setUploadMode('file'); setUploadFiles([]); setUploadFile(null); }} disabled={uploading} className="btn btn-secondary flex-1">Cancel</button>
+                                    <button
+                                        onClick={handleUpload}
+                                        disabled={uploading || (uploadMode === 'file' ? !uploadFile : uploadFiles.length === 0)}
+                                        className="btn btn-primary flex-1 relative overflow-hidden"
+                                    >
                                         {uploading ? (
                                             <div className="flex items-center justify-center gap-2">
                                                 {/* Circular Progress */}
@@ -1403,7 +1617,7 @@ export default function DocumentsPage() {
                                             />
                                         </div>
                                         <p className="text-xs text-slate-500 mt-1 text-center">
-                                            Uploading... {uploadProgress}% {getUploadTimeRemaining()}
+                                            {uploadMode === 'folder' && uploadCurrentFile ? `Uploading: ${uploadCurrentFile}` : 'Uploading...'} {uploadProgress}% {getUploadTimeRemaining()}
                                         </p>
                                     </div>
                                 )}
@@ -1931,8 +2145,8 @@ export default function DocumentsPage() {
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                         <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-lg">Move Document</h3>
-                                <button onClick={() => setMoveDialog({ open: false, doc: null })} className="text-slate-400 hover:text-slate-600">
+                                <h3 className="font-bold text-lg">Move {moveDialog.folder ? 'Folder' : 'Document'}</h3>
+                                <button onClick={() => setMoveDialog({ open: false, doc: null, folder: null })} className="text-slate-400 hover:text-slate-600">
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
@@ -1948,11 +2162,11 @@ export default function DocumentsPage() {
                                 )}
                             </div>
                             <div className="flex-1 overflow-y-auto p-2">
-                                {moveFolders.length === 0 ? (
+                                {moveFolders.filter(f => f.id !== moveDialog.folder?.id).length === 0 ? (
                                     <div className="text-center py-8 text-slate-500 text-sm">No folders here</div>
                                 ) : (
                                     <div className="space-y-1">
-                                        {moveFolders.map(folder => (
+                                        {moveFolders.filter(f => f.id !== moveDialog.folder?.id).map(folder => (
                                             <div
                                                 key={folder.id}
                                                 onClick={() => handleMoveNavigate(folder)}
@@ -1967,7 +2181,7 @@ export default function DocumentsPage() {
                             </div>
                             <div className="p-4 border-t flex justify-end gap-3">
                                 <button
-                                    onClick={() => setMoveDialog({ open: false, doc: null })}
+                                    onClick={() => setMoveDialog({ open: false, doc: null, folder: null })}
                                     className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
                                 >
                                     Cancel
@@ -1975,7 +2189,10 @@ export default function DocumentsPage() {
                                 <button
                                     onClick={handleMoveSubmit}
                                     className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
-                                    disabled={moveDialog.doc && moveDialog.doc.folderId === (moveCurrentFolder ? moveCurrentFolder.id : null)}
+                                    disabled={
+                                        (moveDialog.doc && moveDialog.doc.folderId === (moveCurrentFolder ? moveCurrentFolder.id : null)) ||
+                                        (moveDialog.folder && moveDialog.folder.parentId === (moveCurrentFolder ? moveCurrentFolder.id : null))
+                                    }
                                 >
                                     Move Here
                                 </button>
