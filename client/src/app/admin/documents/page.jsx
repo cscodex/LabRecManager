@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap, ChevronUp, ChevronDown, RotateCcw, Trash, HardDrive } from 'lucide-react';
+import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap, ChevronUp, ChevronDown, RotateCcw, Trash, HardDrive, Folder, FolderPlus, ChevronRight, FolderInput, CornerUpLeft } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { documentsAPI, classesAPI, storageAPI } from '@/lib/api';
+import { documentsAPI, classesAPI, storageAPI, foldersAPI } from '@/lib/api';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import FileViewer from '@/components/FileViewer';
 import QRCode from 'qrcode';
 
 const CATEGORIES = [
@@ -42,6 +43,9 @@ export default function DocumentsPage() {
     const [documents, setDocuments] = useState([]);
     const [sharedDocuments, setSharedDocuments] = useState([]);
     const [trashDocuments, setTrashDocuments] = useState([]);
+    const [folders, setFolders] = useState([]);
+    const [currentFolder, setCurrentFolder] = useState(null); // null = root
+    const [folderBreadcrumbs, setFolderBreadcrumbs] = useState([]);
     const [storageInfo, setStorageInfo] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +62,15 @@ export default function DocumentsPage() {
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadData, setUploadData] = useState({ name: '', description: '', category: '', isPublic: false });
     const [uploading, setUploading] = useState(false);
+
+    // Create Folder modal
+    const [showCreateFolder, setShowCreateFolder] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+
+    // Move Document modal
+    const [moveDialog, setMoveDialog] = useState({ open: false, doc: null });
+    const [moveCurrentFolder, setMoveCurrentFolder] = useState(null); // navigation inside modal
+    const [moveFolders, setMoveFolders] = useState([]); // list of folders in modal
 
     // View/Preview modal
     const [viewingDoc, setViewingDoc] = useState(null);
@@ -101,9 +114,17 @@ export default function DocumentsPage() {
     const loadDocuments = async () => {
         try {
             setLoading(true);
+            setLoading(true);
             const params = {};
             if (searchQuery) params.search = searchQuery;
             if (categoryFilter) params.category = categoryFilter;
+            // Only filter by folder if we are in 'my' documents tab and not searching globally
+            // (If searching, we might want to search all folders? For now, let's stick to current folder behavior or all if implemented server side)
+            // But typical behavior is search current folder or all. Let's assume current folder for now.
+            if (activeTab === 'my') {
+                params.folderId = currentFolder ? currentFolder.id : 'root';
+            }
+
             const res = await documentsAPI.getAll(params);
             setDocuments(res.data.data.documents || []);
         } catch (err) {
@@ -117,11 +138,80 @@ export default function DocumentsPage() {
         if (_hasHydrated && isAuthenticated) {
             if (activeTab === 'my') {
                 loadDocuments();
+                loadFolders();
             } else {
                 loadSharedDocuments();
             }
         }
-    }, [searchQuery, categoryFilter, dateFrom, dateTo, activeTab]);
+    }, [searchQuery, categoryFilter, dateFrom, dateTo, activeTab, currentFolder]);
+
+    const loadFolders = async () => {
+        try {
+            const parentId = currentFolder ? currentFolder.id : null;
+            const res = await foldersAPI.getAll(parentId);
+            setFolders(res.data.data.folders || []);
+        } catch (err) {
+            console.error('Failed to load folders:', err);
+        }
+    };
+
+    const handleCreateFolder = async (e) => {
+        e.preventDefault();
+        if (!newFolderName.trim()) return;
+
+        try {
+            await foldersAPI.create({
+                name: newFolderName,
+                parentId: currentFolder ? currentFolder.id : null
+            });
+            toast.success('Folder created successfully');
+            setNewFolderName('');
+            setShowCreateFolder(false);
+            loadFolders();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create folder');
+        }
+    };
+
+    const handleFolderClick = (folder) => {
+        setCurrentFolder(folder);
+        // Update breadcrumbs
+        if (folder) {
+            // If we are navigating down, add to breadcrumbs (or rebuild if we jumped)
+            // ideally we fetch breadcrumbs from server but local is faster for simple navigation
+            // For now let's just use what we have, but server does provide breadcrumbs on getById
+            // Let's implement full breadcrumb loading on folder click
+            loadFolderDetails(folder.id);
+        } else {
+            setFolderBreadcrumbs([]);
+        }
+        setSearchQuery(''); // Clear search on navigation
+    };
+
+    const loadFolderDetails = async (folderId) => {
+        try {
+            const res = await foldersAPI.getById(folderId);
+            setFolderBreadcrumbs(res.data.data.breadcrumbs || []);
+        } catch (err) {
+            console.error('Failed to load folder details:', err);
+            // If failed, maybe revert navigation?
+        }
+    };
+
+    const handleNavigateBreadcrumb = (folder) => {
+        setCurrentFolder(folder);
+        // When clicking a breadcrumb, we need to rebuild the breadcrumb trail up to that point
+        // But since we just set currentFolder, the next render + loadFolderDetails checks might be needed or 
+        // we can slice the current breadcrumbs.
+        if (!folder) {
+            setFolderBreadcrumbs([]);
+        } else {
+            const index = folderBreadcrumbs.findIndex(b => b.id === folder.id);
+            if (index !== -1) {
+                setFolderBreadcrumbs(folderBreadcrumbs.slice(0, index + 1));
+            }
+        }
+    };
 
     const loadSharedDocuments = async () => {
         try {
@@ -348,7 +438,62 @@ export default function DocumentsPage() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         toast.success('Link copied!');
+
     };
+
+    // --- Move Document Logic ---
+    const handleOpenMoveDialog = (doc) => {
+        setMoveDialog({ open: true, doc });
+        setMoveCurrentFolder(null); // Start at root
+        loadMoveFolders(null);
+    };
+
+    const loadMoveFolders = async (parentId) => {
+        try {
+            const res = await foldersAPI.getAll(parentId);
+            setMoveFolders(res.data.data.folders || []);
+        } catch (err) {
+            console.error('Failed to load move folders:', err);
+        }
+    };
+
+    const handleMoveNavigate = (folder) => {
+        setMoveCurrentFolder(folder);
+        loadMoveFolders(folder ? folder.id : null);
+    };
+
+    const handleMoveUp = async () => {
+        if (!moveCurrentFolder) return; // Already at root
+        if (!moveCurrentFolder.parentId) {
+            handleMoveNavigate(null); // Go to root
+        } else {
+            // We need to find the parent object. Since we don't have it easily available,
+            // we can fetch the current folder details to get parent.
+            // Or we could have maintained a breadcrumb stack for the modal.
+            // For simplicity, let's just fetch parent.
+            try {
+                const res = await foldersAPI.getById(moveCurrentFolder.id);
+                // The API returns parent object if exists
+                const parent = res.data.data.folder.parent;
+                handleMoveNavigate(parent || null); // parent might be null if root is parent
+            } catch (err) {
+                handleMoveNavigate(null); // Fallback to root
+            }
+        }
+    };
+
+    const handleMoveSubmit = async () => {
+        if (!moveDialog.doc) return;
+        try {
+            await foldersAPI.moveDocuments(moveCurrentFolder ? moveCurrentFolder.id : 'root', [moveDialog.doc.id]);
+            toast.success('Document moved successfully');
+            setMoveDialog({ open: false, doc: null });
+            loadDocuments(); // Refresh list
+        } catch (err) {
+            toast.error('Failed to move document');
+        }
+    };
+    // ---------------------------
 
     const formatDate = (date) => new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -447,9 +592,14 @@ export default function DocumentsPage() {
                         </div>
                     )}
                     {canUpload && (
-                        <button onClick={() => setShowUpload(true)} className="btn btn-primary">
-                            <Upload className="w-4 h-4" /> Upload Document
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowCreateFolder(true)} className="btn bg-slate-100 text-slate-700 hover:bg-slate-200">
+                                <FolderPlus className="w-4 h-4" /> New Folder
+                            </button>
+                            <button onClick={() => setShowUpload(true)} className="btn btn-primary">
+                                <Upload className="w-4 h-4" /> Upload Document
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -552,6 +702,36 @@ export default function DocumentsPage() {
                 </div>
             </div>
 
+            {/* Breadcrumbs */}
+            {activeTab === 'my' && (
+                <div className="flex items-center gap-2 mb-4 text-sm text-slate-600 overflow-x-auto pb-2">
+                    <button
+                        onClick={() => handleFolderClick(null)}
+                        className={`flex items-center gap-1 hover:text-primary-600 ${!currentFolder ? 'font-bold text-slate-900' : ''}`}
+                    >
+                        <HardDrive className="w-4 h-4" />
+                        My Documents
+                    </button>
+                    {folderBreadcrumbs.map((crumb, index) => (
+                        <div key={crumb.id} className="flex items-center gap-2 shrink-0">
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                            <button
+                                onClick={() => handleNavigateBreadcrumb(crumb)}
+                                className={`hover:text-primary-600 ${index === folderBreadcrumbs.length - 1 ? 'font-bold text-slate-900' : ''}`}
+                            >
+                                {crumb.name}
+                            </button>
+                        </div>
+                    ))}
+                    {currentFolder && !folderBreadcrumbs.find(b => b.id === currentFolder.id) && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                            <span className="font-bold text-slate-900">{currentFolder.name}</span>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Documents Grid */}
             {loading ? (
                 <div className="text-center py-12 text-slate-500">Loading...</div>
@@ -618,7 +798,7 @@ export default function DocumentsPage() {
                         </table>
                     </div>
                 )
-            ) : filteredDocuments.length === 0 ? (
+            ) : filteredDocuments.length === 0 && (activeTab !== 'my' || folders.length === 0) ? (
                 <div className="text-center py-12">
                     <FileText className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                     <p className="text-slate-500">{activeTab === 'shared' ? 'No documents shared with you' : 'No documents found'}</p>
@@ -628,6 +808,24 @@ export default function DocumentsPage() {
                 </div>
             ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Folders (Grid) */}
+                    {activeTab === 'my' && folders.map(folder => (
+                        <div
+                            key={folder.id}
+                            onClick={() => handleFolderClick(folder)}
+                            className="card p-4 hover:shadow-md transition-all cursor-pointer border border-slate-100 bg-slate-50/50"
+                        >
+                            <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Folder className="w-10 h-10 text-yellow-400 fill-yellow-100" />
+                                    <div className="overflow-hidden">
+                                        <h3 className="font-semibold text-slate-800 truncate" title={folder.name}>{folder.name}</h3>
+                                        <p className="text-xs text-slate-500">{folder.documentCount || 0} files • {folder.subfolderCount || 0} folders</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                     {sortedDocuments.map(item => {
                         const doc = activeTab === 'my' ? item : item.document;
                         const shareInfo = activeTab === 'shared' ? item : null;
@@ -699,6 +897,12 @@ export default function DocumentsPage() {
                                             <button onClick={() => handleEdit(doc)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
+                                            <button onClick={() => handleOpenMoveDialog(doc)} className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded" title="Move">
+                                                <FolderInput className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded">
+                                                <Share2 className="w-4 h-4" />
+                                            </button>
                                             <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded">
                                                 <Share2 className="w-4 h-4" />
                                             </button>
@@ -759,6 +963,39 @@ export default function DocumentsPage() {
                             </tr>
                         </thead>
                         <tbody>
+                            {/* Folders (List) */}
+                            {activeTab === 'my' && folders.map(folder => (
+                                <tr key={folder.id}
+                                    onClick={() => handleFolderClick(folder)}
+                                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group"
+                                >
+                                    <td className="p-3">
+                                        <div className="flex items-center gap-3">
+                                            <Folder className="w-6 h-6 text-yellow-400 fill-yellow-100" />
+                                            <div>
+                                                <p className="font-medium text-slate-900 group-hover:text-primary-600 transition-colors">{folder.name}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-sm text-slate-600 hidden md:table-cell">Folder</td>
+                                    <td className="p-3 text-sm text-slate-600 hidden md:table-cell">-</td>
+                                    {activeTab === 'my' && (
+                                        <>
+                                            <td className="p-3 hidden lg:table-cell">
+                                                <span className="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-600 rounded-full">
+                                                    Folder
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">-</td>
+                                        </>
+                                    )}
+                                    <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">{formatDate(folder.createdAt)}</td>
+                                    <td className="p-3">
+                                        {/* Folder Actions Placeholder */}
+                                    </td>
+                                </tr>
+                            ))}
+
                             {sortedDocuments.map(item => {
                                 const doc = activeTab === 'my' ? item : item.document;
                                 const shareInfo = activeTab === 'shared' ? item : null;
@@ -810,6 +1047,9 @@ export default function DocumentsPage() {
                                                     <>
                                                         <button onClick={() => handleEdit(doc)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
                                                             <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => handleOpenMoveDialog(doc)} className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded" title="Move">
+                                                            <FolderInput className="w-4 h-4" />
                                                         </button>
                                                         <button onClick={() => handleShare(doc)} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded" title="Share">
                                                             <Share2 className="w-4 h-4" />
@@ -916,7 +1156,9 @@ export default function DocumentsPage() {
                             </div>
                         </div>
                         <div className="flex-1 overflow-auto bg-slate-100 p-4">
-                            {['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(viewingDoc.fileType) ? (
+                            {['docx', 'xlsx', 'xls', 'csv'].includes(viewingDoc.fileType) ? (
+                                <FileViewer url={viewingDoc.url} fileType={viewingDoc.fileType} name={viewingDoc.name} />
+                            ) : ['pdf', 'doc'].includes(viewingDoc.fileType) ? (
                                 <iframe
                                     src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingDoc.url)}&embedded=true`}
                                     className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-white"
@@ -930,12 +1172,6 @@ export default function DocumentsPage() {
                                         className="max-w-full max-h-[500px] object-contain"
                                     />
                                 </div>
-                            ) : viewingDoc.fileType === 'csv' ? (
-                                <iframe
-                                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingDoc.url)}&embedded=true`}
-                                    className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-white"
-                                    title="CSV Preview"
-                                />
                             ) : viewingDoc.fileType === 'txt' ? (
                                 <iframe
                                     src={viewingDoc.url}
@@ -1360,6 +1596,111 @@ export default function DocumentsPage() {
                 </div>
             )}
 
+            {/* Create Folder Modal */}
+            {showCreateFolder && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                            <h3 className="font-bold text-lg">Create New Folder</h3>
+                            <button onClick={() => setShowCreateFolder(false)} className="text-slate-400 hover:text-slate-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCreateFolder} className="p-4 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Folder Name *</label>
+                                <input
+                                    type="text"
+                                    value={newFolderName}
+                                    onChange={(e) => setNewFolderName(e.target.value)}
+                                    className="input w-full"
+                                    placeholder="e.g. Project Docs"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCreateFolder(false)}
+                                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+                                    disabled={!newFolderName.trim()}
+                                >
+                                    Create Folder
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+
+
+            {/* Move Modal */}
+            {
+                moveDialog.open && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-lg">Move Document</h3>
+                                <button onClick={() => setMoveDialog({ open: false, doc: null })} className="text-slate-400 hover:text-slate-600">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
+                                    <Folder className="w-4 h-4" />
+                                    {moveCurrentFolder ? moveCurrentFolder.name : 'My Documents'}
+                                </div>
+                                {moveCurrentFolder && (
+                                    <button onClick={handleMoveUp} className="text-sm bg-white border px-2 py-1 rounded hover:bg-slate-50 flex items-center gap-1">
+                                        <CornerUpLeft className="w-3 h-3" /> Up
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2">
+                                {moveFolders.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500 text-sm">No folders here</div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {moveFolders.map(folder => (
+                                            <div
+                                                key={folder.id}
+                                                onClick={() => handleMoveNavigate(folder)}
+                                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-100 cursor-pointer"
+                                            >
+                                                <Folder className="w-5 h-5 text-yellow-500 fill-yellow-100" />
+                                                <span className="text-sm font-medium text-slate-700">{folder.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-4 border-t flex justify-end gap-3">
+                                <button
+                                    onClick={() => setMoveDialog({ open: false, doc: null })}
+                                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleMoveSubmit}
+                                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                                    disabled={moveDialog.doc && moveDialog.doc.folderId === (moveCurrentFolder ? moveCurrentFolder.id : null)}
+                                >
+                                    Move Here
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
             {/* Delete Confirm */}
             <ConfirmDialog
                 isOpen={deleteDialog.open}
@@ -1370,6 +1711,6 @@ export default function DocumentsPage() {
                 confirmText="Delete"
                 type="danger"
             />
-        </div>
+        </div >
     );
 }
