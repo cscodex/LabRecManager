@@ -10,13 +10,19 @@ const { asyncHandler } = require('../middleware/errorHandler');
  * @access  Private
  */
 router.get('/', authenticate, asyncHandler(async (req, res) => {
-    const { parentId } = req.query;
+    const { parentId, search } = req.query;
 
     const where = {
         schoolId: req.user.schoolId,
-        deletedAt: null,
-        parentId: parentId || null // null = root folders
+        deletedAt: null
     };
+
+    if (search) {
+        where.name = { contains: search, mode: 'insensitive' };
+        // When searching, we ignore parentId to search globally
+    } else {
+        where.parentId = parentId || null;
+    }
 
     const folders = await prisma.documentFolder.findMany({
         where,

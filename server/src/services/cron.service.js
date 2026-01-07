@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const prisma = require('../config/database');
-const logger = require('../config/logger');
+const logger = console; // Use console as logger fallback
 
 const initCronJobs = () => {
     // Run every day at midnight

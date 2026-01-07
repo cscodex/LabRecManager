@@ -97,6 +97,9 @@ export const documentsAPI = {
     getShared: (params) => api.get('/documents/shared', { params }),
     getShares: (id) => api.get(`/documents/${id}/shares`),
     removeShare: (shareId) => api.delete(`/documents/shares/${shareId}`),
+    // Bulk Actions
+    bulkCopy: (documentIds, targetFolderId) => api.post('/documents/bulk-copy', { documentIds, targetFolderId }),
+    bulkDelete: (documentIds) => api.post('/documents/bulk-delete', { documentIds }),
     // Trash / Recycle Bin
     getTrash: () => api.get('/documents/trash'),
     restore: (id) => api.post(`/documents/${id}/restore`),
@@ -114,7 +117,13 @@ export const storageAPI = {
 
 // Folders API - Document folder management
 export const foldersAPI = {
-    getAll: (parentId) => api.get('/folders', { params: parentId ? { parentId } : {} }),
+    getAll: (parentIdOrParams) => {
+        // Support either parentId string or params object
+        const params = typeof parentIdOrParams === 'object'
+            ? parentIdOrParams
+            : parentIdOrParams ? { parentId: parentIdOrParams } : {};
+        return api.get('/folders', { params });
+    },
     getById: (id) => api.get(`/folders/${id}`),
     create: (data) => api.post('/folders', data),
     update: (id, data) => api.put(`/folders/${id}`, data),
