@@ -542,8 +542,29 @@ export default function DocumentsPage() {
         setShareMode('target');
         setShareTargetType('');
         setShareMessage('');
-        setShareTargets([]);
         setQrCodeUrl('');
+
+        // Load existing folder shares
+        try {
+            const sharesRes = await foldersAPI.getShares(folder.id);
+            const existingShares = (sharesRes.data.data.shares || []).map(share => {
+                // Determine the type and id based on which target field is populated
+                if (share.targetClassId) {
+                    return { type: 'class', id: share.targetClassId };
+                } else if (share.targetGroupId) {
+                    return { type: 'group', id: share.targetGroupId };
+                } else if (share.targetUserId) {
+                    // Determine user type from targetUser.role or targetType
+                    const userType = share.targetUser?.role || share.targetType;
+                    return { type: userType, id: share.targetUserId };
+                }
+                return null;
+            }).filter(t => t && t.id);
+            setShareTargets(existingShares);
+        } catch (err) {
+            console.error('Failed to load folder shares:', err);
+            setShareTargets([]);
+        }
     };
 
     const handleShareSubmit = async () => {
@@ -1173,6 +1194,18 @@ export default function DocumentsPage() {
                                                 {folder.documentCount || 0} files • {folder.subfolderCount || 0} folders
                                                 {folder.totalSizeFormatted && folder.totalSizeFormatted !== '-' && ` • ${folder.totalSizeFormatted}`}
                                             </p>
+                                            {/* Share info badges */}
+                                            {folder.shareInfo && folder.shareInfo.length > 0 && (
+                                                <div className="mt-1 flex flex-wrap gap-1 items-center">
+                                                    <Share2 className="w-3 h-3 text-emerald-500" />
+                                                    {folder.shareInfo.slice(0, 3).map((share, i) => (
+                                                        <span key={i} className="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">{share.name}</span>
+                                                    ))}
+                                                    {folder.shareInfo.length > 3 && (
+                                                        <span className="text-xs text-emerald-500">+{folder.shareInfo.length - 3} more</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -1384,7 +1417,20 @@ export default function DocumentsPage() {
                                                         Folder
                                                     </span>
                                                 </td>
-                                                <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">-</td>
+                                                <td className="p-3 hidden lg:table-cell">
+                                                    {folder.shareInfo && folder.shareInfo.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1 items-center">
+                                                            {folder.shareInfo.slice(0, 2).map((share, i) => (
+                                                                <span key={i} className="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">{share.name}</span>
+                                                            ))}
+                                                            {folder.shareInfo.length > 2 && (
+                                                                <span className="text-xs text-emerald-500">+{folder.shareInfo.length - 2}</span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-sm text-slate-400">-</span>
+                                                    )}
+                                                </td>
                                             </>
                                         )}
                                         <td className="p-3 text-sm text-slate-600 hidden lg:table-cell">{formatDate(folder.createdAt)}</td>

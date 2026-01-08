@@ -28,6 +28,19 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
         where,
         include: {
             createdBy: { select: { id: true, firstName: true, lastName: true } },
+            shares: {
+                select: {
+                    id: true,
+                    targetType: true,
+                    targetClassId: true,
+                    targetGroupId: true,
+                    targetUserId: true,
+                    targetClass: { select: { id: true, name: true } },
+                    targetGroup: { select: { id: true, name: true } },
+                    targetUser: { select: { id: true, firstName: true, lastName: true, role: true } },
+                    sharedAt: true
+                }
+            },
             _count: {
                 select: {
                     documents: { where: { deletedAt: null } },
@@ -73,12 +86,35 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
     // Calculate sizes for all folders
     const foldersWithSize = await Promise.all(folders.map(async (f) => {
         const totalSize = await calculateFolderSize(f.id);
+
+        // Format share info for frontend display
+        const shareInfo = (f.shares || []).map(share => {
+            let type, targetId, name;
+            if (share.targetClassId) {
+                type = 'class';
+                targetId = share.targetClassId;
+                name = share.targetClass?.name || 'Class';
+            } else if (share.targetGroupId) {
+                type = 'group';
+                targetId = share.targetGroupId;
+                name = share.targetGroup?.name || 'Group';
+            } else if (share.targetUserId) {
+                type = share.targetUser?.role || share.targetType;
+                targetId = share.targetUserId;
+                name = share.targetUser ? `${share.targetUser.firstName} ${share.targetUser.lastName}` : 'User';
+            } else {
+                return null;
+            }
+            return { type, targetId, name, sharedAt: share.sharedAt };
+        }).filter(Boolean);
+
         return {
             ...f,
             documentCount: f._count.documents,
             subfolderCount: f._count.children,
             totalSize,
-            totalSizeFormatted: formatSize(totalSize)
+            totalSizeFormatted: formatSize(totalSize),
+            shareInfo
         };
     }));
 
