@@ -53,6 +53,13 @@ router.post('/login', loginValidation, asyncHandler(async (req, res) => {
                     nameHindi: true,
                     primaryLanguage: true
                 }
+            },
+            labsInCharge: {
+                select: {
+                    id: true,
+                    name: true,
+                    roomNumber: true
+                }
             }
         }
     });
@@ -145,7 +152,8 @@ router.post('/login', loginValidation, asyncHandler(async (req, res) => {
                 employeeId: user.employeeId,
                 preferredLanguage: user.preferredLanguage,
                 profileImageUrl: user.profileImageUrl,
-                school: user.school
+                school: user.school,
+                labsInCharge: user.labsInCharge || []
             },
             accessToken,
             refreshToken
@@ -309,6 +317,13 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
                     nameHindi: true,
                     primaryLanguage: true,
                     secondaryLanguages: true
+                }
+            },
+            labsInCharge: {
+                select: {
+                    id: true,
+                    name: true,
+                    roomNumber: true
                 }
             }
         }
