@@ -232,11 +232,6 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                                     ID: {user.studentId || user.admissionNumber || user.employeeId}
                                 </p>
                             )}
-                            {user.labsInCharge && user.labsInCharge.length > 0 && (
-                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate" title={user.labsInCharge.map(l => l.name).join(', ')}>
-                                    🔬 {user.labsInCharge.length === 1 ? user.labsInCharge[0].name : `${user.labsInCharge.length} Labs`}
-                                </p>
-                            )}
                         </div>
                     </Link>
                 )}
