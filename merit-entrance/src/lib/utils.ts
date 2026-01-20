@@ -59,3 +59,19 @@ export const questionStatusColors = {
     markedForReview: 'bg-purple-500 text-white',
     answeredAndMarked: 'bg-purple-500 text-white ring-2 ring-green-400',
 };
+
+// Get question status color class
+export function getQuestionStatusColor(status: string): string {
+    switch (status) {
+        case 'not_visited':
+            return 'bg-gray-300 text-gray-600 hover:bg-gray-400';
+        case 'not_answered':
+            return 'bg-red-500 text-white hover:bg-red-600';
+        case 'answered':
+            return 'bg-green-500 text-white hover:bg-green-600';
+        case 'marked':
+            return 'bg-purple-500 text-white hover:bg-purple-600';
+        default:
+            return 'bg-gray-300 text-gray-600';
+    }
+}
