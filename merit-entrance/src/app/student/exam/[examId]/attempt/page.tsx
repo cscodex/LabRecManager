@@ -240,7 +240,7 @@ export default function ExamAttemptPage() {
     };
 
     const markAsVisited = (questionId: string) => {
-        setVisitedQuestions(prev => new Set([...prev, questionId]));
+        setVisitedQuestions(prev => new Set(Array.from(prev).concat([questionId])));
     };
 
     const goToQuestion = (sectionIdx: number, questionIdx: number) => {
@@ -352,8 +352,8 @@ export default function ExamAttemptPage() {
                             if (sectionQs[0]) markAsVisited(sectionQs[0].id);
                         }}
                         className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${currentSectionIndex === idx
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                     >
                         {getText(section.name, language)}
@@ -403,13 +403,13 @@ export default function ExamAttemptPage() {
                                             key={option.id}
                                             onClick={() => handleOptionSelect(option.id)}
                                             className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition ${isSelected
-                                                    ? 'border-blue-600 bg-blue-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                ? 'border-blue-600 bg-blue-50'
+                                                : 'border-gray-200 hover:border-gray-300'
                                                 }`}
                                         >
                                             <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${isSelected
-                                                    ? 'bg-blue-600 border-blue-600 text-white'
-                                                    : 'border-gray-400 text-gray-600'
+                                                ? 'bg-blue-600 border-blue-600 text-white'
+                                                : 'border-gray-400 text-gray-600'
                                                 }`}>
                                                 {option.id.toUpperCase()}
                                             </span>
