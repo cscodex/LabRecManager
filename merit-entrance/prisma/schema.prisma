@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ USERS ============
+model Admin {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         String   @default("admin") // admin, superadmin
+  createdAt    DateTime @default(now()) @map("created_at")
+  exams        Exam[]
+  
+  @@map("admins")
+}
+
+model Student {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rollNumber   String       @unique @map("roll_number")
+  name         String
+  nameRegional String?      @map("name_regional")
+  email        String?
+  phone        String?
+  passwordHash String       @map("password_hash")
+  photoUrl     String?      @map("photo_url")
+  class        String?
+  school       String?
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  attempts     ExamAttempt[]
+  assignments  ExamAssignment[]
+  
+  @@map("students")
+}
+
+// ============ EXAMS ============
+model Exam {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title            Json         // { "en": "...", "pa": "..." }
+  description      Json?
+  duration         Int          // in minutes
+  totalMarks       Int          @map("total_marks")
+  passingMarks     Int?         @map("passing_marks")
+  negativeMarking  Decimal?     @map("negative_marking") @db.Decimal(3,2)
+  shuffleQuestions Boolean      @default(false) @map("shuffle_questions")
+  showResults      String       @default("after_submit") // after_submit, after_end, manual
+  status           String       @default("draft") // draft, published, archived
+  createdById      String       @map("created_by") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  
+  createdBy   Admin        @relation(fields: [createdById], references: [id])
+  sections    Section[]
+  schedules   ExamSchedule[]
+  assignments ExamAssignment[]
+  attempts    ExamAttempt[]
+  
+  @@map("exams")
+}
+
+model Section {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId    String     @map("exam_id") @db.Uuid
+  name      Json       // { "en": "Mathematics", "pa": "ਗਣਿਤ" }
+  order     Int
+  duration  Int?       // optional section-specific time limit
+  
+  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questions Question[]
+  
+  @@map("sections")
+}
+
+model Question {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId     String   @map("section_id") @db.Uuid
+  type          String   // mcq_single, mcq_multiple, fill_blank, numerical
+  text          Json     // { "en": "...", "pa": "..." }
+  options       Json?    // [{ "id": "a", "text": {"en": "...", "pa": "..."} }]
+  correctAnswer Json     @map("correct_answer") // ["a"] or ["a","c"] or "42"
+  explanation   Json?    // { "en": "...", "pa": "..." }
+  marks         Int      @default(1)
+  negativeMarks Decimal? @map("negative_marks") @db.Decimal(3,2)
+  imageUrl      String?  @map("image_url")
+  order         Int
+  
+  section   Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  responses QuestionResponse[]
+  
+  @@map("questions")
+}
+
+// ============ SCHEDULING ============
+model ExamSchedule {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId    String   @map("exam_id") @db.Uuid
+  startTime DateTime @map("start_time") @db.Timestamptz
+  endTime   DateTime @map("end_time") @db.Timestamptz
+  
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  
+  @@map("exam_schedules")
+}
+
+model ExamAssignment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId     String   @map("exam_id") @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  @@unique([examId, studentId])
+  @@map("exam_assignments")
+}
+
+// ============ ATTEMPTS & RESPONSES ============
+model ExamAttempt {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId      String    @map("exam_id") @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz
+  autoSubmit  Boolean   @default(false) @map("auto_submit")
+  totalScore  Decimal?  @map("total_score") @db.Decimal(6,2)
+  status      String    @default("in_progress") // in_progress, submitted, evaluated
+  
+  exam      Exam      @relation(fields: [examId], references: [id])
+  student   Student   @relation(fields: [studentId], references: [id])
+  responses QuestionResponse[]
+  
+  @@unique([examId, studentId])
+  @@index([examId, status])
+  @@map("exam_attempts")
+}
+
+model QuestionResponse {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId       String   @map("attempt_id") @db.Uuid
+  questionId      String   @map("question_id") @db.Uuid
+  answer          Json?    // Selected option(s) or text
+  markedForReview Boolean  @default(false) @map("marked_for_review")
+  timeSpent       Int?     @map("time_spent") // seconds
+  isCorrect       Boolean? @map("is_correct")
+  marksAwarded    Decimal? @map("marks_awarded") @db.Decimal(5,2)
+  
+  attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id])
+  
+  @@unique([attemptId, questionId])
+  @@map("question_responses")
+}
