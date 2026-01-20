@@ -10,12 +10,15 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -31,32 +34,77 @@ body {
   background: #94a3b8;
 }
 
+/* Hide scrollbar on mobile for cleaner look */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+}
+
 /* Button base styles */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  transition: all 0.2s;
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .btn-primary {
-  background-color: #2563eb;
-  color: white;
+  @apply bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800;
 }
 
-.btn-primary:hover {
-  background-color: #1d4ed8;
+.btn-secondary {
+  @apply bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+}
+
+.btn-ghost {
+  @apply text-gray-600 hover:bg-gray-100 active:bg-gray-200;
 }
 
 /* Card styles */
 .card {
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  @apply bg-white rounded-xl shadow-sm;
+}
+
+.card-hover {
+  @apply hover:shadow-md transition-shadow duration-200;
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200;
+}
+
+.input-error {
+  @apply border-red-500 focus:ring-red-500;
+}
+
+/* Mobile-first responsive utilities */
+@layer utilities {
+
+  /* Touch-friendly tap targets */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Safe area padding for notched devices */
+  .safe-area-inset {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Hide on mobile */
+  .hide-mobile {
+    @apply hidden md:block;
+  }
+
+  /* Show only on mobile */
+  .show-mobile {
+    @apply block md:hidden;
+  }
 }
 
 /* Animation utilities */
@@ -72,6 +120,111 @@ body {
   }
 }
 
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Exam interface specific styles */
+.exam-header {
+  @apply bg-blue-900 text-white sticky top-0 z-40;
+}
+
+.exam-sidebar {
+  @apply bg-white border-l flex flex-col;
+  width: 280px;
+}
+
+@media (max-width: 1024px) {
+  .exam-sidebar {
+    @apply fixed right-0 top-0 h-full z-50 transform translate-x-full transition-transform;
+    width: 300px;
+  }
+
+  .exam-sidebar.open {
+    @apply translate-x-0;
+  }
+}
+
+/* Question navigation button styles */
+.question-nav-btn {
+  @apply w-9 h-9 rounded text-sm font-medium transition-all duration-150;
+}
+
+/* Timer warning styles */
+.timer-warning {
+  @apply animate-pulse text-red-600;
+}
+
+/* Results page styles */
+.score-card {
+  @apply rounded-2xl p-6 text-white shadow-lg;
+}
+
+.score-card.passed {
+  @apply bg-gradient-to-r from-green-500 to-emerald-600;
+}
+
+.score-card.failed {
+  @apply bg-gradient-to-r from-red-500 to-rose-600;
+}
+
+.score-card.neutral {
+  @apply bg-gradient-to-r from-blue-500 to-indigo-600;
+}
+
+/* Modal/Dialog backdrop */
+.modal-backdrop {
+  @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4;
+}
+
+.modal-content {
+  @apply bg-white rounded-xl max-h-[90vh] overflow-y-auto animate-slide-up;
+}
+
+/* Focus ring for accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }
