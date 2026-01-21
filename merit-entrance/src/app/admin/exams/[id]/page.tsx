@@ -7,7 +7,7 @@ import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import {
     ChevronLeft, Save, Plus, Trash2, GripVertical,
-    FileText, Globe, Settings, Calendar
+    FileText, Globe, Settings, Calendar, ChevronUp, ChevronDown, Edit2, X, Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -43,6 +43,8 @@ export default function EditExamPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'details' | 'sections'>('details');
+    const [editingSection, setEditingSection] = useState<Section | null>(null);
+    const [editSectionData, setEditSectionData] = useState({ nameEn: '', namePa: '', duration: '' });
 
     const [formData, setFormData] = useState({
         titleEn: '',
@@ -57,7 +59,7 @@ export default function EditExamPage() {
         status: 'draft',
     });
 
-    const [newSection, setNewSection] = useState({ nameEn: '', namePa: '' });
+    const [newSection, setNewSection] = useState({ nameEn: '', namePa: '', duration: '' });
     const [showAddSection, setShowAddSection] = useState(false);
 
     useEffect(() => {
@@ -137,12 +139,13 @@ export default function EditExamPage() {
                 body: JSON.stringify({
                     name: { en: newSection.nameEn, pa: newSection.namePa || newSection.nameEn },
                     order: (exam?.sections.length || 0) + 1,
+                    duration: newSection.duration ? parseInt(newSection.duration) : null,
                 }),
             });
 
             if (response.ok) {
                 toast.success('Section added!');
-                setNewSection({ nameEn: '', namePa: '' });
+                setNewSection({ nameEn: '', namePa: '', duration: '' });
                 setShowAddSection(false);
                 loadExam();
             }
@@ -167,6 +170,90 @@ export default function EditExamPage() {
         }
     };
 
+    // Move section up/down
+    const handleMoveSection = async (sectionId: string, direction: 'up' | 'down') => {
+        if (!exam) return;
+
+        const sections = [...exam.sections].sort((a, b) => a.order - b.order);
+        const index = sections.findIndex(s => s.id === sectionId);
+
+        if (direction === 'up' && index > 0) {
+            // Swap with previous
+            const temp = sections[index - 1].order;
+            sections[index - 1].order = sections[index].order;
+            sections[index].order = temp;
+        } else if (direction === 'down' && index < sections.length - 1) {
+            // Swap with next
+            const temp = sections[index + 1].order;
+            sections[index + 1].order = sections[index].order;
+            sections[index].order = temp;
+        } else {
+            return;
+        }
+
+        // Update both sections
+        try {
+            await Promise.all([
+                fetch(`/api/admin/exams/${examId}/sections/${sections[index].id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: sections[index].name,
+                        order: sections[index].order,
+                        duration: sections[index].duration,
+                    }),
+                }),
+                fetch(`/api/admin/exams/${examId}/sections/${sections[direction === 'up' ? index - 1 : index + 1].id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: sections[direction === 'up' ? index - 1 : index + 1].name,
+                        order: sections[direction === 'up' ? index - 1 : index + 1].order,
+                        duration: sections[direction === 'up' ? index - 1 : index + 1].duration,
+                    }),
+                }),
+            ]);
+            loadExam();
+        } catch (error) {
+            toast.error('Failed to reorder sections');
+        }
+    };
+
+    // Start editing a section
+    const startEditSection = (section: Section) => {
+        setEditingSection(section);
+        setEditSectionData({
+            nameEn: section.name.en || '',
+            namePa: section.name.pa || '',
+            duration: section.duration?.toString() || '',
+        });
+    };
+
+    // Save section edits
+    const saveEditSection = async () => {
+        if (!editingSection) return;
+
+        try {
+            const response = await fetch(`/api/admin/exams/${examId}/sections/${editingSection.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: { en: editSectionData.nameEn, pa: editSectionData.namePa || editSectionData.nameEn },
+                    order: editingSection.order,
+                    duration: editSectionData.duration ? parseInt(editSectionData.duration) : null,
+                }),
+            });
+
+            if (response.ok) {
+                toast.success('Section updated!');
+                setEditingSection(null);
+                loadExam();
+            }
+        } catch (error) {
+            toast.error('Failed to update section');
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -182,6 +269,8 @@ export default function EditExamPage() {
             </div>
         );
     }
+
+    const sortedSections = [...exam.sections].sort((a, b) => a.order - b.order);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -226,8 +315,8 @@ export default function EditExamPage() {
                         <button
                             onClick={() => setActiveTab('details')}
                             className={`px-4 py-2 rounded-t-lg text-sm font-medium ${activeTab === 'details'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
                             <Settings className="w-4 h-4 inline mr-1" /> Details
@@ -235,8 +324,8 @@ export default function EditExamPage() {
                         <button
                             onClick={() => setActiveTab('sections')}
                             className={`px-4 py-2 rounded-t-lg text-sm font-medium ${activeTab === 'sections'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
                             <FileText className="w-4 h-4 inline mr-1" /> Sections & Questions
@@ -304,7 +393,7 @@ export default function EditExamPage() {
                         {/* Settings Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (min) *</label>
                                 <input
                                     type="number"
                                     value={formData.duration}
@@ -370,47 +459,121 @@ export default function EditExamPage() {
                 ) : (
                     <div className="space-y-4">
                         {/* Sections List */}
-                        {exam.sections.map((section) => (
+                        {sortedSections.map((section, index) => (
                             <div key={section.id} className="bg-white rounded-xl shadow-sm p-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <GripVertical className="w-5 h-5 text-gray-400 cursor-grab" />
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900">
-                                                {getText(section.name, language)}
-                                            </h3>
-                                            <p className="text-sm text-gray-500">
-                                                {section.question_count} questions
-                                            </p>
+                                {editingSection?.id === section.id ? (
+                                    // Edit Mode
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <input
+                                                type="text"
+                                                value={editSectionData.nameEn}
+                                                onChange={(e) => setEditSectionData({ ...editSectionData, nameEn: e.target.value })}
+                                                placeholder="Section name (English)"
+                                                className="px-3 py-2 border rounded-lg"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={editSectionData.namePa}
+                                                onChange={(e) => setEditSectionData({ ...editSectionData, namePa: e.target.value })}
+                                                placeholder="Section name (Punjabi)"
+                                                className="px-3 py-2 border rounded-lg"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="w-4 h-4 text-gray-400" />
+                                                <input
+                                                    type="number"
+                                                    value={editSectionData.duration}
+                                                    onChange={(e) => setEditSectionData({ ...editSectionData, duration: e.target.value })}
+                                                    placeholder="Duration (min)"
+                                                    className="flex-1 px-3 py-2 border rounded-lg"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setEditingSection(null)}
+                                                className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={saveEditSection}
+                                                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                            >
+                                                Save
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Link
-                                            href={`/admin/exams/${examId}/sections/${section.id}/questions`}
-                                            className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                                        >
-                                            Manage Questions
-                                        </Link>
-                                        <button
-                                            onClick={() => handleDeleteSection(section.id)}
-                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                ) : (
+                                    // View Mode
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            {/* Reorder buttons */}
+                                            <div className="flex flex-col gap-0.5">
+                                                <button
+                                                    onClick={() => handleMoveSection(section.id, 'up')}
+                                                    disabled={index === 0}
+                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    title="Move up"
+                                                >
+                                                    <ChevronUp className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleMoveSection(section.id, 'down')}
+                                                    disabled={index === sortedSections.length - 1}
+                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    title="Move down"
+                                                >
+                                                    <ChevronDown className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-gray-900">
+                                                    {getText(section.name, language)}
+                                                </h3>
+                                                <p className="text-sm text-gray-500">
+                                                    {section.question_count} questions
+                                                    {section.duration && ` • ${section.duration} min`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => startEditSection(section)}
+                                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                                                title="Edit section"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <Link
+                                                href={`/admin/exams/${examId}/sections/${section.id}/questions`}
+                                                className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                                            >
+                                                Questions
+                                            </Link>
+                                            <button
+                                                onClick={() => handleDeleteSection(section.id)}
+                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         ))}
 
                         {/* Add Section */}
                         {showAddSection ? (
                             <div className="bg-white rounded-xl shadow-sm p-4 space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <h4 className="font-medium text-gray-900">Add New Section</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <input
                                         type="text"
                                         value={newSection.nameEn}
                                         onChange={(e) => setNewSection({ ...newSection, nameEn: e.target.value })}
-                                        placeholder="Section name (English)"
+                                        placeholder="Section name (English) *"
                                         className="px-4 py-2 border rounded-lg"
                                     />
                                     <input
@@ -420,6 +583,16 @@ export default function EditExamPage() {
                                         placeholder="Section name (Punjabi)"
                                         className="px-4 py-2 border rounded-lg"
                                     />
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="number"
+                                            value={newSection.duration}
+                                            onChange={(e) => setNewSection({ ...newSection, duration: e.target.value })}
+                                            placeholder="Duration (optional)"
+                                            className="flex-1 px-4 py-2 border rounded-lg"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
