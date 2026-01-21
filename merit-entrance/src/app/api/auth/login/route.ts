@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getPrismaAsync } from '@/lib/prisma';
 import { setSession } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
@@ -13,6 +13,9 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
+
+        // Get prisma client asynchronously
+        const prisma = await getPrismaAsync();
 
         if (type === 'admin') {
             // Admin login with email
