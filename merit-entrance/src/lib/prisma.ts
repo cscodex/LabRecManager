@@ -64,6 +64,7 @@ export function getPrisma(): PrismaClient {
 }
 
 // For backwards compatibility - use direct getter call in API routes instead
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const prisma = new Proxy({} as PrismaClient, {
     get(_target, prop: string | symbol) {
         if (prop === 'then') {
@@ -71,9 +72,10 @@ export const prisma = new Proxy({} as PrismaClient, {
             return undefined;
         }
         const client = getPrisma();
-        const value = (client as Record<string | symbol, unknown>)[prop];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const value = (client as any)[prop];
         if (typeof value === 'function') {
-            return (value as Function).bind(client);
+            return value.bind(client);
         }
         return value;
     }
