@@ -2,67 +2,78 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaNeon } from '@prisma/adapter-neon';
 import { neon } from '@neondatabase/serverless';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient | undefined };
+// Singleton storage
+let prismaInstance: PrismaClient | null = null;
 
+// Get connection string at runtime
 function getConnectionString(): string {
-    // Check multiple possible environment variable names
-    const connectionString = process.env.MERIT_DATABASE_URL
-        || process.env.MERIT_DIRECT_URL
-        || process.env.DATABASE_URL
-        || process.env.DIRECT_URL;
+    // Log ALL environment variables for debugging
+    const allEnvKeys = Object.keys(process.env);
+    console.log('[Prisma Debug] Total env vars:', allEnvKeys.length);
+    console.log('[Prisma Debug] Relevant env vars:', allEnvKeys.filter(k =>
+        k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('NEON') ||
+        k.includes('MERIT') || k.includes('NODE') || k.includes('URL')
+    ));
 
-    // Log which variable was found (for debugging)
-    console.log('[Prisma] Checking env vars:',
-        'MERIT_DATABASE_URL:', !!process.env.MERIT_DATABASE_URL,
-        'MERIT_DIRECT_URL:', !!process.env.MERIT_DIRECT_URL,
-        'DATABASE_URL:', !!process.env.DATABASE_URL
-    );
+    // Check each variable explicitly
+    const meritDbUrl = process.env.MERIT_DATABASE_URL;
+    const meritDirectUrl = process.env.MERIT_DIRECT_URL;
+    const dbUrl = process.env.DATABASE_URL;
+
+    console.log('[Prisma Debug] MERIT_DATABASE_URL exists:', !!meritDbUrl, 'length:', meritDbUrl?.length);
+    console.log('[Prisma Debug] MERIT_DIRECT_URL exists:', !!meritDirectUrl, 'length:', meritDirectUrl?.length);
+    console.log('[Prisma Debug] DATABASE_URL exists:', !!dbUrl, 'length:', dbUrl?.length);
+
+    const connectionString = meritDbUrl || meritDirectUrl || dbUrl;
 
     if (!connectionString) {
-        console.error('[Prisma] Available env vars:', Object.keys(process.env).filter(k =>
-            k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('NEON') || k.includes('MERIT')
-        ));
-        throw new Error('Database connection string not found. Set MERIT_DATABASE_URL or DATABASE_URL.');
+        throw new Error(`Database connection string not found. Checked: MERIT_DATABASE_URL, MERIT_DIRECT_URL, DATABASE_URL`);
     }
 
     return connectionString;
 }
 
-function createPrismaClient(): PrismaClient {
+// Create Prisma client - only called at runtime
+function createClient(): PrismaClient {
+    console.log('[Prisma] Creating new PrismaClient...');
+
     const connectionString = getConnectionString();
+    console.log('[Prisma] Connection string obtained, length:', connectionString.length);
 
-    // Use neon() function which is the HTTP-based driver
+    // Use neon HTTP driver
     const sql = neon(connectionString);
+    console.log('[Prisma] Neon client created');
 
-    // @ts-ignore - Prisma adapter type
+    // @ts-ignore
     const adapter = new PrismaNeon(sql);
+    console.log('[Prisma] Neon adapter created');
 
-    // @ts-ignore - adapter type
-    return new PrismaClient({ adapter });
+    // @ts-ignore
+    const client = new PrismaClient({ adapter });
+    console.log('[Prisma] PrismaClient created successfully');
+
+    return client;
 }
 
-// Lazy getter function - creates client on first access
-function getPrismaClient(): PrismaClient {
-    if (!globalForPrisma.prisma) {
-        globalForPrisma.prisma = createPrismaClient();
+// Export getter function that lazily creates client
+export function getPrisma(): PrismaClient {
+    if (!prismaInstance) {
+        prismaInstance = createClient();
     }
-    return globalForPrisma.prisma;
+    return prismaInstance;
 }
 
-// Create a getter-based export that delays initialization
-const prismaHandler = {
-    get client(): PrismaClient {
-        return getPrismaClient();
-    }
-};
-
-// For backwards compatibility with existing imports
+// For backwards compatibility - use direct getter call in API routes instead
 export const prisma = new Proxy({} as PrismaClient, {
     get(_target, prop: string | symbol) {
-        const client = getPrismaClient();
-        const value = (client as any)[prop];
+        if (prop === 'then') {
+            // Prevent Promise detection
+            return undefined;
+        }
+        const client = getPrisma();
+        const value = (client as Record<string | symbol, unknown>)[prop];
         if (typeof value === 'function') {
-            return value.bind(client);
+            return (value as Function).bind(client);
         }
         return value;
     }
