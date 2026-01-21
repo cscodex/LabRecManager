@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaNeon } from '@prisma/adapter-neon';
-import { neon } from '@neondatabase/serverless';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
+
+// Configure WebSocket for Node.js environment (required for Neon Pool)
+neonConfig.webSocketConstructor = ws;
 
 // Singleton storage
 let prismaInstance: PrismaClient | null = null;
@@ -19,9 +23,6 @@ function getConnectionString(): string {
     const connectionString = meritDbUrl || meritDirectUrl || dbUrl;
 
     if (!connectionString) {
-        const allKeys = Object.keys(process.env);
-        console.log('[Prisma] Total env vars:', allKeys.length);
-        console.log('[Prisma] Sample env keys (first 20):', allKeys.slice(0, 20));
         throw new Error('MERIT_DATABASE_URL environment variable is not set');
     }
 
@@ -29,18 +30,18 @@ function getConnectionString(): string {
 }
 
 function createClient(): PrismaClient {
-    console.log('[Prisma] Initializing PrismaClient with Neon adapter...');
+    console.log('[Prisma] Initializing PrismaClient with Neon Pool adapter...');
 
     const connectionString = getConnectionString();
-    console.log('[Prisma] Got connection string, creating Neon client...');
+    console.log('[Prisma] Connection string starts with:', connectionString.substring(0, 30) + '...');
 
-    // Create Neon SQL client
-    const sql = neon(connectionString);
-    console.log('[Prisma] Neon SQL client created');
+    // Create a Neon Pool with the connection string
+    const pool = new Pool({ connectionString });
+    console.log('[Prisma] Neon Pool created with WebSocket support');
 
-    // Create adapter - type assertion needed for compatibility
-    // @ts-ignore - PrismaNeon types don't match perfectly with neon() return type
-    const adapter = new PrismaNeon(sql);
+    // Create adapter with the Pool
+    // @ts-ignore - PrismaNeon types
+    const adapter = new PrismaNeon(pool);
     console.log('[Prisma] Neon adapter created');
 
     // Create Prisma client with adapter

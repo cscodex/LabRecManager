@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { neon } from '@neondatabase/serverless';
 import { setSession } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+
+const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 export async function POST(request: NextRequest) {
     try {
@@ -14,23 +16,24 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get prisma client
-        const prisma = getPrisma();
-
         if (type === 'admin') {
             // Admin login with email
-            const admin = await prisma.admin.findUnique({
-                where: { email: identifier },
-            });
+            const admins = await sql`
+                SELECT id, email, password_hash, name, role 
+                FROM admins 
+                WHERE email = ${identifier}
+                LIMIT 1
+            `;
 
-            if (!admin) {
+            if (admins.length === 0) {
                 return NextResponse.json(
                     { error: 'Invalid credentials' },
                     { status: 401 }
                 );
             }
 
-            const isValid = await bcrypt.compare(password, admin.passwordHash);
+            const admin = admins[0];
+            const isValid = await bcrypt.compare(password, admin.password_hash);
             if (!isValid) {
                 return NextResponse.json(
                     { error: 'Invalid credentials' },
@@ -53,25 +56,30 @@ export async function POST(request: NextRequest) {
             });
         } else {
             // Student login with roll number
-            const student = await prisma.student.findUnique({
-                where: { rollNumber: identifier },
-            });
+            const students = await sql`
+                SELECT id, roll_number, password_hash, name, is_active, photo_url
+                FROM students 
+                WHERE roll_number = ${identifier}
+                LIMIT 1
+            `;
 
-            if (!student) {
+            if (students.length === 0) {
                 return NextResponse.json(
                     { error: 'Invalid credentials' },
                     { status: 401 }
                 );
             }
 
-            if (!student.isActive) {
+            const student = students[0];
+
+            if (!student.is_active) {
                 return NextResponse.json(
                     { error: 'Account is disabled. Contact admin.' },
                     { status: 403 }
                 );
             }
 
-            const isValid = await bcrypt.compare(password, student.passwordHash);
+            const isValid = await bcrypt.compare(password, student.password_hash);
             if (!isValid) {
                 return NextResponse.json(
                     { error: 'Invalid credentials' },
@@ -81,10 +89,10 @@ export async function POST(request: NextRequest) {
 
             const user = {
                 id: student.id,
-                rollNumber: student.rollNumber,
+                rollNumber: student.roll_number,
                 name: student.name,
                 role: 'student' as const,
-                photoUrl: student.photoUrl || undefined,
+                photoUrl: student.photo_url || undefined,
             };
 
             await setSession(user);
@@ -97,12 +105,9 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Login error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const errorStack = error instanceof Error ? error.stack : undefined;
         return NextResponse.json(
             {
                 error: 'Internal server error',
-                debug: process.env.NODE_ENV !== 'production' ? { message: errorMessage, stack: errorStack } : undefined,
-                // Temporarily expose error for debugging - remove after fixing
                 _debugMessage: errorMessage
             },
             { status: 500 }
