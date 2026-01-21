@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import {
-    ChevronLeft, Save, Plus, Trash2, GripVertical,
-    FileText, Globe, Settings, Calendar, ChevronUp, ChevronDown, Edit2, X, Clock
+    ChevronLeft, Save, Plus, Trash2,
+    FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, X, Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -40,6 +40,7 @@ export default function EditExamPage() {
     const { language, setLanguage } = useAuthStore();
 
     const [exam, setExam] = useState<Exam | null>(null);
+    const [sections, setSections] = useState<Section[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'details' | 'sections'>('details');
@@ -73,6 +74,7 @@ export default function EditExamPage() {
             if (data.success) {
                 const e = data.exam;
                 setExam(e);
+                setSections(e.sections || []);
                 setFormData({
                     titleEn: e.title.en || '',
                     titlePa: e.title.pa || '',
@@ -90,6 +92,14 @@ export default function EditExamPage() {
             toast.error('Failed to load exam');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Optimistic update for sections
+    const updateSectionsOptimistically = (newSections: Section[]) => {
+        setSections(newSections);
+        if (exam) {
+            setExam({ ...exam, sections: newSections });
         }
     };
 
@@ -115,7 +125,6 @@ export default function EditExamPage() {
 
             if (response.ok) {
                 toast.success('Exam saved!');
-                loadExam();
             } else {
                 toast.error('Failed to save');
             }
@@ -132,24 +141,41 @@ export default function EditExamPage() {
             return;
         }
 
+        const newOrder = sections.length + 1;
+        const tempId = `temp-${Date.now()}`;
+        const newSec: Section = {
+            id: tempId,
+            name: { en: newSection.nameEn, pa: newSection.namePa || newSection.nameEn },
+            order: newOrder,
+            duration: newSection.duration ? parseInt(newSection.duration) : null,
+            question_count: 0,
+        };
+
+        // Optimistic add
+        updateSectionsOptimistically([...sections, newSec]);
+        setNewSection({ nameEn: '', namePa: '', duration: '' });
+        setShowAddSection(false);
+
         try {
             const response = await fetch(`/api/admin/exams/${examId}/sections`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: { en: newSection.nameEn, pa: newSection.namePa || newSection.nameEn },
-                    order: (exam?.sections.length || 0) + 1,
+                    order: newOrder,
                     duration: newSection.duration ? parseInt(newSection.duration) : null,
                 }),
             });
 
             if (response.ok) {
                 toast.success('Section added!');
-                setNewSection({ nameEn: '', namePa: '', duration: '' });
-                setShowAddSection(false);
+                loadExam(); // Reload to get real ID
+            } else {
                 loadExam();
+                toast.error('Failed to add section');
             }
         } catch (error) {
+            loadExam();
             toast.error('Failed to add section');
         }
     };
@@ -157,69 +183,78 @@ export default function EditExamPage() {
     const handleDeleteSection = async (sectionId: string) => {
         if (!confirm('Delete this section and all its questions?')) return;
 
+        // Optimistic delete
+        updateSectionsOptimistically(sections.filter(s => s.id !== sectionId));
+
         try {
             const response = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}`, {
                 method: 'DELETE',
             });
             if (response.ok) {
                 toast.success('Section deleted');
+            } else {
                 loadExam();
+                toast.error('Failed to delete section');
             }
         } catch (error) {
+            loadExam();
             toast.error('Failed to delete section');
         }
     };
 
-    // Move section up/down
     const handleMoveSection = async (sectionId: string, direction: 'up' | 'down') => {
-        if (!exam) return;
+        const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+        const index = sortedSections.findIndex(s => s.id === sectionId);
 
-        const sections = [...exam.sections].sort((a, b) => a.order - b.order);
-        const index = sections.findIndex(s => s.id === sectionId);
-
-        if (direction === 'up' && index > 0) {
-            // Swap with previous
-            const temp = sections[index - 1].order;
-            sections[index - 1].order = sections[index].order;
-            sections[index].order = temp;
-        } else if (direction === 'down' && index < sections.length - 1) {
-            // Swap with next
-            const temp = sections[index + 1].order;
-            sections[index + 1].order = sections[index].order;
-            sections[index].order = temp;
-        } else {
+        if ((direction === 'up' && index === 0) || (direction === 'down' && index === sortedSections.length - 1)) {
             return;
         }
 
-        // Update both sections
+        const swapIndex = direction === 'up' ? index - 1 : index + 1;
+        const current = { ...sortedSections[index] };
+        const swap = { ...sortedSections[swapIndex] };
+
+        // Swap orders
+        const tempOrder = current.order;
+        current.order = swap.order;
+        swap.order = tempOrder;
+
+        // Optimistic update
+        const updated = sortedSections.map((s, i) => {
+            if (i === index) return current;
+            if (i === swapIndex) return swap;
+            return s;
+        });
+        updateSectionsOptimistically(updated);
+
         try {
             await Promise.all([
-                fetch(`/api/admin/exams/${examId}/sections/${sections[index].id}`, {
+                fetch(`/api/admin/exams/${examId}/sections/${current.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        name: sections[index].name,
-                        order: sections[index].order,
-                        duration: sections[index].duration,
+                        name: current.name,
+                        order: current.order,
+                        duration: current.duration,
                     }),
                 }),
-                fetch(`/api/admin/exams/${examId}/sections/${sections[direction === 'up' ? index - 1 : index + 1].id}`, {
+                fetch(`/api/admin/exams/${examId}/sections/${swap.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        name: sections[direction === 'up' ? index - 1 : index + 1].name,
-                        order: sections[direction === 'up' ? index - 1 : index + 1].order,
-                        duration: sections[direction === 'up' ? index - 1 : index + 1].duration,
+                        name: swap.name,
+                        order: swap.order,
+                        duration: swap.duration,
                     }),
                 }),
             ]);
-            loadExam();
+            toast.success('Reordered');
         } catch (error) {
+            loadExam();
             toast.error('Failed to reorder sections');
         }
     };
 
-    // Start editing a section
     const startEditSection = (section: Section) => {
         setEditingSection(section);
         setEditSectionData({
@@ -229,9 +264,18 @@ export default function EditExamPage() {
         });
     };
 
-    // Save section edits
     const saveEditSection = async () => {
         if (!editingSection) return;
+
+        const updatedSection: Section = {
+            ...editingSection,
+            name: { en: editSectionData.nameEn, pa: editSectionData.namePa || editSectionData.nameEn },
+            duration: editSectionData.duration ? parseInt(editSectionData.duration) : null,
+        };
+
+        // Optimistic update
+        updateSectionsOptimistically(sections.map(s => s.id === editingSection.id ? updatedSection : s));
+        setEditingSection(null);
 
         try {
             const response = await fetch(`/api/admin/exams/${examId}/sections/${editingSection.id}`, {
@@ -246,10 +290,12 @@ export default function EditExamPage() {
 
             if (response.ok) {
                 toast.success('Section updated!');
-                setEditingSection(null);
+            } else {
                 loadExam();
+                toast.error('Failed to update section');
             }
         } catch (error) {
+            loadExam();
             toast.error('Failed to update section');
         }
     };
@@ -270,12 +316,13 @@ export default function EditExamPage() {
         );
     }
 
-    const sortedSections = [...exam.sections].sort((a, b) => a.order - b.order);
+    const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+    const totalQuestions = sections.reduce((a, s) => a + s.question_count, 0);
 
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <header className="bg-white shadow-sm">
+            <header className="bg-white shadow-sm sticky top-0 z-10">
                 <div className="max-w-5xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -287,7 +334,7 @@ export default function EditExamPage() {
                                     {getText(exam.title, language)}
                                 </h1>
                                 <p className="text-sm text-gray-500">
-                                    {exam.sections.length} sections • {exam.sections.reduce((a, s) => a + s.question_count, 0)} questions
+                                    {sections.length} sections • {totalQuestions} questions
                                 </p>
                             </div>
                         </div>
@@ -328,7 +375,7 @@ export default function EditExamPage() {
                                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
-                            <FileText className="w-4 h-4 inline mr-1" /> Sections & Questions
+                            <FileText className="w-4 h-4 inline mr-1" /> Sections
                         </button>
                     </div>
                 </div>
@@ -341,9 +388,7 @@ export default function EditExamPage() {
                         {/* Title */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Title (English) *
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Title (English) *</label>
                                 <input
                                     type="text"
                                     value={formData.titleEn}
@@ -352,9 +397,7 @@ export default function EditExamPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Title (Punjabi)
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Title (Punjabi)</label>
                                 <input
                                     type="text"
                                     value={formData.titlePa}
@@ -367,9 +410,7 @@ export default function EditExamPage() {
                         {/* Description */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description (English)
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description (English)</label>
                                 <textarea
                                     value={formData.descriptionEn}
                                     onChange={(e) => setFormData({ ...formData, descriptionEn: e.target.value })}
@@ -378,9 +419,7 @@ export default function EditExamPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description (Punjabi)
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description (Punjabi)</label>
                                 <textarea
                                     value={formData.descriptionPa}
                                     onChange={(e) => setFormData({ ...formData, descriptionPa: e.target.value })}
@@ -393,7 +432,7 @@ export default function EditExamPage() {
                         {/* Settings Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (min) *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (min)</label>
                                 <input
                                     type="number"
                                     value={formData.duration}
@@ -402,7 +441,7 @@ export default function EditExamPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
                                 <input
                                     type="number"
                                     value={formData.totalMarks}
@@ -451,9 +490,7 @@ export default function EditExamPage() {
                                 onChange={(e) => setFormData({ ...formData, shuffleQuestions: e.target.checked })}
                                 className="w-4 h-4 text-blue-600 rounded"
                             />
-                            <label htmlFor="shuffle" className="text-sm text-gray-700">
-                                Shuffle questions
-                            </label>
+                            <label htmlFor="shuffle" className="text-sm text-gray-700">Shuffle questions</label>
                         </div>
                     </div>
                 ) : (
@@ -462,7 +499,6 @@ export default function EditExamPage() {
                         {sortedSections.map((section, index) => (
                             <div key={section.id} className="bg-white rounded-xl shadow-sm p-4">
                                 {editingSection?.id === section.id ? (
-                                    // Edit Mode
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             <input
@@ -491,47 +527,35 @@ export default function EditExamPage() {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => setEditingSection(null)}
-                                                className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
-                                            >
+                                            <button onClick={() => setEditingSection(null)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
                                                 Cancel
                                             </button>
-                                            <button
-                                                onClick={saveEditSection}
-                                                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                            >
+                                            <button onClick={saveEditSection} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                                                 Save
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
-                                    // View Mode
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            {/* Reorder buttons */}
                                             <div className="flex flex-col gap-0.5">
                                                 <button
                                                     onClick={() => handleMoveSection(section.id, 'up')}
                                                     disabled={index === 0}
-                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    title="Move up"
+                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
                                                 >
                                                     <ChevronUp className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleMoveSection(section.id, 'down')}
                                                     disabled={index === sortedSections.length - 1}
-                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    title="Move down"
+                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
                                                 >
                                                     <ChevronDown className="w-4 h-4" />
                                                 </button>
                                             </div>
                                             <div>
-                                                <h3 className="font-semibold text-gray-900">
-                                                    {getText(section.name, language)}
-                                                </h3>
+                                                <h3 className="font-semibold text-gray-900">{getText(section.name, language)}</h3>
                                                 <p className="text-sm text-gray-500">
                                                     {section.question_count} questions
                                                     {section.duration && ` • ${section.duration} min`}
@@ -539,11 +563,7 @@ export default function EditExamPage() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => startEditSection(section)}
-                                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-                                                title="Edit section"
-                                            >
+                                            <button onClick={() => startEditSection(section)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <Link
@@ -552,10 +572,7 @@ export default function EditExamPage() {
                                             >
                                                 Questions
                                             </Link>
-                                            <button
-                                                onClick={() => handleDeleteSection(section.id)}
-                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                                            >
+                                            <button onClick={() => handleDeleteSection(section.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -566,7 +583,7 @@ export default function EditExamPage() {
 
                         {/* Add Section */}
                         {showAddSection ? (
-                            <div className="bg-white rounded-xl shadow-sm p-4 space-y-4">
+                            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-4">
                                 <h4 className="font-medium text-gray-900">Add New Section</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <input
@@ -574,14 +591,14 @@ export default function EditExamPage() {
                                         value={newSection.nameEn}
                                         onChange={(e) => setNewSection({ ...newSection, nameEn: e.target.value })}
                                         placeholder="Section name (English) *"
-                                        className="px-4 py-2 border rounded-lg"
+                                        className="px-4 py-2 border rounded-lg bg-white"
                                     />
                                     <input
                                         type="text"
                                         value={newSection.namePa}
                                         onChange={(e) => setNewSection({ ...newSection, namePa: e.target.value })}
                                         placeholder="Section name (Punjabi)"
-                                        className="px-4 py-2 border rounded-lg"
+                                        className="px-4 py-2 border rounded-lg bg-white"
                                     />
                                     <div className="flex items-center gap-2">
                                         <Clock className="w-4 h-4 text-gray-400" />
@@ -590,21 +607,15 @@ export default function EditExamPage() {
                                             value={newSection.duration}
                                             onChange={(e) => setNewSection({ ...newSection, duration: e.target.value })}
                                             placeholder="Duration (optional)"
-                                            className="flex-1 px-4 py-2 border rounded-lg"
+                                            className="flex-1 px-4 py-2 border rounded-lg bg-white"
                                         />
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setShowAddSection(false)}
-                                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                                    >
+                                    <button onClick={() => setShowAddSection(false)} className="px-4 py-2 border rounded-lg hover:bg-white">
                                         Cancel
                                     </button>
-                                    <button
-                                        onClick={handleAddSection}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                    >
+                                    <button onClick={handleAddSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                                         Add Section
                                     </button>
                                 </div>
