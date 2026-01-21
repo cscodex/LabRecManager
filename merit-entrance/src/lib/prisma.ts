@@ -1,98 +1,104 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaNeon } from '@prisma/adapter-neon';
+import { neon } from '@neondatabase/serverless';
 
 // Singleton storage
 let prismaInstance: PrismaClient | null = null;
+let initError: Error | null = null;
 
-// Create Prisma client - first try simple client, then Neon adapter
-async function createClient(): Promise<PrismaClient> {
-    console.log('[Prisma] Creating PrismaClient...');
-    console.log('[Prisma] NODE_ENV:', process.env.NODE_ENV);
-    console.log('[Prisma] MERIT_DATABASE_URL exists:', !!process.env.MERIT_DATABASE_URL);
-    console.log('[Prisma] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+function getConnectionString(): string {
+    const meritDbUrl = process.env.MERIT_DATABASE_URL;
+    const meritDirectUrl = process.env.MERIT_DIRECT_URL;
+    const dbUrl = process.env.DATABASE_URL;
 
-    // Try using standard Prisma client first (reads from schema.prisma)
-    try {
-        const client = new PrismaClient({
-            log: ['error', 'warn'],
-        });
+    console.log('[Prisma] Checking env vars at runtime:');
+    console.log('  MERIT_DATABASE_URL:', meritDbUrl ? `set (${meritDbUrl.length} chars)` : 'NOT SET');
+    console.log('  MERIT_DIRECT_URL:', meritDirectUrl ? `set (${meritDirectUrl.length} chars)` : 'NOT SET');
+    console.log('  DATABASE_URL:', dbUrl ? `set (${dbUrl.length} chars)` : 'NOT SET');
 
-        // Test the connection
-        console.log('[Prisma] Testing connection...');
-        await client.$connect();
-        console.log('[Prisma] Standard PrismaClient connected successfully!');
-        return client;
-    } catch (standardError) {
-        console.log('[Prisma] Standard client failed:', standardError instanceof Error ? standardError.message : standardError);
+    const connectionString = meritDbUrl || meritDirectUrl || dbUrl;
 
-        // Fallback to Neon adapter for serverless
-        console.log('[Prisma] Trying Neon adapter...');
+    if (!connectionString) {
+        const allKeys = Object.keys(process.env);
+        console.log('[Prisma] Total env vars:', allKeys.length);
+        console.log('[Prisma] Sample env keys (first 20):', allKeys.slice(0, 20));
+        throw new Error('MERIT_DATABASE_URL environment variable is not set');
+    }
 
-        const connectionString = process.env.MERIT_DATABASE_URL
-            || process.env.MERIT_DIRECT_URL
-            || process.env.DATABASE_URL;
+    return connectionString.trim();
+}
 
-        if (!connectionString) {
-            console.error('[Prisma] No connection string found!');
-            console.error('[Prisma] Env keys:', Object.keys(process.env).filter(k =>
-                k.includes('DATABASE') || k.includes('MERIT') || k.includes('POSTGRES')
-            ));
-            throw new Error('Database connection string not found');
+function createClient(): PrismaClient {
+    console.log('[Prisma] Initializing PrismaClient with Neon adapter...');
+
+    const connectionString = getConnectionString();
+    console.log('[Prisma] Got connection string, creating Neon client...');
+
+    // Create Neon SQL client
+    const sql = neon(connectionString);
+    console.log('[Prisma] Neon SQL client created');
+
+    // Create adapter - type assertion needed for compatibility
+    // @ts-ignore - PrismaNeon types don't match perfectly with neon() return type
+    const adapter = new PrismaNeon(sql);
+    console.log('[Prisma] Neon adapter created');
+
+    // Create Prisma client with adapter
+    // @ts-ignore - adapter type compatibility
+    const client = new PrismaClient({ adapter });
+    console.log('[Prisma] PrismaClient created successfully');
+
+    return client;
+}
+
+// Initialize on first use
+export function getPrisma(): PrismaClient {
+    if (initError) {
+        throw initError;
+    }
+
+    if (!prismaInstance) {
+        try {
+            prismaInstance = createClient();
+        } catch (error) {
+            initError = error instanceof Error ? error : new Error(String(error));
+            console.error('[Prisma] Initialization failed:', initError.message);
+            throw initError;
         }
-
-        // Dynamic import Neon
-        const { neon } = await import('@neondatabase/serverless');
-        const { PrismaNeon } = await import('@prisma/adapter-neon');
-
-        const sql = neon(connectionString);
-        // @ts-ignore
-        const adapter = new PrismaNeon(sql);
-
-        // @ts-ignore
-        const neonClient = new PrismaClient({ adapter });
-        console.log('[Prisma] Neon adapter client created');
-
-        return neonClient;
     }
+
+    return prismaInstance;
 }
 
-// Async getter
-let clientPromise: Promise<PrismaClient> | null = null;
-
+// Async version for compatibility
 export async function getPrismaAsync(): Promise<PrismaClient> {
-    if (prismaInstance) {
-        return prismaInstance;
-    }
-
-    if (!clientPromise) {
-        clientPromise = createClient().then(client => {
-            prismaInstance = client;
-            return client;
-        }).catch(err => {
-            clientPromise = null; // Reset on error so we can retry
-            throw err;
-        });
-    }
-
-    return clientPromise;
+    return getPrisma();
 }
 
-// Backwards compatible export - use getPrismaAsync in new code
-type AnyObject = { [key: string]: unknown };
+// Debug function to check env vars
+export function getEnvDebugInfo() {
+    return {
+        MERIT_DATABASE_URL: process.env.MERIT_DATABASE_URL ? 'SET' : 'NOT SET',
+        MERIT_DIRECT_URL: process.env.MERIT_DIRECT_URL ? 'SET' : 'NOT SET',
+        DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
+        NODE_ENV: process.env.NODE_ENV,
+        envCount: Object.keys(process.env).length,
+    };
+}
 
+// Default export for backwards compatibility
 export const prisma = new Proxy({} as PrismaClient, {
     get(_target, prop: string | symbol) {
         if (prop === 'then' || prop === 'catch' || prop === 'finally') {
             return undefined;
         }
-
-        return async (...args: unknown[]) => {
-            const client = await getPrismaAsync();
-            const value = (client as unknown as AnyObject)[prop as string];
-            if (typeof value === 'function') {
-                return (value as (...a: unknown[]) => unknown).apply(client, args);
-            }
-            return value;
-        };
+        const client = getPrisma();
+        // @ts-ignore - dynamic property access
+        const value = client[prop];
+        if (typeof value === 'function') {
+            return value.bind(client);
+        }
+        return value;
     }
 });
 

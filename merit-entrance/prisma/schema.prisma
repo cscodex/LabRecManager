@@ -4,9 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("MERIT_DATABASE_URL")
-  directUrl = env("MERIT_DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ============ USERS ============
