@@ -63,19 +63,18 @@ export function getPrisma(): PrismaClient {
     return prismaInstance;
 }
 
-// For backwards compatibility - use direct getter call in API routes instead
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// For backwards compatibility - use Proxy for lazy init
+type AnyObject = { [key: string]: unknown };
+
 export const prisma = new Proxy({} as PrismaClient, {
     get(_target, prop: string | symbol) {
         if (prop === 'then') {
-            // Prevent Promise detection
             return undefined;
         }
         const client = getPrisma();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const value = (client as any)[prop];
+        const value = (client as unknown as AnyObject)[prop as string];
         if (typeof value === 'function') {
-            return value.bind(client);
+            return (value as (...args: unknown[]) => unknown).bind(client);
         }
         return value;
     }
