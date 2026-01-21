@@ -176,9 +176,9 @@ export default function AdminExamsPage() {
                                             <Edit className="w-5 h-5" />
                                         </Link>
                                         <Link
-                                            href={`/admin/exams/${exam.id}/questions`}
+                                            href={`/admin/exams/${exam.id}/preview`}
                                             className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
-                                            title="Manage Questions"
+                                            title="Preview Exam"
                                         >
                                             <Eye className="w-5 h-5" />
                                         </Link>
