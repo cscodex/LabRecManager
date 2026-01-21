@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
+import { useTranslation } from '@/lib/useTranslation';
+import { LanguageToggle } from '@/components/LanguageToggle';
 import { BookOpen, User, Lock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function HomePage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
+  const { t, isLoading: isLoadingTranslations } = useTranslation();
   const [loginType, setLoginType] = useState<'student' | 'admin'>('student');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,13 +40,13 @@ export default function HomePage() {
 
       if (response.ok) {
         setUser(data.user);
-        toast.success('Login successful!');
+        toast.success(t('auth.loginSuccess'));
         router.push(loginType === 'admin' ? '/admin/dashboard' : '/student/dashboard');
       } else {
-        toast.error(data.error || 'Login failed');
+        toast.error(data.error || t('auth.loginFailed'));
       }
     } catch (error) {
-      toast.error('Something went wrong. Please try again.');
+      toast.error(t('auth.somethingWentWrong'));
     } finally {
       setIsLoading(false);
     }
@@ -51,14 +54,19 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex items-center justify-center p-4">
+      {/* Language Toggle - Top Right */}
+      <div className="absolute top-4 right-4">
+        <LanguageToggle />
+      </div>
+
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
             <BookOpen className="w-8 h-8 text-blue-600" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Merit Entrance</h1>
-          <p className="text-blue-200 mt-2">SOE Entrance Exam Platform</p>
+          <h1 className="text-3xl font-bold text-white">{t('common.appName')}</h1>
+          <p className="text-blue-200 mt-2">{t('common.tagline')}</p>
         </div>
 
         {/* Login Card */}
@@ -68,20 +76,20 @@ export default function HomePage() {
             <button
               onClick={() => setLoginType('student')}
               className={`flex-1 py-4 text-center font-medium transition-colors ${loginType === 'student'
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                  : 'text-gray-500 hover:text-gray-700'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
-              Student Login
+              {t('auth.studentLogin')}
             </button>
             <button
               onClick={() => setLoginType('admin')}
               className={`flex-1 py-4 text-center font-medium transition-colors ${loginType === 'admin'
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                  : 'text-gray-500 hover:text-gray-700'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
-              Admin Login
+              {t('auth.adminLogin')}
             </button>
           </div>
 
@@ -90,7 +98,7 @@ export default function HomePage() {
             {/* Identifier Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {loginType === 'student' ? 'Roll Number' : 'Email Address'}
+                {loginType === 'student' ? t('auth.rollNumber') : t('auth.email')}
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -98,7 +106,7 @@ export default function HomePage() {
                   type={loginType === 'admin' ? 'email' : 'text'}
                   value={formData.identifier}
                   onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
-                  placeholder={loginType === 'student' ? 'Enter your roll number' : 'Enter your email'}
+                  placeholder={loginType === 'student' ? t('auth.enterRollNumber') : t('auth.enterEmail')}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
@@ -108,7 +116,7 @@ export default function HomePage() {
             {/* Password Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                {t('auth.password')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -116,7 +124,7 @@ export default function HomePage() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Enter your password"
+                  placeholder={t('auth.enterPassword')}
                   className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
@@ -142,10 +150,10 @@ export default function HomePage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Logging in...
+                  {t('common.loggingIn')}
                 </span>
               ) : (
-                'Login'
+                t('common.login')
               )}
             </button>
           </form>
@@ -154,15 +162,15 @@ export default function HomePage() {
           <div className="px-6 pb-6">
             <p className="text-center text-sm text-gray-500">
               {loginType === 'student'
-                ? 'Use your assigned roll number and password'
-                : 'Admin access only. Contact support if needed.'}
+                ? t('auth.studentNote')
+                : t('auth.adminNote')}
             </p>
           </div>
         </div>
 
         {/* Bottom Info */}
         <p className="text-center text-blue-200 text-sm mt-6">
-          © 2026 Merit Entrance Platform
+          © 2026 {t('common.appName')}
         </p>
       </div>
     </div>
