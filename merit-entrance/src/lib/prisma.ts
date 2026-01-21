@@ -2,9 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaNeon } from '@prisma/adapter-neon';
 import { Pool } from '@neondatabase/serverless';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const globalForPrisma = global as unknown as { prisma: PrismaClient | undefined };
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient {
     // Check multiple possible environment variable names
     const connectionString = process.env.MERIT_DATABASE_URL
         || process.env.MERIT_DIRECT_URL
@@ -33,8 +33,21 @@ function createPrismaClient() {
     return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma || createPrismaClient();
+// Use a getter to ensure lazy initialization at runtime, not build time
+function getPrismaClient(): PrismaClient {
+    if (!globalForPrisma.prisma) {
+        globalForPrisma.prisma = createPrismaClient();
+    }
+    return globalForPrisma.prisma;
+}
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// Export a proxy object that lazily initializes Prisma on first access
+const prisma = new Proxy({} as PrismaClient, {
+    get(_target, prop) {
+        const client = getPrismaClient();
+        return Reflect.get(client, prop);
+    }
+});
 
+export { prisma };
 export default prisma;
