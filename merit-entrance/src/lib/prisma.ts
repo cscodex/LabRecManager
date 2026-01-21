@@ -7,55 +7,68 @@ let prismaInstance: PrismaClient | null = null;
 
 // Get connection string at runtime
 function getConnectionString(): string {
-    // Log ALL environment variables for debugging
-    const allEnvKeys = Object.keys(process.env);
-    console.log('[Prisma Debug] Total env vars:', allEnvKeys.length);
-    console.log('[Prisma Debug] Relevant env vars:', allEnvKeys.filter(k =>
-        k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('NEON') ||
-        k.includes('MERIT') || k.includes('NODE') || k.includes('URL')
-    ));
-
-    // Check each variable explicitly
+    // Check each variable explicitly and log
     const meritDbUrl = process.env.MERIT_DATABASE_URL;
     const meritDirectUrl = process.env.MERIT_DIRECT_URL;
     const dbUrl = process.env.DATABASE_URL;
 
-    console.log('[Prisma Debug] MERIT_DATABASE_URL exists:', !!meritDbUrl, 'length:', meritDbUrl?.length);
-    console.log('[Prisma Debug] MERIT_DIRECT_URL exists:', !!meritDirectUrl, 'length:', meritDirectUrl?.length);
-    console.log('[Prisma Debug] DATABASE_URL exists:', !!dbUrl, 'length:', dbUrl?.length);
+    console.log('[Prisma] ENV CHECK:', {
+        MERIT_DATABASE_URL: meritDbUrl ? `exists (${meritDbUrl.length} chars)` : 'undefined',
+        MERIT_DIRECT_URL: meritDirectUrl ? `exists (${meritDirectUrl.length} chars)` : 'undefined',
+        DATABASE_URL: dbUrl ? `exists (${dbUrl.length} chars)` : 'undefined',
+    });
 
-    const connectionString = meritDbUrl || meritDirectUrl || dbUrl;
+    let connectionString = meritDbUrl || meritDirectUrl || dbUrl;
 
     if (!connectionString) {
-        throw new Error(`Database connection string not found. Checked: MERIT_DATABASE_URL, MERIT_DIRECT_URL, DATABASE_URL`);
+        // Last resort - log all env vars with DB/URL in name
+        const envKeys = Object.keys(process.env);
+        console.log('[Prisma] All env keys:', envKeys.slice(0, 50));
+        console.log('[Prisma] DB-related keys:', envKeys.filter(k =>
+            k.toLowerCase().includes('database') ||
+            k.toLowerCase().includes('postgres') ||
+            k.toLowerCase().includes('merit') ||
+            k.toLowerCase().includes('url')
+        ));
+        throw new Error('Database connection string not found');
     }
+
+    // Remove any surrounding quotes that might have been added accidentally
+    connectionString = connectionString.trim().replace(/^["']|["']$/g, '');
+
+    console.log('[Prisma] Connection string starts with:', connectionString.substring(0, 30));
 
     return connectionString;
 }
 
-// Create Prisma client - only called at runtime
+// Create Prisma client
 function createClient(): PrismaClient {
     console.log('[Prisma] Creating new PrismaClient...');
 
     const connectionString = getConnectionString();
-    console.log('[Prisma] Connection string obtained, length:', connectionString.length);
 
-    // Use neon HTTP driver
-    const sql = neon(connectionString);
-    console.log('[Prisma] Neon client created');
+    try {
+        // Use neon HTTP driver
+        console.log('[Prisma] Calling neon() with connection string...');
+        const sql = neon(connectionString);
+        console.log('[Prisma] Neon client created successfully');
 
-    // @ts-ignore
-    const adapter = new PrismaNeon(sql);
-    console.log('[Prisma] Neon adapter created');
+        // @ts-ignore
+        const adapter = new PrismaNeon(sql);
+        console.log('[Prisma] Neon adapter created');
 
-    // @ts-ignore
-    const client = new PrismaClient({ adapter });
-    console.log('[Prisma] PrismaClient created successfully');
+        // @ts-ignore
+        const client = new PrismaClient({ adapter });
+        console.log('[Prisma] PrismaClient created successfully');
 
-    return client;
+        return client;
+    } catch (error) {
+        console.error('[Prisma] Error creating client:', error);
+        throw error;
+    }
 }
 
-// Export getter function that lazily creates client
+// Export getter function
 export function getPrisma(): PrismaClient {
     if (!prismaInstance) {
         prismaInstance = createClient();
@@ -63,7 +76,7 @@ export function getPrisma(): PrismaClient {
     return prismaInstance;
 }
 
-// For backwards compatibility - use Proxy for lazy init
+// Proxy for lazy init
 type AnyObject = { [key: string]: unknown };
 
 export const prisma = new Proxy({} as PrismaClient, {
