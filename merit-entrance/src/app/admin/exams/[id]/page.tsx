@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
+import RichTextEditor from '@/components/RichTextEditor';
 
 interface Section {
     id: string;
@@ -532,21 +533,17 @@ export default function EditExamPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (English)</label>
-                                <textarea
+                                <RichTextEditor
                                     value={formData.instructionsEn}
-                                    onChange={(e) => setFormData({ ...formData, instructionsEn: e.target.value })}
-                                    rows={12}
-                                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                                    placeholder="Enter exam instructions in English...&#10;&#10;Example:&#10;• Read each question carefully.&#10;• You can mark questions for review.&#10;• There is negative marking for wrong answers.&#10;• Do not refresh the page during the exam."
+                                    onChange={(value) => setFormData({ ...formData, instructionsEn: value })}
+                                    placeholder="Enter exam instructions in English..."
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (Punjabi)</label>
-                                <textarea
+                                <RichTextEditor
                                     value={formData.instructionsPa}
-                                    onChange={(e) => setFormData({ ...formData, instructionsPa: e.target.value })}
-                                    rows={12}
-                                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                    onChange={(value) => setFormData({ ...formData, instructionsPa: value })}
                                     placeholder="ਪੰਜਾਬੀ ਵਿੱਚ ਪ੍ਰੀਖਿਆ ਦੀਆਂ ਹਦਾਇਤਾਂ ਦਰਜ ਕਰੋ..."
                                 />
                             </div>

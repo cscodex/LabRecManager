@@ -337,9 +337,10 @@ export default function ExamPreviewPage() {
 
                         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                             {exam.instructions && (exam.instructions.en || exam.instructions.pa) ? (
-                                <div className="prose prose-blue max-w-none whitespace-pre-wrap text-gray-700">
-                                    {getText(exam.instructions, language)}
-                                </div>
+                                <div
+                                    className="prose prose-blue max-w-none text-gray-700"
+                                    dangerouslySetInnerHTML={{ __html: getText(exam.instructions, language) }}
+                                />
                             ) : (
                                 <div className="space-y-3 text-gray-700">
                                     <p>• {language === 'en' ? 'Read each question carefully before answering.' : 'ਜਵਾਬ ਦੇਣ ਤੋਂ ਪਹਿਲਾਂ ਹਰ ਸਵਾਲ ਧਿਆਨ ਨਾਲ ਪੜ੍ਹੋ।'}</p>
@@ -444,8 +445,8 @@ export default function ExamPreviewPage() {
                             key={section.id}
                             onClick={() => navigateToQuestion(idx, 0)}
                             className={`px-6 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${currentSectionIndex === idx
-                                    ? 'border-blue-600 text-blue-600 bg-white'
-                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                                ? 'border-blue-600 text-blue-600 bg-white'
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
                                 }`}
                         >
                             {getText(section.name, language)}
@@ -479,8 +480,8 @@ export default function ExamPreviewPage() {
                                     </div>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentQuestion.type === 'mcq_single' ? 'bg-blue-100 text-blue-700' :
-                                        currentQuestion.type === 'mcq_multiple' ? 'bg-purple-100 text-purple-700' :
-                                            'bg-orange-100 text-orange-700'
+                                    currentQuestion.type === 'mcq_multiple' ? 'bg-purple-100 text-purple-700' :
+                                        'bg-orange-100 text-orange-700'
                                     }`}>
                                     {currentQuestion.type === 'mcq_single' ? 'Single Choice' :
                                         currentQuestion.type === 'mcq_multiple' ? 'Multiple Choice' : 'Fill Blank'}
@@ -524,8 +525,8 @@ export default function ExamPreviewPage() {
                                                     key={opt.id}
                                                     onClick={() => handleOptionSelect(opt.id)}
                                                     className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${isSelected
-                                                            ? 'border-blue-500 bg-blue-50'
-                                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                                        ? 'border-blue-500 bg-blue-50'
+                                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                                         }`}
                                                 >
                                                     <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
@@ -551,8 +552,8 @@ export default function ExamPreviewPage() {
                                 <button
                                     onClick={markForReview}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg ${questionStatus[currentQuestion.id]?.includes('marked')
-                                            ? 'bg-purple-100 text-purple-700 border border-purple-300'
-                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                        ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                                         }`}
                                 >
                                     <Flag className="w-4 h-4" />
