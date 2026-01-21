@@ -11,6 +11,7 @@ import {
     Image as ImageIcon, Upload, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Option {
     id: string;
@@ -48,6 +49,7 @@ export default function ManageQuestionsPage() {
     const examId = params.id as string;
     const sectionId = params.sectionId as string;
     const { language, setLanguage } = useAuthStore();
+    const { confirm, DialogComponent } = useConfirmDialog();
 
     const [section, setSection] = useState<Section | null>(null);
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -235,27 +237,33 @@ export default function ManageQuestionsPage() {
         }
     };
 
-    const handleDeleteQuestion = async (questionId: string) => {
-        if (!confirm('Delete this question?')) return;
+    const handleDeleteQuestion = (questionId: string) => {
+        confirm({
+            title: 'Delete Question',
+            message: 'Are you sure you want to delete this question? This action cannot be undone.',
+            variant: 'danger',
+            confirmText: 'Delete',
+            onConfirm: async () => {
+                // Optimistic delete
+                updateQuestionsOptimistically(questions.filter(q => q.id !== questionId));
 
-        // Optimistic delete
-        updateQuestionsOptimistically(questions.filter(q => q.id !== questionId));
-
-        try {
-            const response = await fetch(
-                `/api/admin/exams/${examId}/sections/${sectionId}/questions/${questionId}`,
-                { method: 'DELETE' }
-            );
-            if (response.ok) {
-                toast.success('Question deleted');
-            } else {
-                loadData();
-                toast.error('Failed to delete question');
-            }
-        } catch (error) {
-            loadData();
-            toast.error('Failed to delete question');
-        }
+                try {
+                    const response = await fetch(
+                        `/api/admin/exams/${examId}/sections/${sectionId}/questions/${questionId}`,
+                        { method: 'DELETE' }
+                    );
+                    if (response.ok) {
+                        toast.success('Question deleted');
+                    } else {
+                        loadData();
+                        toast.error('Failed to delete question');
+                    }
+                } catch (error) {
+                    loadData();
+                    toast.error('Failed to delete question');
+                }
+            },
+        });
     };
 
     const startEditQuestion = (question: Question) => {
@@ -702,6 +710,7 @@ export default function ManageQuestionsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <DialogComponent />
             {/* Header */}
             <header className="bg-white shadow-sm sticky top-0 z-10">
                 <div className="max-w-5xl mx-auto px-4 py-4">

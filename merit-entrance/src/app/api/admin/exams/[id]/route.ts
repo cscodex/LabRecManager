@@ -83,13 +83,14 @@ export async function PUT(
 
         const { id } = params;
         const body = await request.json();
-        const { title, description, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, status } = body;
+        const { title, description, instructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, status } = body;
 
         const now = new Date().toISOString();
         await sql`
       UPDATE exams SET
         title = ${JSON.stringify(title)}::jsonb,
         description = ${description ? JSON.stringify(description) : null}::jsonb,
+        instructions = ${instructions ? JSON.stringify(instructions) : null}::jsonb,
         duration = ${duration},
         total_marks = ${totalMarks},
         passing_marks = ${passingMarks || null},
@@ -105,6 +106,7 @@ export async function PUT(
         console.error('Error updating exam:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
+
 }
 
 export async function DELETE(

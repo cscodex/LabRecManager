@@ -7,9 +7,10 @@ import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import {
     ChevronLeft, Save, Plus, Trash2,
-    FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, X, Clock
+    FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Section {
     id: string;
@@ -23,6 +24,7 @@ interface Exam {
     id: string;
     title: Record<string, string>;
     description: Record<string, string> | null;
+    instructions: Record<string, string> | null;
     duration: number;
     total_marks: number;
     passing_marks: number | null;
@@ -38,12 +40,13 @@ export default function EditExamPage() {
     const params = useParams();
     const examId = params.id as string;
     const { language, setLanguage } = useAuthStore();
+    const { confirm, DialogComponent } = useConfirmDialog();
 
     const [exam, setExam] = useState<Exam | null>(null);
     const [sections, setSections] = useState<Section[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState<'details' | 'sections'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections'>('details');
     const [editingSection, setEditingSection] = useState<Section | null>(null);
     const [editSectionData, setEditSectionData] = useState({ nameEn: '', namePa: '', duration: '' });
 
@@ -52,6 +55,8 @@ export default function EditExamPage() {
         titlePa: '',
         descriptionEn: '',
         descriptionPa: '',
+        instructionsEn: '',
+        instructionsPa: '',
         duration: 60,
         totalMarks: 100,
         passingMarks: 40,
@@ -80,6 +85,8 @@ export default function EditExamPage() {
                     titlePa: e.title.pa || '',
                     descriptionEn: e.description?.en || '',
                     descriptionPa: e.description?.pa || '',
+                    instructionsEn: e.instructions?.en || '',
+                    instructionsPa: e.instructions?.pa || '',
                     duration: e.duration,
                     totalMarks: e.total_marks,
                     passingMarks: e.passing_marks || 0,
@@ -95,7 +102,6 @@ export default function EditExamPage() {
         }
     };
 
-    // Optimistic update for sections
     const updateSectionsOptimistically = (newSections: Section[]) => {
         setSections(newSections);
         if (exam) {
@@ -113,6 +119,9 @@ export default function EditExamPage() {
                     title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
                     description: formData.descriptionEn
                         ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn }
+                        : null,
+                    instructions: formData.instructionsEn
+                        ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
                         : null,
                     duration: formData.duration,
                     totalMarks: formData.totalMarks,
@@ -151,7 +160,6 @@ export default function EditExamPage() {
             question_count: 0,
         };
 
-        // Optimistic add
         updateSectionsOptimistically([...sections, newSec]);
         setNewSection({ nameEn: '', namePa: '', duration: '' });
         setShowAddSection(false);
@@ -169,7 +177,7 @@ export default function EditExamPage() {
 
             if (response.ok) {
                 toast.success('Section added!');
-                loadExam(); // Reload to get real ID
+                loadExam();
             } else {
                 loadExam();
                 toast.error('Failed to add section');
@@ -180,26 +188,30 @@ export default function EditExamPage() {
         }
     };
 
-    const handleDeleteSection = async (sectionId: string) => {
-        if (!confirm('Delete this section and all its questions?')) return;
-
-        // Optimistic delete
-        updateSectionsOptimistically(sections.filter(s => s.id !== sectionId));
-
-        try {
-            const response = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}`, {
-                method: 'DELETE',
-            });
-            if (response.ok) {
-                toast.success('Section deleted');
-            } else {
-                loadExam();
-                toast.error('Failed to delete section');
-            }
-        } catch (error) {
-            loadExam();
-            toast.error('Failed to delete section');
-        }
+    const handleDeleteSection = (sectionId: string) => {
+        confirm({
+            title: 'Delete Section',
+            message: 'Are you sure you want to delete this section? All questions in this section will also be deleted.',
+            variant: 'danger',
+            confirmText: 'Delete',
+            onConfirm: async () => {
+                updateSectionsOptimistically(sections.filter(s => s.id !== sectionId));
+                try {
+                    const response = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}`, {
+                        method: 'DELETE',
+                    });
+                    if (response.ok) {
+                        toast.success('Section deleted');
+                    } else {
+                        loadExam();
+                        toast.error('Failed to delete section');
+                    }
+                } catch (error) {
+                    loadExam();
+                    toast.error('Failed to delete section');
+                }
+            },
+        });
     };
 
     const handleMoveSection = async (sectionId: string, direction: 'up' | 'down') => {
@@ -214,12 +226,10 @@ export default function EditExamPage() {
         const current = { ...sortedSections[index] };
         const swap = { ...sortedSections[swapIndex] };
 
-        // Swap orders
         const tempOrder = current.order;
         current.order = swap.order;
         swap.order = tempOrder;
 
-        // Optimistic update
         const updated = sortedSections.map((s, i) => {
             if (i === index) return current;
             if (i === swapIndex) return swap;
@@ -273,7 +283,6 @@ export default function EditExamPage() {
             duration: editSectionData.duration ? parseInt(editSectionData.duration) : null,
         };
 
-        // Optimistic update
         updateSectionsOptimistically(sections.map(s => s.id === editingSection.id ? updatedSection : s));
         setEditingSection(null);
 
@@ -321,6 +330,8 @@ export default function EditExamPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <DialogComponent />
+
             {/* Header */}
             <header className="bg-white shadow-sm sticky top-0 z-10">
                 <div className="max-w-5xl mx-auto px-4 py-4">
@@ -339,6 +350,13 @@ export default function EditExamPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            <Link
+                                href={`/admin/exams/${examId}/preview`}
+                                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                            >
+                                <Eye className="w-4 h-4" />
+                                Preview
+                            </Link>
                             <button
                                 onClick={() => setLanguage(language === 'en' ? 'pa' : 'en')}
                                 className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
@@ -367,6 +385,15 @@ export default function EditExamPage() {
                                 }`}
                         >
                             <Settings className="w-4 h-4 inline mr-1" /> Details
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('instructions')}
+                            className={`px-4 py-2 rounded-t-lg text-sm font-medium ${activeTab === 'instructions'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                        >
+                            <FileText className="w-4 h-4 inline mr-1" /> Instructions
                         </button>
                         <button
                             onClick={() => setActiveTab('sections')}
@@ -491,6 +518,48 @@ export default function EditExamPage() {
                                 className="w-4 h-4 text-blue-600 rounded"
                             />
                             <label htmlFor="shuffle" className="text-sm text-gray-700">Shuffle questions</label>
+                        </div>
+                    </div>
+                ) : activeTab === 'instructions' ? (
+                    <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
+                        <div className="border-b pb-4">
+                            <h2 className="text-lg font-semibold text-gray-900">Exam Instructions</h2>
+                            <p className="text-sm text-gray-500 mt-1">
+                                These instructions are displayed to students before the exam starts. The timer begins only after they click "Start Exam".
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (English)</label>
+                                <textarea
+                                    value={formData.instructionsEn}
+                                    onChange={(e) => setFormData({ ...formData, instructionsEn: e.target.value })}
+                                    rows={12}
+                                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                    placeholder="Enter exam instructions in English...&#10;&#10;Example:&#10;• Read each question carefully.&#10;• You can mark questions for review.&#10;• There is negative marking for wrong answers.&#10;• Do not refresh the page during the exam."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (Punjabi)</label>
+                                <textarea
+                                    value={formData.instructionsPa}
+                                    onChange={(e) => setFormData({ ...formData, instructionsPa: e.target.value })}
+                                    rows={12}
+                                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                    placeholder="ਪੰਜਾਬੀ ਵਿੱਚ ਪ੍ਰੀਖਿਆ ਦੀਆਂ ਹਦਾਇਤਾਂ ਦਰਜ ਕਰੋ..."
+                                />
+                            </div>
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 className="text-sm font-medium text-blue-800 mb-2">💡 Tips for Instructions</h4>
+                            <ul className="text-sm text-blue-700 space-y-1">
+                                <li>• Use bullet points for clarity</li>
+                                <li>• Mention exam duration and total marks</li>
+                                <li>• Explain the marking scheme (negative marking if any)</li>
+                                <li>• Add rules about navigation and submission</li>
+                            </ul>
                         </div>
                     </div>
                 ) : (
