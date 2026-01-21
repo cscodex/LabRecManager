@@ -82,6 +82,7 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
         }
     }, [currentQuestionIndex, currentQuestion]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const handleTimeUp = useCallback(() => {
         toast.error('Time is up! Submitting your exam...');
         handleSubmit(true);

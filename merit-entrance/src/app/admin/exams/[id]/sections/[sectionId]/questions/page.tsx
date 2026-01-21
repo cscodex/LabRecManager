@@ -78,6 +78,7 @@ export default function ManageQuestionsPage() {
     const [formData, setFormData] = useState(createEmptyQuestion());
     const [uploading, setUploading] = useState(false);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadData();
     }, []);

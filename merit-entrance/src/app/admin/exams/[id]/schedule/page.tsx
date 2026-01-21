@@ -23,6 +23,7 @@ export default function ExamSchedulePage() {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadSchedules();
     }, []);

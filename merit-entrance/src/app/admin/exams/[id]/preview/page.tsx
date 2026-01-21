@@ -66,6 +66,7 @@ export default function ExamPreviewPage() {
     const [showPalette, setShowPalette] = useState(true);
     const [examStarted, setExamStarted] = useState(false);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadExam();
     }, [examId]);

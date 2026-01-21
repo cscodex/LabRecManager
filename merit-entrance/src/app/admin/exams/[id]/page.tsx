@@ -69,6 +69,7 @@ export default function EditExamPage() {
     const [newSection, setNewSection] = useState({ nameEn: '', namePa: '', duration: '' });
     const [showAddSection, setShowAddSection] = useState(false);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadExam();
     }, [examId]);
@@ -526,7 +527,7 @@ export default function EditExamPage() {
                         <div className="border-b pb-4">
                             <h2 className="text-lg font-semibold text-gray-900">Exam Instructions</h2>
                             <p className="text-sm text-gray-500 mt-1">
-                                These instructions are displayed to students before the exam starts. The timer begins only after they click "Start Exam".
+                                These instructions are displayed to students before the exam starts. The timer begins only after they click &quot;Start Exam&quot;.
                             </p>
                         </div>
 

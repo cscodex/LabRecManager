@@ -30,6 +30,7 @@ export default function ExamAssignPage() {
     const [search, setSearch] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadData();
     }, []);
@@ -165,13 +166,13 @@ export default function ExamAssignPage() {
                                     key={student.id}
                                     onClick={() => toggleStudent(student.id)}
                                     className={`flex items-center gap-3 p-3 rounded-lg border text-left transition ${selectedIds.has(student.id)
-                                            ? 'bg-blue-50 border-blue-300'
-                                            : 'hover:bg-gray-50'
+                                        ? 'bg-blue-50 border-blue-300'
+                                        : 'hover:bg-gray-50'
                                         }`}
                                 >
                                     <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedIds.has(student.id)
-                                            ? 'bg-blue-600 border-blue-600'
-                                            : 'border-gray-300'
+                                        ? 'bg-blue-600 border-blue-600'
+                                        : 'border-gray-300'
                                         }`}>
                                         {selectedIds.has(student.id) && (
                                             <Check className="w-4 h-4 text-white" />
