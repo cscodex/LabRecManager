@@ -1,18 +1,24 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef, useCallback } from 'react';
 import 'react-quill-new/dist/quill.snow.css';
 
 // Dynamically import ReactQuill to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill-new'), {
-    ssr: false,
-    loading: () => (
-        <div className="h-48 border rounded-lg flex items-center justify-center bg-gray-50 text-gray-400">
-            Loading editor...
-        </div>
-    ),
-});
+const ReactQuill = dynamic(
+    async () => {
+        const { default: RQ } = await import('react-quill-new');
+        return RQ;
+    },
+    {
+        ssr: false,
+        loading: () => (
+            <div className="h-48 border rounded-lg flex items-center justify-center bg-gray-50 text-gray-400">
+                Loading editor...
+            </div>
+        ),
+    }
+);
 
 interface RichTextEditorProps {
     value: string;
@@ -27,7 +33,9 @@ export default function RichTextEditor({
     placeholder = 'Enter content...',
     className = '',
 }: RichTextEditorProps) {
-    // Quill modules configuration
+    const quillRef = useRef<any>(null);
+
+    // Quill modules configuration - must be stable
     const modules = useMemo(
         () => ({
             toolbar: [
@@ -41,34 +49,48 @@ export default function RichTextEditor({
                 ['clean'],
             ],
             clipboard: {
-                // Allow pasting formatted text
                 matchVisual: false,
             },
         }),
         []
     );
 
-    const formats = [
-        'header',
-        'bold',
-        'italic',
-        'underline',
-        'strike',
-        'color',
-        'background',
-        'list',
-        'bullet',
-        'indent',
-        'align',
-        'link',
-    ];
+    const formats = useMemo(
+        () => [
+            'header',
+            'bold',
+            'italic',
+            'underline',
+            'strike',
+            'color',
+            'background',
+            'list',
+            'bullet',
+            'indent',
+            'align',
+            'link',
+        ],
+        []
+    );
+
+    // Stable onChange handler that only fires when content actually changes
+    const handleChange = useCallback(
+        (content: string, delta: any, source: string) => {
+            // Only update if the change came from user input, not programmatic updates
+            if (source === 'user') {
+                onChange(content);
+            }
+        },
+        [onChange]
+    );
 
     return (
         <div className={`rich-text-editor ${className}`}>
             <ReactQuill
+                ref={quillRef}
                 theme="snow"
-                value={value}
-                onChange={onChange}
+                value={value || ''}
+                onChange={handleChange}
                 modules={modules}
                 formats={formats}
                 placeholder={placeholder}
