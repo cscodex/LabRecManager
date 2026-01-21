@@ -6,7 +6,7 @@ import { useAuthStore, useExamStore } from '@/lib/store';
 import { getText, formatTimer, getQuestionStatusColor } from '@/lib/utils';
 import {
     Clock, User, Globe, ChevronLeft, ChevronRight,
-    Flag, RotateCcw, Save, Send, AlertCircle
+    Flag, RotateCcw, Save, Send, AlertCircle, Maximize, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -35,6 +35,7 @@ interface Question {
 
 interface ExamData {
     title: Record<string, string>;
+    instructions: Record<string, string> | null;
     duration: number;
     totalMarks: number;
 }
@@ -59,8 +60,16 @@ export default function ExamAttemptPage() {
     const [submitting, setSubmitting] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
+    // Fullscreen and visibility tracking
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showTabWarning, setShowTabWarning] = useState(false);
+    const [tabSwitchCountdown, setTabSwitchCountdown] = useState(10);
+    const [violationCount, setViolationCount] = useState(0);
+
     const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const tabWarningRef = useRef<NodeJS.Timeout | null>(null);
+    const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
     // Get questions for current section
     const currentSection = sections[currentSectionIndex];
@@ -78,8 +87,76 @@ export default function ExamAttemptPage() {
         return () => {
             if (autoSaveRef.current) clearInterval(autoSaveRef.current);
             if (timerRef.current) clearInterval(timerRef.current);
+            if (tabWarningRef.current) clearTimeout(tabWarningRef.current);
+            if (countdownRef.current) clearInterval(countdownRef.current);
         };
     }, [_hasHydrated, isAuthenticated, user, router]);
+
+    // Fullscreen and visibility detection
+    useEffect(() => {
+        // Request fullscreen when exam loads
+        const requestFullscreen = () => {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().then(() => {
+                    setIsFullscreen(true);
+                }).catch(err => {
+                    console.log('Fullscreen denied:', err);
+                });
+            }
+        };
+
+        // Handle visibility change (tab switch)
+        const handleVisibilityChange = () => {
+            if (document.hidden && !submitting && !showSubmitConfirm) {
+                // Student switched away - start warning countdown
+                setViolationCount(prev => prev + 1);
+                setShowTabWarning(true);
+                setTabSwitchCountdown(10);
+
+                // Start countdown
+                countdownRef.current = setInterval(() => {
+                    setTabSwitchCountdown(prev => {
+                        if (prev <= 1) {
+                            // Auto-submit
+                            if (countdownRef.current) clearInterval(countdownRef.current);
+                            handleSubmit(true);
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            } else if (!document.hidden) {
+                // Student returned - cancel countdown
+                if (countdownRef.current) {
+                    clearInterval(countdownRef.current);
+                    countdownRef.current = null;
+                }
+                setShowTabWarning(false);
+                setTabSwitchCountdown(10);
+            }
+        };
+
+        // Handle fullscreen change
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        // Set up listeners
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+        // Request fullscreen after a short delay (user must have interacted with page)
+        const timer = setTimeout(requestFullscreen, 1000);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            clearTimeout(timer);
+            if (countdownRef.current) clearInterval(countdownRef.current);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [submitting, showSubmitConfirm]);
 
     const loadExamData = async () => {
         try {
@@ -305,13 +382,16 @@ export default function ExamAttemptPage() {
         );
     }
 
-    if (!examData || !currentQuestion) {
+    if (!examData) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100">
                 <p className="text-gray-500">Unable to load exam</p>
             </div>
         );
     }
+
+    // Check if current section has no questions (empty section)
+    const hasEmptySection = sectionQuestions.length === 0;
 
     // Stats
     const answeredCount = Object.values(responses).filter(r => r.answer && r.answer.length > 0).length;
@@ -366,96 +446,134 @@ export default function ExamAttemptPage() {
                 {/* Question Area */}
                 <div className="flex-1 p-4 overflow-y-auto">
                     <div className="bg-white rounded-xl shadow-sm p-6 max-w-4xl mx-auto">
-                        {/* Question Header */}
-                        <div className="flex items-center justify-between mb-4 pb-4 border-b">
-                            <span className="text-sm text-gray-500">
-                                Question {currentQuestionIndex + 1} of {sectionQuestions.length}
-                            </span>
-                            <span className="text-sm font-medium text-blue-600">
-                                +{currentQuestion.marks} marks
-                                {currentQuestion.negativeMarks && (
-                                    <span className="text-red-500 ml-2">-{currentQuestion.negativeMarks}</span>
-                                )}
-                            </span>
-                        </div>
-
-                        {/* Question Text */}
-                        <div className="mb-6">
-                            <p className="text-lg text-gray-900 leading-relaxed">
-                                {getText(currentQuestion.text, language)}
-                            </p>
-                            {currentQuestion.imageUrl && (
-                                <img
-                                    src={currentQuestion.imageUrl}
-                                    alt="Question"
-                                    className="mt-4 max-w-md rounded-lg"
-                                />
-                            )}
-                        </div>
-
-                        {/* Options */}
-                        {currentQuestion.options && (
-                            <div className="space-y-3">
-                                {currentQuestion.options.map((option) => {
-                                    const isSelected = responses[currentQuestion.id]?.answer?.includes(option.id);
-                                    return (
+                        {hasEmptySection ? (
+                            /* Empty Section Message */
+                            <div className="text-center py-12">
+                                <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-gray-700 mb-2">No Questions in This Section</h3>
+                                <p className="text-gray-500 mb-6">This section does not have any questions yet. Please select another section to continue.</p>
+                                <div className="flex justify-center gap-3">
+                                    {sections.filter((_, i) => i !== currentSectionIndex && questions.filter(q => q.sectionId === sections[i]?.id).length > 0).length > 0 && (
                                         <button
-                                            key={option.id}
-                                            onClick={() => handleOptionSelect(option.id)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition ${isSelected
-                                                ? 'border-blue-600 bg-blue-50'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                                }`}
+                                            onClick={() => {
+                                                // Find next section with questions
+                                                for (let i = currentSectionIndex + 1; i < sections.length; i++) {
+                                                    if (questions.filter(q => q.sectionId === sections[i].id).length > 0) {
+                                                        setCurrentSectionIndex(i);
+                                                        setCurrentQuestionIndex(0);
+                                                        return;
+                                                    }
+                                                }
+                                                // Or go to previous section with questions
+                                                for (let i = currentSectionIndex - 1; i >= 0; i--) {
+                                                    if (questions.filter(q => q.sectionId === sections[i].id).length > 0) {
+                                                        setCurrentSectionIndex(i);
+                                                        setCurrentQuestionIndex(0);
+                                                        return;
+                                                    }
+                                                }
+                                            }}
+                                            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                                         >
-                                            <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${isSelected
-                                                ? 'bg-blue-600 border-blue-600 text-white'
-                                                : 'border-gray-400 text-gray-600'
-                                                }`}>
-                                                {option.id.toUpperCase()}
-                                            </span>
-                                            <span className="flex-1 text-gray-800">
-                                                {getText(option.text, language)}
-                                            </span>
+                                            Go to Next Section
                                         </button>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
-                        )}
+                        ) : currentQuestion ? (
+                            <>
+                                {/* Question Header */}
+                                <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                                    <span className="text-sm text-gray-500">
+                                        Question {currentQuestionIndex + 1} of {sectionQuestions.length}
+                                    </span>
+                                    <span className="text-sm font-medium text-blue-600">
+                                        +{currentQuestion.marks} marks
+                                        {currentQuestion.negativeMarks && (
+                                            <span className="text-red-500 ml-2">-{currentQuestion.negativeMarks}</span>
+                                        )}
+                                    </span>
+                                </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-3 mt-8 pt-4 border-t">
-                            <button
-                                onClick={handleMarkForReview}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
-                            >
-                                <Flag className="w-4 h-4" />
-                                Mark for Review & Next
-                            </button>
-                            <button
-                                onClick={handleClearResponse}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                            >
-                                <RotateCcw className="w-4 h-4" />
-                                Clear Response
-                            </button>
-                            <div className="flex-1"></div>
-                            <button
-                                onClick={moveToPrev}
-                                disabled={currentSectionIndex === 0 && currentQuestionIndex === 0}
-                                className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                                Previous
-                            </button>
-                            <button
-                                onClick={handleSaveAndNext}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                            >
-                                <Save className="w-4 h-4" />
-                                Save & Next
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
+                                {/* Question Text */}
+                                <div className="mb-6">
+                                    <p className="text-lg text-gray-900 leading-relaxed">
+                                        {getText(currentQuestion.text, language)}
+                                    </p>
+                                    {currentQuestion.imageUrl && (
+                                        <img
+                                            src={currentQuestion.imageUrl}
+                                            alt="Question"
+                                            className="mt-4 max-w-md rounded-lg"
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Options */}
+                                {currentQuestion.options && (
+                                    <div className="space-y-3">
+                                        {currentQuestion.options.map((option) => {
+                                            const isSelected = responses[currentQuestion.id]?.answer?.includes(option.id);
+                                            return (
+                                                <button
+                                                    key={option.id}
+                                                    onClick={() => handleOptionSelect(option.id)}
+                                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition ${isSelected
+                                                        ? 'border-blue-600 bg-blue-50'
+                                                        : 'border-gray-200 hover:border-gray-300'
+                                                        }`}
+                                                >
+                                                    <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${isSelected
+                                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                                        : 'border-gray-400 text-gray-600'
+                                                        }`}>
+                                                        {option.id.toUpperCase()}
+                                                    </span>
+                                                    <span className="flex-1 text-gray-800">
+                                                        {getText(option.text, language)}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-wrap gap-3 mt-8 pt-4 border-t">
+                                    <button
+                                        onClick={handleMarkForReview}
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
+                                    >
+                                        <Flag className="w-4 h-4" />
+                                        Mark for Review & Next
+                                    </button>
+                                    <button
+                                        onClick={handleClearResponse}
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                                    >
+                                        <RotateCcw className="w-4 h-4" />
+                                        Clear Response
+                                    </button>
+                                    <div className="flex-1"></div>
+                                    <button
+                                        onClick={moveToPrev}
+                                        disabled={currentSectionIndex === 0 && currentQuestionIndex === 0}
+                                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                        Previous
+                                    </button>
+                                    <button
+                                        onClick={handleSaveAndNext}
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                        Save & Next
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </>
+                        ) : null}
                     </div>
                 </div>
 
@@ -580,6 +698,25 @@ export default function ExamAttemptPage() {
                                 {submitting ? 'Submitting...' : 'Submit'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Tab Switch Warning Modal */}
+            {showTabWarning && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
+                    <div className="bg-white rounded-xl max-w-md w-full p-6 text-center animate-pulse">
+                        <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Warning!</h3>
+                        <p className="text-gray-600 mb-4">
+                            You have navigated away from the exam. Return immediately or your exam will be auto-submitted.
+                        </p>
+                        <div className="text-5xl font-bold text-red-600 mb-4">
+                            {tabSwitchCountdown}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                            Violations: {violationCount}
+                        </p>
                     </div>
                 </div>
             )}
