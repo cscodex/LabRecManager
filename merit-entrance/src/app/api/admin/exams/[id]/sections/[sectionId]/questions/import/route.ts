@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
@@ -64,7 +64,7 @@ export async function POST(
 
         for (const q of questions) {
             try {
-                const questionId = uuidv4();
+                const questionId = randomUUID();
 
                 // Build text based on language selection
                 const text: Record<string, string> = {};
