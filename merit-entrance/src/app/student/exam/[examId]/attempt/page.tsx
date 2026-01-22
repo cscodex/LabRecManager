@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuthStore, useExamStore } from '@/lib/store';
 import { getText, formatTimer, getQuestionStatusColor } from '@/lib/utils';
 import {
-    Clock, User, Globe, ChevronLeft, ChevronRight,
+    Clock, User, Globe, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
     Flag, RotateCcw, Save, Send, AlertCircle, Maximize, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -59,6 +59,7 @@ export default function ExamAttemptPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+    const [showMobileNav, setShowMobileNav] = useState(false);
 
     // Fullscreen and visibility tracking
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -442,9 +443,9 @@ export default function ExamAttemptPage() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex">
+            <div className="flex-1 flex flex-col lg:flex-row">
                 {/* Question Area */}
-                <div className="flex-1 p-4 overflow-y-auto">
+                <div className="flex-1 p-2 sm:p-4 overflow-y-auto pb-20 lg:pb-4">
                     <div className="bg-white rounded-xl shadow-sm p-6 max-w-4xl mx-auto">
                         {hasEmptySection ? (
                             /* Empty Section Message */
@@ -577,8 +578,8 @@ export default function ExamAttemptPage() {
                     </div>
                 </div>
 
-                {/* Right Panel - Timer & Navigation */}
-                <div className="w-72 bg-white border-l flex flex-col">
+                {/* Right Panel - Timer & Navigation (Hidden on mobile, shown on desktop) */}
+                <div className="hidden lg:flex w-72 bg-white border-l flex-col">
                     {/* Timer */}
                     <div className={`p-4 text-center border-b ${timeRemaining < 300 ? 'bg-red-50' : 'bg-blue-50'}`}>
                         <div className="flex items-center justify-center gap-2 mb-1">
@@ -653,6 +654,106 @@ export default function ExamAttemptPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Mobile Bottom Bar - Only visible on mobile */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
+                <div className="flex items-center justify-between px-4 py-2">
+                    {/* Timer */}
+                    <div className={`flex items-center gap-2 ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`}>
+                        <Clock className="w-5 h-5" />
+                        <span className="font-mono font-bold text-lg">{formatTimer(timeRemaining)}</span>
+                    </div>
+
+                    {/* Question Palette Toggle */}
+                    <button
+                        onClick={() => setShowMobileNav(!showMobileNav)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm"
+                    >
+                        <span className="text-green-600 font-medium">{answeredCount}</span>/
+                        <span>{questions.length}</span>
+                        <ChevronUp className={`w-4 h-4 transition ${showMobileNav ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Submit Button */}
+                    <button
+                        onClick={() => setShowSubmitConfirm(true)}
+                        disabled={submitting}
+                        className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg"
+                    >
+                        Submit
+                    </button>
+                </div>
+            </div>
+
+            {/* Mobile Question Navigation Drawer */}
+            {showMobileNav && (
+                <div className="lg:hidden fixed inset-0 z-50" onClick={() => setShowMobileNav(false)}>
+                    <div className="absolute inset-0 bg-black/50" />
+                    <div
+                        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+                            <h3 className="font-semibold">Question Navigation</h3>
+                            <button onClick={() => setShowMobileNav(false)} className="p-1">
+                                <ChevronDown className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Stats */}
+                        <div className="grid grid-cols-4 gap-2 p-3 text-xs border-b">
+                            <div className="flex items-center gap-1">
+                                <span className="w-3 h-3 rounded bg-green-500"></span>
+                                <span>{answeredCount}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="w-3 h-3 rounded bg-red-500"></span>
+                                <span>{notAnsweredCount}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="w-3 h-3 rounded bg-purple-500"></span>
+                                <span>{markedCount}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="w-3 h-3 rounded bg-gray-300"></span>
+                                <span>{questions.length - visitedQuestions.size}</span>
+                            </div>
+                        </div>
+
+                        {/* Question Grid */}
+                        <div className="p-4">
+                            {sections.map((section, sIdx) => {
+                                const sectionQs = questions.filter(q => q.sectionId === section.id);
+                                return (
+                                    <div key={section.id} className="mb-4">
+                                        <p className="text-xs font-medium text-gray-500 mb-2">
+                                            {getText(section.name, language)}
+                                        </p>
+                                        <div className="grid grid-cols-8 gap-1">
+                                            {sectionQs.map((q, qIdx) => {
+                                                const status = getQuestionStatus(q.id);
+                                                const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
+                                                return (
+                                                    <button
+                                                        key={q.id}
+                                                        onClick={() => {
+                                                            goToQuestion(sIdx, qIdx);
+                                                            setShowMobileNav(false);
+                                                        }}
+                                                        className={`w-8 h-8 rounded text-xs font-medium ${isActive ? 'ring-2 ring-blue-600' : ''} ${getQuestionStatusColor(status)}`}
+                                                    >
+                                                        {qIdx + 1}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Submit Confirmation Modal */}
             {showSubmitConfirm && (
