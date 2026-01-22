@@ -139,7 +139,15 @@ export async function POST(
                 const correctAnswerJson = JSON.stringify(correctAnswer);
                 const explanationJson = explanation ? JSON.stringify(explanation) : null;
 
-                console.log('Inserting question:', { questionId, sectionId, type: q.type, marks: q.marks });
+                console.log('Inserting question:', {
+                    questionId,
+                    sectionId,
+                    type: q.type,
+                    marks: q.marks,
+                    explanationEn: q.explanationEn,
+                    explanationPa: q.explanationPa,
+                    explanationJson
+                });
 
                 await sql`
                     INSERT INTO questions (

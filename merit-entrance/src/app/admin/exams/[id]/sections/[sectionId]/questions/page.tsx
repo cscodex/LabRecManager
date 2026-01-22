@@ -57,6 +57,7 @@ export default function ManageQuestionsPage() {
     const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
     const [showAddForm, setShowAddForm] = useState(false);
     const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+    const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
 
     const createEmptyQuestion = () => ({
         textEn: '',
@@ -265,6 +266,64 @@ export default function ManageQuestionsPage() {
                 }
             },
         });
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedQuestions.size === 0) return;
+
+        confirm({
+            title: `Delete ${selectedQuestions.size} Questions`,
+            message: `Are you sure you want to delete ${selectedQuestions.size} selected questions? This action cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete All',
+            onConfirm: async () => {
+                const idsToDelete = Array.from(selectedQuestions);
+                // Optimistic delete
+                updateQuestionsOptimistically(questions.filter(q => !selectedQuestions.has(q.id)));
+                setSelectedQuestions(new Set());
+
+                try {
+                    const response = await fetch(
+                        `/api/admin/exams/${examId}/sections/${sectionId}/questions/bulk-delete`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ questionIds: idsToDelete }),
+                        }
+                    );
+
+                    if (response.ok) {
+                        toast.success(`Deleted ${idsToDelete.length} questions!`);
+                    } else {
+                        loadData();
+                        toast.error('Failed to delete some questions');
+                    }
+                } catch (error) {
+                    loadData();
+                    toast.error('Failed to delete questions');
+                }
+            },
+        });
+    };
+
+    const toggleQuestionSelect = (questionId: string) => {
+        setSelectedQuestions(prev => {
+            const next = new Set(prev);
+            if (next.has(questionId)) {
+                next.delete(questionId);
+            } else {
+                next.add(questionId);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedQuestions.size === questions.length) {
+            setSelectedQuestions(new Set());
+        } else {
+            setSelectedQuestions(new Set(questions.map(q => q.id)));
+        }
     };
 
     const startEditQuestion = (question: Question) => {
@@ -735,6 +794,27 @@ export default function ManageQuestionsPage() {
                             {language === 'en' ? 'EN' : 'ਪੰ'}
                         </button>
                     </div>
+                    {/* Bulk Actions Bar */}
+                    {selectedQuestions.size > 0 && (
+                        <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                            <span className="text-sm text-blue-700">
+                                {selectedQuestions.size} question{selectedQuestions.size > 1 ? 's' : ''} selected
+                            </span>
+                            <button
+                                onClick={handleBulkDelete}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Selected
+                            </button>
+                            <button
+                                onClick={() => setSelectedQuestions(new Set())}
+                                className="px-3 py-1.5 text-sm border rounded-lg hover:bg-white"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -746,6 +826,13 @@ export default function ManageQuestionsPage() {
                         {/* Question Card */}
                         <div className={`bg-white rounded-xl shadow-sm p-4 ${editingQuestionId === q.id ? 'ring-2 ring-blue-500 mb-2' : ''}`}>
                             <div className="flex items-start gap-3">
+                                {/* Checkbox for selection */}
+                                <input
+                                    type="checkbox"
+                                    checked={selectedQuestions.has(q.id)}
+                                    onChange={() => toggleQuestionSelect(q.id)}
+                                    className="mt-3 w-4 h-4 text-blue-600 border-gray-300 rounded cursor-pointer"
+                                />
                                 {/* Reorder controls */}
                                 <div className="flex flex-col items-center gap-0.5">
                                     <button
