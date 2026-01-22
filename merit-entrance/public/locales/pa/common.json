@@ -41,7 +41,9 @@
         "loginFailed": "ਲੌਗਇਨ ਅਸਫਲ",
         "invalidCredentials": "ਗਲਤ ਪ੍ਰਮਾਣ ਪੱਤਰ",
         "accountDisabled": "ਖਾਤਾ ਅਯੋਗ ਹੈ। ਐਡਮਿਨ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।",
-        "somethingWentWrong": "ਕੁਝ ਗਲਤ ਹੋ ਗਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"
+        "somethingWentWrong": "ਕੁਝ ਗਲਤ ਹੋ ਗਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
+        "orContinueWith": "ਜਾਂ ਇਸ ਨਾਲ ਜਾਰੀ ਰੱਖੋ",
+        "signInWithGoogle": "Google ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ"
     },
     "dashboard": {
         "title": "ਡੈਸ਼ਬੋਰਡ",

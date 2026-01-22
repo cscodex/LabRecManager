@@ -41,7 +41,9 @@
         "loginFailed": "Login failed",
         "invalidCredentials": "Invalid credentials",
         "accountDisabled": "Account is disabled. Contact admin.",
-        "somethingWentWrong": "Something went wrong. Please try again."
+        "somethingWentWrong": "Something went wrong. Please try again.",
+        "orContinueWith": "Or continue with",
+        "signInWithGoogle": "Sign in with Google"
     },
     "dashboard": {
         "title": "Dashboard",
