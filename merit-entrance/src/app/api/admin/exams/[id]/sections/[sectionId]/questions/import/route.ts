@@ -133,7 +133,14 @@ export async function POST(
                     }
                 }
 
-                // Insert question
+                // Insert question - cast JSON strings properly for PostgreSQL
+                const textJson = JSON.stringify(text);
+                const optionsJson = options ? JSON.stringify(options) : null;
+                const correctAnswerJson = JSON.stringify(correctAnswer);
+                const explanationJson = explanation ? JSON.stringify(explanation) : null;
+
+                console.log('Inserting question:', { questionId, sectionId, type: q.type, marks: q.marks });
+
                 await sql`
                     INSERT INTO questions (
                         id, section_id, type, text, options, correct_answer, 
@@ -142,10 +149,10 @@ export async function POST(
                         ${questionId},
                         ${sectionId},
                         ${q.type},
-                        ${JSON.stringify(text)},
-                        ${options ? JSON.stringify(options) : null},
-                        ${JSON.stringify(correctAnswer)},
-                        ${explanation ? JSON.stringify(explanation) : null},
+                        ${textJson}::jsonb,
+                        ${optionsJson}::jsonb,
+                        ${correctAnswerJson}::jsonb,
+                        ${explanationJson}::jsonb,
                         ${q.marks || 4},
                         ${q.negativeMarks || 0},
                         ${currentOrder}
@@ -154,21 +161,34 @@ export async function POST(
 
                 currentOrder++;
                 importedCount++;
-            } catch (error) {
-                console.error('Error importing question:', error);
+            } catch (error: any) {
+                console.error('Error importing question row:', {
+                    error: error?.message || error,
+                    stack: error?.stack,
+                    questionData: {
+                        type: q.type,
+                        textEn: q.textEn?.substring(0, 50),
+                        marks: q.marks
+                    }
+                });
                 // Continue with next question
             }
         }
+
+        console.log(`Import complete: ${importedCount}/${questions.length} questions imported`);
 
         return NextResponse.json({
             success: true,
             imported: importedCount,
             total: questions.length,
         });
-    } catch (error) {
-        console.error('Error in bulk import:', error);
+    } catch (error: any) {
+        console.error('Error in bulk import:', {
+            error: error?.message || error,
+            stack: error?.stack
+        });
         return NextResponse.json(
-            { error: 'Internal server error' },
+            { error: error?.message || 'Internal server error' },
             { status: 500 }
         );
     }
