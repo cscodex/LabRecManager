@@ -391,38 +391,62 @@ export default function ImportQuestionsPage() {
                         </div>
 
                         <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                            <table className="w-full text-sm">
+                            <table className="w-full text-xs">
                                 <thead className="bg-gray-50 sticky top-0">
                                     <tr>
-                                        <th className="px-3 py-2 text-left">#</th>
-                                        <th className="px-3 py-2 text-left">Type</th>
-                                        <th className="px-3 py-2 text-left">Question</th>
-                                        <th className="px-3 py-2 text-left">Answer</th>
-                                        <th className="px-3 py-2 text-left">Marks</th>
-                                        <th className="px-3 py-2 text-left">Status</th>
-                                        <th className="px-3 py-2"></th>
+                                        <th className="px-2 py-2 text-left">#</th>
+                                        <th className="px-2 py-2 text-left">Type</th>
+                                        <th className="px-2 py-2 text-left">Question_EN</th>
+                                        <th className="px-2 py-2 text-left">Question_PA</th>
+                                        <th className="px-2 py-2 text-left">A_EN</th>
+                                        <th className="px-2 py-2 text-left">A_PA</th>
+                                        <th className="px-2 py-2 text-left">B_EN</th>
+                                        <th className="px-2 py-2 text-left">B_PA</th>
+                                        <th className="px-2 py-2 text-left">C_EN</th>
+                                        <th className="px-2 py-2 text-left">C_PA</th>
+                                        <th className="px-2 py-2 text-left">D_EN</th>
+                                        <th className="px-2 py-2 text-left">D_PA</th>
+                                        <th className="px-2 py-2 text-left">Ans</th>
+                                        <th className="px-2 py-2 text-left">Mrk</th>
+                                        <th className="px-2 py-2 text-left">-Mrk</th>
+                                        <th className="px-2 py-2 text-left">Expl_EN</th>
+                                        <th className="px-2 py-2 text-left">Expl_PA</th>
+                                        <th className="px-2 py-2 text-left">Status</th>
+                                        <th className="px-2 py-2"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {parsedQuestions.map((q, idx) => (
                                         <tr key={idx} className={q.error ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                                            <td className="px-3 py-2">{q.row}</td>
-                                            <td className="px-3 py-2">
-                                                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
-                                                    {q.type}
+                                            <td className="px-2 py-1">{q.row}</td>
+                                            <td className="px-2 py-1">
+                                                <span className="px-1 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                                    {q.type.replace('mcq_', '')}
                                                 </span>
                                             </td>
-                                            <td className="px-3 py-2 max-w-xs truncate">{q.textEn || q.textPa}</td>
-                                            <td className="px-3 py-2 font-mono">{q.correctAnswer}</td>
-                                            <td className="px-3 py-2">{q.marks}</td>
-                                            <td className="px-3 py-2">
+                                            <td className="px-2 py-1 max-w-[120px] truncate" title={q.textEn}>{q.textEn}</td>
+                                            <td className="px-2 py-1 max-w-[120px] truncate" title={q.textPa}>{q.textPa}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionAEn}>{q.optionAEn}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionAPa}>{q.optionAPa}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionBEn}>{q.optionBEn}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionBPa}>{q.optionBPa}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionCEn}>{q.optionCEn}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionCPa}>{q.optionCPa}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionDEn}>{q.optionDEn}</td>
+                                            <td className="px-2 py-1 max-w-[60px] truncate" title={q.optionDPa}>{q.optionDPa}</td>
+                                            <td className="px-2 py-1 font-mono">{q.correctAnswer}</td>
+                                            <td className="px-2 py-1">{q.marks}</td>
+                                            <td className="px-2 py-1">{q.negativeMarks}</td>
+                                            <td className="px-2 py-1 max-w-[100px] truncate" title={q.explanationEn}>{q.explanationEn || '-'}</td>
+                                            <td className="px-2 py-1 max-w-[100px] truncate" title={q.explanationPa}>{q.explanationPa || '-'}</td>
+                                            <td className="px-2 py-1">
                                                 {q.error ? (
-                                                    <span className="text-red-600 text-xs">{q.error}</span>
+                                                    <span className="text-red-600 text-xs" title={q.error}>❌</span>
                                                 ) : (
                                                     <CheckCircle className="w-4 h-4 text-green-500" />
                                                 )}
                                             </td>
-                                            <td className="px-3 py-2">
+                                            <td className="px-2 py-1">
                                                 <button
                                                     onClick={() => removeQuestion(idx)}
                                                     className="text-gray-400 hover:text-red-500"
