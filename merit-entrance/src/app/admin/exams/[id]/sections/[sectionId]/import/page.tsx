@@ -73,22 +73,22 @@ export default function ImportQuestionsPage() {
 
     const downloadTemplate = () => {
         const headers = [
-            'Type (mcq_single/mcq_multiple/fill_blank)',
-            'Question (English)',
-            'Question (Punjabi)',
-            'Option A (English)',
-            'Option A (Punjabi)',
-            'Option B (English)',
-            'Option B (Punjabi)',
-            'Option C (English)',
-            'Option C (Punjabi)',
-            'Option D (English)',
-            'Option D (Punjabi)',
-            'Correct Answer (a/b/c/d or a,b for multiple)',
+            'Type',
+            'Question_EN',
+            'Question_PA',
+            'OptionA_EN',
+            'OptionA_PA',
+            'OptionB_EN',
+            'OptionB_PA',
+            'OptionC_EN',
+            'OptionC_PA',
+            'OptionD_EN',
+            'OptionD_PA',
+            'CorrectAnswer',
             'Marks',
-            'Negative Marks',
-            'Explanation (English)',
-            'Explanation (Punjabi)'
+            'NegativeMarks',
+            'Explanation_EN',
+            'Explanation_PA'
         ];
 
         const sampleRow = [
@@ -110,8 +110,9 @@ export default function ImportQuestionsPage() {
             '2 ਅਤੇ 2 ਦਾ ਜੋੜ 4 ਹੈ'
         ];
 
+        // Quote all cells to avoid comma issues
         const csvContent = [
-            headers.join(','),
+            headers.map(h => `"${h}"`).join(','),
             sampleRow.map(cell => `"${cell}"`).join(',')
         ].join('\n');
 
