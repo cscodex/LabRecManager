@@ -46,7 +46,7 @@ export async function POST(
 
         // Verify section exists and belongs to exam
         const sectionCheck = await sql`
-            SELECT id FROM exam_sections WHERE id = ${sectionId} AND exam_id = ${examId}
+            SELECT id FROM sections WHERE id = ${sectionId} AND exam_id = ${examId}
         `;
         if (sectionCheck.length === 0) {
             return NextResponse.json({ error: 'Section not found' }, { status: 404 });
