@@ -179,6 +179,15 @@ export default function ImportQuestionsPage() {
                 cells.push(currentCell.trim());
             }
 
+            // Smart column detection: check if there's an extra empty column after correct answer
+            // This handles old CSV files that had the comma in "Correct Answer (a/b/c/d or a,b for multiple)"
+            let offset = 0;
+            if (cells[12] === '' && cells.length > 16) {
+                // Extra empty column detected, shift indexes for remaining columns
+                offset = 1;
+                console.log(`Row ${index + 2}: Detected extra empty column, applying offset`);
+            }
+
             const question: ImportedQuestion = {
                 row: index + 2,
                 type: (cells[0] || 'mcq_single').toLowerCase(),
@@ -193,10 +202,10 @@ export default function ImportQuestionsPage() {
                 optionDEn: cells[9],
                 optionDPa: cells[10],
                 correctAnswer: (cells[11] || '').toLowerCase(),
-                marks: parseInt(cells[12]) || 4,
-                negativeMarks: parseInt(cells[13]) || 0,
-                explanationEn: cells[14],
-                explanationPa: cells[15],
+                marks: parseInt(cells[12 + offset]) || 1,
+                negativeMarks: parseInt(cells[13 + offset]) || 0,
+                explanationEn: cells[14 + offset],
+                explanationPa: cells[15 + offset],
             };
 
             if (!question.textEn && !question.textPa) {
