@@ -35,6 +35,7 @@ export default function ExamInstructionsPage() {
             return;
         }
         loadExamDetails();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [_hasHydrated, isAuthenticated, user, router]);
 
     const loadExamDetails = async () => {

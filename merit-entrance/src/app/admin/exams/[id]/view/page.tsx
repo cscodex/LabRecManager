@@ -62,6 +62,7 @@ export default function ViewExamPage() {
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
     const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadExam();
     }, [examId]);
@@ -352,13 +353,13 @@ export default function ViewExamPage() {
                                                             <div
                                                                 key={opt.id}
                                                                 className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect
-                                                                        ? 'bg-green-50 border-green-300'
-                                                                        : 'bg-white border-gray-200'
+                                                                    ? 'bg-green-50 border-green-300'
+                                                                    : 'bg-white border-gray-200'
                                                                     }`}
                                                             >
                                                                 <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium ${isCorrect
-                                                                        ? 'bg-green-500 text-white'
-                                                                        : 'bg-gray-200 text-gray-600'
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : 'bg-gray-200 text-gray-600'
                                                                     }`}>
                                                                     {opt.id.toUpperCase()}
                                                                 </span>

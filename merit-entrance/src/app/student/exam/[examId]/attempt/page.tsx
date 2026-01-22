@@ -85,12 +85,19 @@ export default function ExamAttemptPage() {
         }
         loadExamData();
 
+        // Copy refs to local variables for cleanup
+        const autoSaveInterval = autoSaveRef.current;
+        const timerInterval = timerRef.current;
+        const tabWarningTimeout = tabWarningRef.current;
+        const countdownInterval = countdownRef.current;
+
         return () => {
-            if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-            if (timerRef.current) clearInterval(timerRef.current);
-            if (tabWarningRef.current) clearTimeout(tabWarningRef.current);
-            if (countdownRef.current) clearInterval(countdownRef.current);
+            if (autoSaveInterval) clearInterval(autoSaveInterval);
+            if (timerInterval) clearInterval(timerInterval);
+            if (tabWarningTimeout) clearTimeout(tabWarningTimeout);
+            if (countdownInterval) clearInterval(countdownInterval);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [_hasHydrated, isAuthenticated, user, router]);
 
     // Fullscreen and visibility detection

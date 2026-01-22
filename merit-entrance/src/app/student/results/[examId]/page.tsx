@@ -63,6 +63,7 @@ export default function ResultsPage() {
             return;
         }
         loadResults();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [_hasHydrated, isAuthenticated, user, router]);
 
     const loadResults = async () => {
@@ -142,8 +143,8 @@ export default function ResultsPage() {
             <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
                 {/* Score Card */}
                 <div className={`rounded-2xl p-6 text-white ${attempt.passed === true ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
-                        attempt.passed === false ? 'bg-gradient-to-r from-red-500 to-rose-600' :
-                            'bg-gradient-to-r from-blue-500 to-indigo-600'
+                    attempt.passed === false ? 'bg-gradient-to-r from-red-500 to-rose-600' :
+                        'bg-gradient-to-r from-blue-500 to-indigo-600'
                     }`}>
                     <div className="flex items-center gap-4 mb-4">
                         <Trophy className="w-12 h-12" />
@@ -219,8 +220,8 @@ export default function ResultsPage() {
                                                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50"
                                             >
                                                 <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${q.isCorrect === true ? 'bg-green-100 text-green-700' :
-                                                        q.isCorrect === false ? 'bg-red-100 text-red-700' :
-                                                            'bg-gray-100 text-gray-500'
+                                                    q.isCorrect === false ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-500'
                                                     }`}>
                                                     {idx + 1}
                                                 </span>
@@ -231,8 +232,8 @@ export default function ResultsPage() {
                                                 {q.isCorrect === false && <XCircle className="w-5 h-5 text-red-500" />}
                                                 {q.isCorrect === null && <MinusCircle className="w-5 h-5 text-gray-400" />}
                                                 <span className={`text-sm font-medium ${q.marksAwarded > 0 ? 'text-green-600' :
-                                                        q.marksAwarded < 0 ? 'text-red-600' :
-                                                            'text-gray-400'
+                                                    q.marksAwarded < 0 ? 'text-red-600' :
+                                                        'text-gray-400'
                                                     }`}>
                                                     {q.marksAwarded > 0 ? '+' : ''}{q.marksAwarded}
                                                 </span>
@@ -253,13 +254,13 @@ export default function ResultsPage() {
                                                                     <div
                                                                         key={opt.id}
                                                                         className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-300' :
-                                                                                wasSelected && !isCorrect ? 'bg-red-50 border-red-300' :
-                                                                                    'bg-white border-gray-200'
+                                                                            wasSelected && !isCorrect ? 'bg-red-50 border-red-300' :
+                                                                                'bg-white border-gray-200'
                                                                             }`}
                                                                     >
                                                                         <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${isCorrect ? 'bg-green-500 border-green-500 text-white' :
-                                                                                wasSelected ? 'bg-red-500 border-red-500 text-white' :
-                                                                                    'border-gray-300 text-gray-500'
+                                                                            wasSelected ? 'bg-red-500 border-red-500 text-white' :
+                                                                                'border-gray-300 text-gray-500'
                                                                             }`}>
                                                                             {opt.id.toUpperCase()}
                                                                         </span>
