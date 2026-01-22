@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import {
-    ChevronLeft, Save, Plus, Trash2,
+    ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -638,6 +638,13 @@ export default function EditExamPage() {
                                                 className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
                                             >
                                                 Questions
+                                            </Link>
+                                            <Link
+                                                href={`/admin/exams/${examId}/sections/${section.id}/import`}
+                                                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                                            >
+                                                <Upload className="w-3 h-3" />
+                                                Import
                                             </Link>
                                             <button onClick={() => handleDeleteSection(section.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                                                 <Trash2 className="w-4 h-4" />
