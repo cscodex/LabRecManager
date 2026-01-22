@@ -142,26 +142,41 @@ export default function ImportQuestionsPage() {
             return;
         }
 
+        // Auto-detect delimiter: check if first line has more tabs than commas
+        const firstLine = lines[0];
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const delimiter = tabCount > commaCount ? '\t' : ',';
+
+        console.log(`Detected delimiter: ${delimiter === '\t' ? 'TAB' : 'COMMA'}`);
+
         const dataRows = lines.slice(1);
         const questions: ImportedQuestion[] = [];
 
         dataRows.forEach((line, index) => {
-            const cells: string[] = [];
-            let currentCell = '';
-            let inQuotes = false;
+            let cells: string[] = [];
 
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    cells.push(currentCell.trim());
-                    currentCell = '';
-                } else {
-                    currentCell += char;
+            if (delimiter === '\t') {
+                // Tab-separated: simple split
+                cells = line.split('\t').map(c => c.trim());
+            } else {
+                // Comma-separated: handle quoted fields
+                let currentCell = '';
+                let inQuotes = false;
+
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        cells.push(currentCell.trim());
+                        currentCell = '';
+                    } else {
+                        currentCell += char;
+                    }
                 }
+                cells.push(currentCell.trim());
             }
-            cells.push(currentCell.trim());
 
             const question: ImportedQuestion = {
                 row: index + 2,
