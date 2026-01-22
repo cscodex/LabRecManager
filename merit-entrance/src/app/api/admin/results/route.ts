@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
                 e.passing_marks,
                 COUNT(DISTINCT ea.id) as total_attempts,
                 COUNT(DISTINCT CASE WHEN ea.status = 'submitted' THEN ea.id END) as completed_attempts,
-                AVG(CASE WHEN ea.status = 'submitted' THEN ea.score END) as avg_score,
-                MAX(CASE WHEN ea.status = 'submitted' THEN ea.score END) as highest_score,
-                MIN(CASE WHEN ea.status = 'submitted' THEN ea.score END) as lowest_score
+                AVG(CASE WHEN ea.status = 'submitted' THEN ea.total_score END) as avg_score,
+                MAX(CASE WHEN ea.status = 'submitted' THEN ea.total_score END) as highest_score,
+                MIN(CASE WHEN ea.status = 'submitted' THEN ea.total_score END) as lowest_score
             FROM exams e
             LEFT JOIN exam_attempts ea ON ea.exam_id = e.id
             WHERE e.status = 'published'
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
                 e.title as exam_title,
                 e.total_marks,
                 e.passing_marks,
-                ea.score,
+                ea.total_score,
                 ea.submitted_at,
                 ea.started_at
             FROM exam_attempts ea
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         const formattedAttempts = recentAttempts.map((attempt: any) => {
             const totalMarks = attempt.total_marks || 100;
             const passingMarks = attempt.passing_marks || Math.round(totalMarks * 0.4);
-            const score = attempt.score || 0;
+            const score = attempt.total_score || 0;
             const percentage = Math.round((score / totalMarks) * 100);
 
             // Calculate time taken
