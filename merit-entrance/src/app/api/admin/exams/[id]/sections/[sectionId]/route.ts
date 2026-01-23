@@ -40,6 +40,8 @@ export async function PUT(
         const body = await request.json();
         const { name, order, duration } = body;
 
+        console.log('Updating section:', { id, sectionId, name, order, duration });
+
         await sql`
       UPDATE sections SET
         name = ${JSON.stringify(name)}::jsonb,
@@ -51,6 +53,10 @@ export async function PUT(
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error updating section:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: errorMessage
+        }, { status: 500 });
     }
 }

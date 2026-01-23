@@ -384,12 +384,16 @@ export default function EditExamPage() {
             if (response.ok) {
                 toast.success('Section updated!');
             } else {
+                const errorData = await response.json();
                 loadExam();
-                toast.error('Failed to update section');
+                toast.error(`Failed: ${errorData.details || errorData.error || 'Unknown error'}`);
+                console.error('Section update error:', errorData);
             }
         } catch (error) {
             loadExam();
-            toast.error('Failed to update section');
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            toast.error(`Failed: ${errorMsg}`);
+            console.error('Section update exception:', error);
         }
     };
 
