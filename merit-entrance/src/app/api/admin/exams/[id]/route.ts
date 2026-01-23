@@ -6,7 +6,7 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getSession();
@@ -14,7 +14,7 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         // Get exam details
         const exams = await sql`
@@ -58,6 +58,7 @@ export async function GET(
                 ...exam,
                 title: typeof exam.title === 'string' ? JSON.parse(exam.title) : exam.title,
                 description: exam.description ? (typeof exam.description === 'string' ? JSON.parse(exam.description) : exam.description) : null,
+                instructions: exam.instructions ? (typeof exam.instructions === 'string' ? JSON.parse(exam.instructions) : exam.instructions) : null,
                 sections: sections.map(s => ({
                     ...s,
                     name: typeof s.name === 'string' ? JSON.parse(s.name) : s.name,
@@ -67,13 +68,14 @@ export async function GET(
         });
     } catch (error) {
         console.error('Error fetching exam:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ error: 'Internal server error', details: errorMessage }, { status: 500 });
     }
 }
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getSession();
@@ -81,9 +83,11 @@ export async function PUT(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
         const body = await request.json();
         const { title, description, instructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, status } = body;
+
+        console.log('Updating exam:', { id, title, description: !!description, instructions: !!instructions });
 
         const now = new Date().toISOString();
         await sql`
@@ -104,14 +108,15 @@ export async function PUT(
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error updating exam:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ error: 'Internal server error', details: errorMessage }, { status: 500 });
     }
 
 }
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getSession();
@@ -119,7 +124,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         // Cascading delete will handle sections, questions, etc.
         await sql`DELETE FROM exams WHERE id = ${id}`;
@@ -127,6 +132,7 @@ export async function DELETE(
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error deleting exam:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ error: 'Internal server error', details: errorMessage }, { status: 500 });
     }
 }

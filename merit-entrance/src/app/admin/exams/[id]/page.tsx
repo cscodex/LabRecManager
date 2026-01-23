@@ -134,12 +134,16 @@ export default function EditExamPage() {
                         setAutoSaveStatus('idle');
                     }, 2000);
                 } else {
+                    const errorData = await response.json();
                     setAutoSaveStatus('error');
-                    toast.error('Auto-save failed');
+                    toast.error(`Auto-save failed: ${errorData.details || errorData.error || 'Unknown error'}`);
+                    console.error('Auto-save error:', errorData);
                 }
             } catch (error) {
                 setAutoSaveStatus('error');
-                toast.error('Auto-save failed');
+                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                toast.error(`Auto-save failed: ${errorMsg}`);
+                console.error('Auto-save exception:', error);
             } finally {
                 setSaving(false);
             }

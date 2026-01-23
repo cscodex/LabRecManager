@@ -168,3 +168,21 @@ model DemoContent {
   
   @@map("demo_content")
 }
+
+// ============ QUERY LOGS (Error Tracking) ============
+model QueryLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  route     String   @db.VarChar(255)
+  method    String   @db.VarChar(10) // GET, POST, PUT, DELETE
+  query     String?  @db.Text // SQL query or operation description
+  params    String?  @db.Text // JSON stringified params
+  success   Boolean  @default(true)
+  error     String?  @db.Text // Error message if failed
+  duration  Int?     // Execution time in ms
+  userId    String?  @map("user_id") @db.Uuid // Admin who made the request
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@index([success, createdAt])
+  @@index([route])
+  @@map("query_logs")
+}
