@@ -1,0 +1,35 @@
+{
+  "admins": {
+    "sql": "SELECT * FROM \"admins\""
+  },
+  "students": {
+    "sql": "SELECT * FROM \"students\""
+  },
+  "exams": {
+    "sql": "SELECT * FROM \"exams\""
+  },
+  "sections": {
+    "sql": "SELECT * FROM \"sections\""
+  },
+  "questions": {
+    "sql": "SELECT * FROM \"questions\""
+  },
+  "exam_schedules": {
+    "sql": "SELECT * FROM \"exam_schedules\""
+  },
+  "exam_assignments": {
+    "sql": "SELECT * FROM \"exam_assignments\""
+  },
+  "exam_attempts": {
+    "sql": "SELECT * FROM \"exam_attempts\""
+  },
+  "question_responses": {
+    "sql": "SELECT * FROM \"question_responses\""
+  },
+  "demo_content": {
+    "sql": "SELECT * FROM \"demo_content\""
+  },
+  "query_logs": {
+    "sql": "SELECT * FROM \"query_logs\""
+  }
+}
