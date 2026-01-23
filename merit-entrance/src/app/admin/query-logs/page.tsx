@@ -37,6 +37,7 @@ export default function QueryLogsPage() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteTimeRange, setDeleteTimeRange] = useState('7d');
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadData();
     }, [pagination.page, filters.success]);
@@ -233,10 +234,10 @@ export default function QueryLogsPage() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded text-xs ${log.method === 'GET' ? 'bg-green-100 text-green-700' :
-                                                        log.method === 'POST' ? 'bg-blue-100 text-blue-700' :
-                                                            log.method === 'PUT' ? 'bg-amber-100 text-amber-700' :
-                                                                log.method === 'DELETE' ? 'bg-red-100 text-red-700' :
-                                                                    'bg-gray-100'
+                                                    log.method === 'POST' ? 'bg-blue-100 text-blue-700' :
+                                                        log.method === 'PUT' ? 'bg-amber-100 text-amber-700' :
+                                                            log.method === 'DELETE' ? 'bg-red-100 text-red-700' :
+                                                                'bg-gray-100'
                                                     }`}>
                                                     {log.method}
                                                 </span>
@@ -334,8 +335,8 @@ export default function QueryLogsPage() {
                                 <label
                                     key={option.value}
                                     className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${deleteTimeRange === option.value
-                                            ? 'border-red-500 bg-red-50'
-                                            : 'border-gray-200 hover:border-red-300'
+                                        ? 'border-red-500 bg-red-50'
+                                        : 'border-gray-200 hover:border-red-300'
                                         }`}
                                 >
                                     <input
