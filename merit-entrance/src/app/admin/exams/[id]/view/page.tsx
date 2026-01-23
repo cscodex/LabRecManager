@@ -394,7 +394,7 @@ export default function ViewExamPage() {
                                                     </button>
                                                     {expandedExplanations.has(question.id) && (
                                                         <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                            <p className="text-sm text-blue-800 italic">
+                                                            <p className="text-sm text-blue-800 italic whitespace-pre-wrap">
                                                                 {getText(question.explanation, language)}
                                                             </p>
                                                         </div>

@@ -920,7 +920,7 @@ export default function ManageQuestionsPage() {
                                                 Show Explanation
                                             </button>
                                             {expandedExplanations.has(q.id) && (
-                                                <p className="mt-1 text-sm text-gray-600 italic pl-4 border-l-2 border-gray-200">
+                                                <p className="mt-1 text-sm text-gray-600 italic pl-4 border-l-2 border-gray-200 whitespace-pre-wrap">
                                                     {getText(q.explanation, language)}
                                                 </p>
                                             )}

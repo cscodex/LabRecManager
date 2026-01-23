@@ -278,7 +278,7 @@ export default function ResultsPage() {
                                                     {q.explanation && (
                                                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                                                             <p className="text-sm font-medium text-blue-800 mb-1">Explanation:</p>
-                                                            <p className="text-sm text-blue-700">{getText(q.explanation, language)}</p>
+                                                            <p className="text-sm text-blue-700 whitespace-pre-wrap">{getText(q.explanation, language)}</p>
                                                         </div>
                                                     )}
                                                 </div>
