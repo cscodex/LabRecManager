@@ -6,7 +6,7 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string; sectionId: string } }
+    { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
     try {
         const session = await getSession();
@@ -14,8 +14,10 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { id, sectionId } = await params;
+
         // Cascading delete will handle questions
-        await sql`DELETE FROM sections WHERE id = ${params.sectionId} AND exam_id = ${params.id}`;
+        await sql`DELETE FROM sections WHERE id = ${sectionId} AND exam_id = ${id}`;
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -26,7 +28,7 @@ export async function DELETE(
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string; sectionId: string } }
+    { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
     try {
         const session = await getSession();
@@ -34,6 +36,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { id, sectionId } = await params;
         const body = await request.json();
         const { name, order, duration } = body;
 
@@ -42,7 +45,7 @@ export async function PUT(
         name = ${JSON.stringify(name)}::jsonb,
         "order" = ${order},
         duration = ${duration || null}
-      WHERE id = ${params.sectionId} AND exam_id = ${params.id}
+      WHERE id = ${sectionId} AND exam_id = ${id}
     `;
 
         return NextResponse.json({ success: true });
