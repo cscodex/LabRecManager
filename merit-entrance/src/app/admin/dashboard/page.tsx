@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
     BookOpen, Users, FileText, Calendar,
     PlusCircle, LogOut, Settings, BarChart3,
-    ChevronRight
+    ChevronRight, Database, HardDrive
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -192,6 +192,20 @@ export default function AdminDashboard() {
                         <div className="flex items-center gap-3">
                             <BarChart3 className="w-5 h-5 text-gray-500" />
                             <span className="font-medium">View Results & Analytics</span>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </Link>
+                    <Link href="/admin/backup" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
+                        <div className="flex items-center gap-3">
+                            <HardDrive className="w-5 h-5 text-gray-500" />
+                            <span className="font-medium">Backup & Restore</span>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </Link>
+                    <Link href="/admin/query-logs" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
+                        <div className="flex items-center gap-3">
+                            <Database className="w-5 h-5 text-gray-500" />
+                            <span className="font-medium">Query Logs</span>
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-400" />
                     </Link>
