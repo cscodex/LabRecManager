@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST - Restore from backup
+// POST - Restore from backup (simplified - complex restore should use CLI script)
 export async function POST(request: NextRequest) {
     try {
         const session = await getSession();
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { backup, tables } = body;
+        const { backup } = body;
 
         if (!backup || typeof backup !== 'object') {
             return NextResponse.json({ error: 'Invalid backup data' }, { status: 400 });
@@ -105,39 +105,68 @@ export async function POST(request: NextRequest) {
 
         const results: Record<string, { inserted: number; errors: number }> = {};
 
-        // Tables to restore in order (handle FK constraints)
-        const restoreOrder = tables || [
-            'admins', 'students', 'exams', 'sections', 'questions',
-            'exam_schedules', 'exam_assignments', 'exam_attempts',
-            'question_responses', 'demo_content'
-        ];
-
-        for (const tableName of restoreOrder) {
-            if (!backup[tableName] || !Array.isArray(backup[tableName])) {
-                continue;
-            }
-
-            results[tableName] = { inserted: 0, errors: 0 };
-
-            for (const row of backup[tableName]) {
+        // Restore admins
+        if (backup.admins?.length) {
+            results.admins = { inserted: 0, errors: 0 };
+            for (const row of backup.admins) {
                 try {
-                    const columns = Object.keys(row);
-                    const values = Object.values(row);
+                    await sql`INSERT INTO admins (id, email, password_hash, name, role, created_at) 
+                        VALUES (${row.id}, ${row.email}, ${row.password_hash}, ${row.name}, ${row.role}, ${row.created_at})
+                        ON CONFLICT (id) DO NOTHING`;
+                    results.admins.inserted++;
+                } catch { results.admins.errors++; }
+            }
+        }
 
-                    // Build insert query dynamically
-                    const columnsStr = columns.map(c => `"${c}"`).join(', ');
-                    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+        // Restore students
+        if (backup.students?.length) {
+            results.students = { inserted: 0, errors: 0 };
+            for (const row of backup.students) {
+                try {
+                    await sql`INSERT INTO students (id, roll_number, name, name_regional, email, phone, password_hash, photo_url, class, school, is_active, created_at) 
+                        VALUES (${row.id}, ${row.roll_number}, ${row.name}, ${row.name_regional}, ${row.email}, ${row.phone}, ${row.password_hash}, ${row.photo_url}, ${row.class}, ${row.school}, ${row.is_active}, ${row.created_at})
+                        ON CONFLICT (id) DO NOTHING`;
+                    results.students.inserted++;
+                } catch { results.students.errors++; }
+            }
+        }
 
-                    // Use ON CONFLICT DO NOTHING to skip duplicates
-                    await sql`
-                        INSERT INTO ${sql.identifier([tableName])} 
-                        SELECT * FROM jsonb_populate_record(null::${sql.identifier([tableName])}, ${JSON.stringify(row)}::jsonb)
-                        ON CONFLICT DO NOTHING
-                    `;
-                    results[tableName].inserted++;
-                } catch (e) {
-                    results[tableName].errors++;
-                }
+        // Restore exams
+        if (backup.exams?.length) {
+            results.exams = { inserted: 0, errors: 0 };
+            for (const row of backup.exams) {
+                try {
+                    await sql`INSERT INTO exams (id, title, description, instructions, duration, total_marks, passing_marks, negative_marking, shuffle_questions, "showResults", status, created_by, created_at, updated_at) 
+                        VALUES (${row.id}, ${JSON.stringify(row.title)}::jsonb, ${row.description ? JSON.stringify(row.description) : null}::jsonb, ${row.instructions ? JSON.stringify(row.instructions) : null}::jsonb, ${row.duration}, ${row.total_marks}, ${row.passing_marks}, ${row.negative_marking}, ${row.shuffle_questions}, ${row.showResults}, ${row.status}, ${row.created_by}, ${row.created_at}, ${row.updated_at})
+                        ON CONFLICT (id) DO NOTHING`;
+                    results.exams.inserted++;
+                } catch { results.exams.errors++; }
+            }
+        }
+
+        // Restore sections
+        if (backup.sections?.length) {
+            results.sections = { inserted: 0, errors: 0 };
+            for (const row of backup.sections) {
+                try {
+                    await sql`INSERT INTO sections (id, exam_id, name, "order", duration) 
+                        VALUES (${row.id}, ${row.exam_id}, ${JSON.stringify(row.name)}::jsonb, ${row.order}, ${row.duration})
+                        ON CONFLICT (id) DO NOTHING`;
+                    results.sections.inserted++;
+                } catch { results.sections.errors++; }
+            }
+        }
+
+        // Restore questions
+        if (backup.questions?.length) {
+            results.questions = { inserted: 0, errors: 0 };
+            for (const row of backup.questions) {
+                try {
+                    await sql`INSERT INTO questions (id, section_id, type, text, options, correct_answer, explanation, marks, negative_marks, image_url, "order") 
+                        VALUES (${row.id}, ${row.section_id}, ${row.type}, ${JSON.stringify(row.text)}::jsonb, ${row.options ? JSON.stringify(row.options) : null}::jsonb, ${JSON.stringify(row.correct_answer)}::jsonb, ${row.explanation ? JSON.stringify(row.explanation) : null}::jsonb, ${row.marks}, ${row.negative_marks}, ${row.image_url}, ${row.order})
+                        ON CONFLICT (id) DO NOTHING`;
+                    results.questions.inserted++;
+                } catch { results.questions.errors++; }
             }
         }
 
