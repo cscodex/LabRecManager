@@ -136,6 +136,32 @@ export default function ImportQuestionsPage() {
         reader.readAsText(file);
     };
 
+    // Convert math notation: a^2 → a<sup>2</sup>, a^{10} → a<sup>10</sup>
+    // Also handles chemistry subscripts: H_2O → H₂O or H<sub>2</sub>O
+    const formatMathText = (text: string | undefined): string => {
+        if (!text) return '';
+
+        let result = text
+            // Handle curly brace notation for superscripts: x^{10} → x<sup>10</sup>
+            .replace(/\^{([^}]+)}/g, '<sup>$1</sup>')
+            // Handle curly brace notation for subscripts: H_{2} → H<sub>2</sub>
+            .replace(/_{([^}]+)}/g, '<sub>$1</sub>')
+            // Handle parentheses notation for superscripts: x^(2n) → x<sup>2n</sup>
+            .replace(/\^\(([^)]+)\)/g, '<sup>$1</sup>')
+            // Handle parentheses notation for subscripts: H_(2) → H<sub>2</sub>
+            .replace(/_\(([^)]+)\)/g, '<sub>$1</sub>')
+            // Handle multi-digit superscripts: x^12 → x<sup>12</sup>
+            .replace(/\^(\d+)/g, '<sup>$1</sup>')
+            // Handle single letter superscripts: x^n → x<sup>n</sup>
+            .replace(/\^([a-zA-Z])/g, '<sup>$1</sup>')
+            // Handle subscript with digits: H_2 → H<sub>2</sub>
+            .replace(/_(\d+)/g, '<sub>$1</sub>')
+            // Handle subscript with single letter: a_n → a<sub>n</sub>
+            .replace(/_([a-zA-Z])/g, '<sub>$1</sub>');
+
+        return result;
+    };
+
     const parseCSV = (text: string) => {
         const lines = text.split('\n').filter(line => line.trim());
         if (lines.length < 2) {
@@ -191,21 +217,21 @@ export default function ImportQuestionsPage() {
             const question: ImportedQuestion = {
                 row: index + 2,
                 type: (cells[0] || 'mcq_single').toLowerCase(),
-                textEn: cells[1] || '',
-                textPa: cells[2] || '',
-                optionAEn: cells[3],
-                optionAPa: cells[4],
-                optionBEn: cells[5],
-                optionBPa: cells[6],
-                optionCEn: cells[7],
-                optionCPa: cells[8],
-                optionDEn: cells[9],
-                optionDPa: cells[10],
+                textEn: formatMathText(cells[1]),
+                textPa: formatMathText(cells[2]),
+                optionAEn: formatMathText(cells[3]),
+                optionAPa: formatMathText(cells[4]),
+                optionBEn: formatMathText(cells[5]),
+                optionBPa: formatMathText(cells[6]),
+                optionCEn: formatMathText(cells[7]),
+                optionCPa: formatMathText(cells[8]),
+                optionDEn: formatMathText(cells[9]),
+                optionDPa: formatMathText(cells[10]),
                 correctAnswer: (cells[11] || '').toLowerCase(),
                 marks: parseInt(cells[12 + offset]) || 1,
                 negativeMarks: parseInt(cells[13 + offset]) || 0,
-                explanationEn: cells[14 + offset],
-                explanationPa: cells[15 + offset],
+                explanationEn: formatMathText(cells[14 + offset]),
+                explanationPa: formatMathText(cells[15 + offset]),
             };
 
             if (!question.textEn && !question.textPa) {

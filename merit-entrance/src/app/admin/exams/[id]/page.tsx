@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
@@ -47,6 +47,7 @@ export default function EditExamPage() {
     const [sections, setSections] = useState<Section[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
     const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections'>('details');
     const [editingSection, setEditingSection] = useState<Section | null>(null);
     const [editSectionData, setEditSectionData] = useState({ nameEn: '', namePa: '', duration: '' });
@@ -69,10 +70,87 @@ export default function EditExamPage() {
     const [newSection, setNewSection] = useState({ nameEn: '', namePa: '', duration: '' });
     const [showAddSection, setShowAddSection] = useState(false);
 
+    // Refs for auto-save debouncing
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const initialLoadRef = useRef(true);
+    const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadExam();
     }, [examId]);
+
+    // Auto-save with debounce
+    useEffect(() => {
+        // Skip auto-save on initial load
+        if (initialLoadRef.current) {
+            return;
+        }
+
+        // Skip if still loading or no exam data
+        if (loading || !exam) {
+            return;
+        }
+
+        setAutoSaveStatus('pending');
+
+        // Clear any existing timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Debounce save for 1.5 seconds
+        saveTimeoutRef.current = setTimeout(async () => {
+            setAutoSaveStatus('saving');
+            setSaving(true);
+            try {
+                const response = await fetch(`/api/admin/exams/${examId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
+                        description: formData.descriptionEn
+                            ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn }
+                            : null,
+                        instructions: formData.instructionsEn
+                            ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
+                            : null,
+                        duration: formData.duration,
+                        totalMarks: formData.totalMarks,
+                        passingMarks: formData.passingMarks,
+                        negativeMarking: formData.negativeMarking || null,
+                        shuffleQuestions: formData.shuffleQuestions,
+                        status: formData.status,
+                    }),
+                });
+
+                if (response.ok) {
+                    setAutoSaveStatus('saved');
+                    // Clear saved status after 2 seconds
+                    if (savedStatusTimeoutRef.current) {
+                        clearTimeout(savedStatusTimeoutRef.current);
+                    }
+                    savedStatusTimeoutRef.current = setTimeout(() => {
+                        setAutoSaveStatus('idle');
+                    }, 2000);
+                } else {
+                    setAutoSaveStatus('error');
+                    toast.error('Auto-save failed');
+                }
+            } catch (error) {
+                setAutoSaveStatus('error');
+                toast.error('Auto-save failed');
+            } finally {
+                setSaving(false);
+            }
+        }, 1500);
+
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, [formData, examId, loading, exam]);
 
     const loadExam = async () => {
         try {
@@ -101,6 +179,10 @@ export default function EditExamPage() {
             toast.error('Failed to load exam');
         } finally {
             setLoading(false);
+            // Mark initial load complete so auto-save can start
+            setTimeout(() => {
+                initialLoadRef.current = false;
+            }, 100);
         }
     };
 
@@ -366,14 +448,33 @@ export default function EditExamPage() {
                                 <Globe className="w-4 h-4" />
                                 {language === 'en' ? 'EN' : 'ਪੰ'}
                             </button>
-                            <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                <Save className="w-4 h-4" />
-                                {saving ? 'Saving...' : 'Save'}
-                            </button>
+                            {/* Auto-save status indicator */}
+                            <div className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                                {autoSaveStatus === 'pending' && (
+                                    <span className="text-amber-600 flex items-center gap-1">
+                                        <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                                        Unsaved changes
+                                    </span>
+                                )}
+                                {autoSaveStatus === 'saving' && (
+                                    <span className="text-blue-600 flex items-center gap-1">
+                                        <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                                        Saving...
+                                    </span>
+                                )}
+                                {autoSaveStatus === 'saved' && (
+                                    <span className="text-green-600 flex items-center gap-1">
+                                        <Save className="w-4 h-4" />
+                                        Saved ✓
+                                    </span>
+                                )}
+                                {autoSaveStatus === 'error' && (
+                                    <span className="text-red-600 flex items-center gap-1">
+                                        <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                        Save failed
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 

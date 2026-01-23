@@ -156,3 +156,15 @@ model QuestionResponse {
   @@unique([attemptId, questionId])
   @@map("question_responses")
 }
+
+// ============ DEMO CONTENT (Scientific Editor) ============
+model DemoContent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String   @db.VarChar(255)
+  content     String   @db.Text
+  contentType String   @default("general") @map("content_type") @db.VarChar(50) // math, chemistry, physics, biology, general
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("demo_content")
+}

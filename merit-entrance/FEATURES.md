@@ -79,10 +79,11 @@ Merit Entrance is a bilingual (English/Punjabi) online examination platform for 
 - [x] Delete questions
 - [x] **Bulk import from CSV template**
 - [x] Language selection for import
+- [x] **Math superscript conversion** (a^2 → a<sup>2</sup>)
+- [x] **Bulk delete questions with select all**
 - [ ] Question bank / repository
 - [ ] Import from Word/PDF
 - [ ] Question categories/tags
-- [ ] Bulk delete questions
 
 ### Student Management
 - [x] View all students
@@ -299,4 +300,4 @@ Merit Entrance is a bilingual (English/Punjabi) online examination platform for 
 
 ---
 
-*Last Updated: January 22, 2026*
+*Last Updated: January 23, 2026*
