@@ -603,6 +603,9 @@ export default function ManageQuestionsPage() {
 
     const cancelEdit = () => {
         setEditingQuestionId(null);
+        setEditingParagraphId(null);
+        setIsParaMode(false);
+        setParaSubQuestions([]);
         setFormData(createEmptyQuestion());
     };
 
@@ -1589,10 +1592,13 @@ export default function ManageQuestionsPage() {
                     });
                 })()}
 
+                {/* Add/Edit Paragraph Form (at top when editing paragraph) */}
+                {editingParagraphId && isParaMode && renderParagraphForm(true)}
+
                 {/* Add Question Form (at bottom) */}
                 {showAddForm ? (
                     renderQuestionForm(false)
-                ) : !editingQuestionId && (
+                ) : !editingQuestionId && !editingParagraphId && (
                     <button
                         onClick={() => setShowTypeSelector(true)}
                         className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-600 flex items-center justify-center gap-2"
