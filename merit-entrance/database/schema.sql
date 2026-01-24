@@ -63,7 +63,9 @@ CREATE TABLE IF NOT EXISTS questions (
     marks INTEGER DEFAULT 1,
     negative_marks NUMERIC(3,2),
     image_url TEXT,
-    "order" INTEGER NOT NULL
+    "order" INTEGER NOT NULL,
+    parent_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+    paragraph_text JSONB
 );
 
 -- ============ SCHEDULING ============

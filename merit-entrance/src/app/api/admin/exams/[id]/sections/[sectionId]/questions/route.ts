@@ -29,6 +29,7 @@ export async function GET(
                 options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : null,
                 correct_answer: typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : q.correct_answer,
                 explanation: q.explanation ? (typeof q.explanation === 'string' ? JSON.parse(q.explanation) : q.explanation) : null,
+                paragraph_text: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
             })),
         });
     } catch (error) {
@@ -48,25 +49,32 @@ export async function POST(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, negativeMarks, imageUrl, order } = body;
+        const { type, text, options, correctAnswer, explanation, marks, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
 
-        if (!text?.en || !correctAnswer) {
+        // For paragraph type, paragraph_text is required; for sub-questions, parent_id is required
+        if (type === 'paragraph') {
+            if (!paragraphText?.en) {
+                return NextResponse.json({ error: 'Paragraph text is required' }, { status: 400 });
+            }
+        } else if (!text?.en || !correctAnswer) {
             return NextResponse.json({ error: 'Question text and answer are required' }, { status: 400 });
         }
 
         const result = await sql`
-      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, negative_marks, image_url, "order")
+      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, negative_marks, image_url, "order", parent_id, paragraph_text)
       VALUES (
         ${params.sectionId},
         ${type || 'mcq_single'},
-        ${JSON.stringify(text)}::jsonb,
+        ${text ? JSON.stringify(text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
         ${options ? JSON.stringify(options) : null}::jsonb,
-        ${JSON.stringify(correctAnswer)}::jsonb,
+        ${correctAnswer ? JSON.stringify(correctAnswer) : '[]'}::jsonb,
         ${explanation ? JSON.stringify(explanation) : null}::jsonb,
         ${marks || 1},
         ${negativeMarks || null},
         ${imageUrl || null},
-        ${order || 1}
+        ${order || 1},
+        ${parentId || null},
+        ${paragraphText ? JSON.stringify(paragraphText) : null}::jsonb
       )
       RETURNING id
     `;
@@ -80,3 +88,4 @@ export async function POST(
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+

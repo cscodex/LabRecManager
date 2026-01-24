@@ -34,6 +34,7 @@ interface ImportedQuestion {
     negativeMarks: number;
     explanationEn?: string;
     explanationPa?: string;
+    parentRow?: number;
     error?: string;
 }
 
@@ -88,7 +89,8 @@ export default function ImportQuestionsPage() {
             'Marks',
             'NegativeMarks',
             'Explanation_EN',
-            'Explanation_PA'
+            'Explanation_PA',
+            'ParentRow'
         ];
 
         const sampleRow = [
@@ -107,13 +109,37 @@ export default function ImportQuestionsPage() {
             '4',
             '1',
             'The sum of 2 and 2 is 4',
-            '2 ਅਤੇ 2 ਦਾ ਜੋੜ 4 ਹੈ'
+            '2 ਅਤੇ 2 ਦਾ ਜੋੜ 4 ਹੈ',
+            '' // ParentRow - empty for standalone questions
+        ];
+
+        const sampleParagraph = [
+            'paragraph',
+            'Read the following passage and answer the questions below...',
+            'ਹੇਠਾਂ ਦਿੱਤੇ ਪੈਰੇ ਨੂੰ ਪੜ੍ਹੋ ਅਤੇ ਸਵਾਲਾਂ ਦੇ ਜਵਾਬ ਦਿਓ...',
+            '', '', '', '', '', '', '', '',
+            '', '0', '0', '', '',
+            '' // ParentRow empty for paragraphs
+        ];
+
+        const sampleSubQuestion = [
+            'mcq_single',
+            'Based on the passage, what is correct?',
+            'ਪੈਰੇ ਦੇ ਆਧਾਰ ਤੇ, ਕੀ ਸਹੀ ਹੈ?',
+            'Option A', 'ਵਿਕਲਪ A',
+            'Option B', 'ਵਿਕਲਪ B',
+            'Option C', 'ਵਿਕਲਪ C',
+            'Option D', 'ਵਿਕਲਪ D',
+            'a', '4', '1', '', '',
+            '3' // ParentRow = 3 (row of the paragraph)
         ];
 
         // Quote all cells to avoid comma issues
         const csvContent = [
             headers.map(h => `"${h}"`).join(','),
-            sampleRow.map(cell => `"${cell}"`).join(',')
+            sampleRow.map(cell => `"${cell}"`).join(','),
+            sampleParagraph.map(cell => `"${cell}"`).join(','),
+            sampleSubQuestion.map(cell => `"${cell}"`).join(',')
         ].join('\n');
 
         const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -232,13 +258,14 @@ export default function ImportQuestionsPage() {
                 negativeMarks: parseInt(cells[13 + offset]) || 0,
                 explanationEn: formatMathText(cells[14 + offset]),
                 explanationPa: formatMathText(cells[15 + offset]),
+                parentRow: cells[16 + offset] ? parseInt(cells[16 + offset]) : undefined,
             };
 
             if (!question.textEn && !question.textPa) {
                 question.error = 'Question text is required';
-            } else if (!['mcq_single', 'mcq_multiple', 'fill_blank'].includes(question.type)) {
+            } else if (!['mcq_single', 'mcq_multiple', 'fill_blank', 'paragraph'].includes(question.type)) {
                 question.error = 'Invalid question type';
-            } else if (question.type !== 'fill_blank' && !question.correctAnswer) {
+            } else if (question.type !== 'fill_blank' && question.type !== 'paragraph' && !question.correctAnswer) {
                 question.error = 'Correct answer is required';
             }
 
@@ -540,6 +567,7 @@ export default function ImportQuestionsPage() {
                                 <li><code className="bg-blue-100 px-1 rounded">mcq_single</code> - Single correct answer</li>
                                 <li><code className="bg-blue-100 px-1 rounded">mcq_multiple</code> - Multiple correct answers</li>
                                 <li><code className="bg-blue-100 px-1 rounded">fill_blank</code> - Fill in the blank</li>
+                                <li><code className="bg-blue-100 px-1 rounded">paragraph</code> - Passage with sub-questions</li>
                             </ul>
                         </div>
                         <div>
@@ -548,6 +576,15 @@ export default function ImportQuestionsPage() {
                                 <li>Single: <code className="bg-blue-100 px-1 rounded">a</code>, <code className="bg-blue-100 px-1 rounded">b</code>, <code className="bg-blue-100 px-1 rounded">c</code>, or <code className="bg-blue-100 px-1 rounded">d</code></li>
                                 <li>Multiple: <code className="bg-blue-100 px-1 rounded">a,b</code> or <code className="bg-blue-100 px-1 rounded">a,c,d</code></li>
                                 <li>Fill blank: The exact answer text</li>
+                                <li>Paragraph: No answer needed (marks = 0)</li>
+                            </ul>
+                        </div>
+                        <div className="md:col-span-2 border-t pt-3 mt-1">
+                            <p className="font-medium mb-1">Paragraph with Sub-Questions:</p>
+                            <ul className="list-disc list-inside space-y-1 text-blue-700">
+                                <li>Add paragraph passage with type <code className="bg-blue-100 px-1 rounded">paragraph</code></li>
+                                <li>For sub-questions, set <code className="bg-blue-100 px-1 rounded">ParentRow</code> to the row number of the paragraph</li>
+                                <li>Example: Paragraph in row 5, sub-questions have ParentRow = 5</li>
                             </ul>
                         </div>
                     </div>

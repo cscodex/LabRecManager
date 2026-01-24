@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 interface ImportedQuestion {
+    row?: number;
     type: string;
     textEn: string;
     textPa: string;
@@ -22,6 +23,7 @@ interface ImportedQuestion {
     negativeMarks: number;
     explanationEn?: string;
     explanationPa?: string;
+    parentRow?: number; // For sub-questions linked to paragraphs
 }
 
 export async function POST(
@@ -62,7 +64,52 @@ export async function POST(
 
         let importedCount = 0;
 
+        // Track paragraph IDs by row for linking sub-questions
+        const paragraphIdByRow: Record<number, string> = {};
+
+        // First pass: import paragraph questions
         for (const q of questions) {
+            if (q.type === 'paragraph' && q.row) {
+                try {
+                    const questionId = randomUUID();
+                    paragraphIdByRow[q.row] = questionId;
+
+                    const paragraphText: Record<string, string> = {};
+                    if (language === 'both' || language === 'en') {
+                        paragraphText.en = q.textEn || '';
+                    }
+                    if (language === 'both' || language === 'pa') {
+                        paragraphText.pa = q.textPa || '';
+                    }
+
+                    await sql`
+                        INSERT INTO questions (
+                            id, section_id, type, text, paragraph_text, options, correct_answer, 
+                            marks, negative_marks, "order"
+                        ) VALUES (
+                            ${questionId},
+                            ${sectionId},
+                            'paragraph',
+                            ${JSON.stringify({ en: '', pa: '' })}::jsonb,
+                            ${JSON.stringify(paragraphText)}::jsonb,
+                            ${null}::jsonb,
+                            ${JSON.stringify([])}::jsonb,
+                            ${0},
+                            ${0},
+                            ${currentOrder}
+                        )
+                    `;
+                    currentOrder++;
+                    importedCount++;
+                } catch (error: any) {
+                    console.error('Error importing paragraph:', error?.message);
+                }
+            }
+        }
+
+        // Second pass: import regular questions and sub-questions
+        for (const q of questions) {
+            if (q.type === 'paragraph') continue; // Already processed
             try {
                 const questionId = randomUUID();
 
@@ -139,20 +186,22 @@ export async function POST(
                 const correctAnswerJson = JSON.stringify(correctAnswer);
                 const explanationJson = explanation ? JSON.stringify(explanation) : null;
 
+                // Determine parent_id if this is a sub-question
+                const parentId = q.parentRow ? paragraphIdByRow[q.parentRow] || null : null;
+
                 console.log('Inserting question:', {
                     questionId,
                     sectionId,
                     type: q.type,
                     marks: q.marks,
-                    explanationEn: q.explanationEn,
-                    explanationPa: q.explanationPa,
-                    explanationJson
+                    parentId,
+                    parentRow: q.parentRow
                 });
 
                 await sql`
                     INSERT INTO questions (
                         id, section_id, type, text, options, correct_answer, 
-                        explanation, marks, negative_marks, "order"
+                        explanation, marks, negative_marks, "order", parent_id
                     ) VALUES (
                         ${questionId},
                         ${sectionId},
@@ -163,7 +212,8 @@ export async function POST(
                         ${explanationJson}::jsonb,
                         ${q.marks || 4},
                         ${q.negativeMarks || 0},
-                        ${currentOrder}
+                        ${currentOrder},
+                        ${parentId}
                     )
                 `;
 
