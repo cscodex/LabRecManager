@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, isExamActive, hasExamEnded, getText } from '@/lib/utils';
-import { BookOpen, Clock, Calendar, ChevronRight, LogOut, User } from 'lucide-react';
+import { BookOpen, Clock, Calendar, ChevronRight, LogOut, User, Menu, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Exam {
@@ -24,6 +24,7 @@ export default function StudentDashboard() {
     const { user, language, isAuthenticated, logout, _hasHydrated } = useAuthStore();
     const [exams, setExams] = useState<Exam[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showMenu, setShowMenu] = useState(false);
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -81,90 +82,127 @@ export default function StudentDashboard() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="bg-white shadow-sm">
-                <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <BookOpen className="w-8 h-8 text-blue-600" />
-                        <h1 className="text-xl font-bold text-gray-900">Merit Entrance</h1>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 text-gray-600">
-                            <User className="w-5 h-5" />
-                            <span className="font-medium">{user?.name}</span>
-                            <span className="text-sm text-gray-400">({user?.rollNumber})</span>
+            {/* Header - Mobile Optimized */}
+            <header className="bg-white shadow-sm sticky top-0 z-40">
+                <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+                            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Merit Entrance</h1>
                         </div>
+
+                        {/* Desktop User Info */}
+                        <div className="hidden sm:flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-gray-600">
+                                <User className="w-5 h-5" />
+                                <span className="font-medium">{user?.name}</span>
+                                <span className="text-sm text-gray-400">({user?.rollNumber})</span>
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                Logout
+                            </button>
+                        </div>
+
+                        {/* Mobile Menu Button */}
                         <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                            className="sm:hidden p-2 text-gray-600"
+                            onClick={() => setShowMenu(!showMenu)}
                         >
-                            <LogOut className="w-4 h-4" />
-                            Logout
+                            {showMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                         </button>
                     </div>
+
+                    {/* Mobile Menu */}
+                    {showMenu && (
+                        <div className="sm:hidden mt-3 pt-3 border-t">
+                            <div className="flex items-center gap-2 text-gray-600 mb-3">
+                                <User className="w-5 h-5" />
+                                <div className="flex-1">
+                                    <p className="font-medium">{user?.name}</p>
+                                    <p className="text-sm text-gray-400">{user?.rollNumber}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center gap-2 w-full px-3 py-2.5 text-red-600 bg-red-50 rounded-lg"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                Logout
+                            </button>
+                        </div>
+                    )}
                 </div>
             </header>
 
-            {/* Main Content */}
-            <main className="max-w-6xl mx-auto px-4 py-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">My Exams</h2>
+            {/* Main Content - Mobile Optimized */}
+            <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">My Exams</h2>
 
                 {exams.length === 0 ? (
-                    <div className="bg-white rounded-xl p-12 text-center">
-                        <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <div className="bg-white rounded-xl p-8 sm:p-12 text-center">
+                        <BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-500">No exams assigned to you yet.</p>
                     </div>
                 ) : (
-                    <div className="grid gap-4">
+                    <div className="grid gap-3 sm:gap-4">
                         {exams.map((exam) => {
                             const { status, label, color } = getExamStatus(exam);
                             return (
                                 <div
                                     key={exam.id}
-                                    className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition"
+                                    className="bg-white rounded-xl shadow-sm p-4 sm:p-6 hover:shadow-md transition"
                                 >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <h3 className="text-lg font-semibold text-gray-900">
+                                    {/* Mobile Layout */}
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                                                     {getText(exam.title, language)}
                                                 </h3>
-                                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${color}`}>
+                                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${color}`}>
                                                     {label}
                                                 </span>
                                             </div>
-                                            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                                            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-4 text-sm text-gray-500">
                                                 <span className="flex items-center gap-1">
-                                                    <Clock className="w-4 h-4" />
-                                                    {exam.duration} mins
+                                                    <Clock className="w-4 h-4 flex-shrink-0" />
+                                                    {exam.duration} mins • {exam.totalMarks} marks
                                                 </span>
-                                                <span className="flex items-center gap-1">
-                                                    <Calendar className="w-4 h-4" />
-                                                    {formatDateTimeIST(exam.schedule.startTime)} - {formatDateTimeIST(exam.schedule.endTime)}
+                                                <span className="flex items-center gap-1 text-xs sm:text-sm">
+                                                    <Calendar className="w-4 h-4 flex-shrink-0" />
+                                                    <span className="truncate">
+                                                        {formatDateTimeIST(exam.schedule.startTime)}
+                                                    </span>
                                                 </span>
-                                                <span>Total Marks: {exam.totalMarks}</span>
                                             </div>
                                         </div>
 
-                                        {status === 'active' && (
-                                            <button
-                                                onClick={() => handleStartExam(exam.id)}
-                                                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
-                                            >
-                                                Start Exam
-                                                <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        )}
+                                        {/* Action Button - Full Width on Mobile */}
+                                        <div className="sm:flex-shrink-0">
+                                            {status === 'active' && (
+                                                <button
+                                                    onClick={() => handleStartExam(exam.id)}
+                                                    className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
+                                                >
+                                                    Start Exam
+                                                    <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                            )}
 
-                                        {status === 'completed' && (
-                                            <button
-                                                onClick={() => router.push(`/student/results/${exam.id}`)}
-                                                className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition"
-                                            >
-                                                View Results
-                                                <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        )}
+                                            {status === 'completed' && (
+                                                <button
+                                                    onClick={() => router.push(`/student/results/${exam.id}`)}
+                                                    className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition"
+                                                >
+                                                    View Results
+                                                    <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             );

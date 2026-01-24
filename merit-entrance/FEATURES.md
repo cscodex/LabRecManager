@@ -229,11 +229,11 @@ Merit Entrance is a bilingual (English/Punjabi) online examination platform for 
 - [x] Floating bottom bar (timer, stats, submit)
 - [x] Slide-up question navigation drawer
 - [x] Touch-friendly buttons
+- [x] PWA (Progressive Web App) - manifest, icons, service worker
 
 ### To Be Implemented 🔲
 - [ ] Admin dashboard mobile optimization
 - [ ] Admin exam editor mobile view
-- [ ] PWA (Progressive Web App)
 - [ ] Offline support
 
 ---
