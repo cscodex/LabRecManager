@@ -160,6 +160,7 @@ export default function ManageQuestionsPage() {
             body.options = null;
             // Support multiple answers separated by comma
             body.correctAnswer = formData.fillBlankAnswers.split(',').map(a => a.trim()).filter(Boolean);
+            if (formData.parentId) body.parentId = formData.parentId;
         } else {
             body.options = formData.options.map(o => ({
                 id: o.id,
@@ -167,6 +168,7 @@ export default function ManageQuestionsPage() {
                 image_url: o.imageUrl || null,
             }));
             body.correctAnswer = formData.correctAnswer;
+            if (formData.parentId) body.parentId = formData.parentId;
         }
 
         try {
@@ -227,6 +229,7 @@ export default function ManageQuestionsPage() {
         } else if (formData.type === 'fill_blank') {
             body.options = null;
             body.correctAnswer = formData.fillBlankAnswers.split(',').map(a => a.trim()).filter(Boolean);
+            body.parentId = formData.parentId || null;
         } else {
             body.options = formData.options.map(o => ({
                 id: o.id,
@@ -234,6 +237,7 @@ export default function ManageQuestionsPage() {
                 image_url: o.imageUrl || null,
             }));
             body.correctAnswer = formData.correctAnswer;
+            body.parentId = formData.parentId || null;
         }
 
         // Optimistic update
@@ -669,35 +673,56 @@ export default function ManageQuestionsPage() {
             {formData.type === 'paragraph' && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <label className="block text-sm font-medium text-blue-700 mb-2">
-                        📄 Paragraph / Passage Content
+                        📄 Passage / Comprehension Content
                     </label>
                     <p className="text-xs text-blue-600 mb-3">
-                        Enter the reading passage that will be displayed above the sub-questions.
+                        The &quot;Question Text&quot; above will be used as the passage title. Enter the full passage content below.
                     </p>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Paragraph (English) *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Passage Content (English) *</label>
                             <textarea
                                 value={formData.paragraphTextEn}
                                 onChange={(e) => setFormData({ ...formData, paragraphTextEn: e.target.value })}
-                                rows={6}
+                                rows={8}
                                 className="w-full px-3 py-2 border rounded-lg"
-                                placeholder="Enter the passage content in English..."
+                                placeholder="Enter the full passage content in English..."
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Paragraph (Punjabi)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Passage Content (Punjabi)</label>
                             <textarea
                                 value={formData.paragraphTextPa}
                                 onChange={(e) => setFormData({ ...formData, paragraphTextPa: e.target.value })}
-                                rows={6}
+                                rows={8}
                                 className="w-full px-3 py-2 border rounded-lg"
                                 placeholder="ਪੈਰਾ ਸਮੱਗਰੀ ਪੰਜਾਬੀ ਵਿੱਚ ਦਰਜ ਕਰੋ..."
                             />
                         </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                        💡 After creating this paragraph, you can add sub-questions that reference it via CSV import or by creating questions with this paragraph as parent.
+                </div>
+            )}
+
+            {/* Parent Paragraph Selector - for non-paragraph questions */}
+            {formData.type !== 'paragraph' && questions.filter(q => q.type === 'paragraph').length > 0 && (
+                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <label className="block text-sm font-medium text-purple-700 mb-2">
+                        🔗 Link to Paragraph (Optional)
+                    </label>
+                    <select
+                        value={formData.parentId || ''}
+                        onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg bg-white"
+                    >
+                        <option value="">-- Standalone Question (No Parent) --</option>
+                        {questions.filter(q => q.type === 'paragraph').map((para, idx) => (
+                            <option key={para.id} value={para.id}>
+                                📄 {idx + 1}. {getText(para.text, language).substring(0, 60)}...
+                            </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-purple-600 mt-1">
+                        If linked, this question will appear as a sub-question under the selected paragraph in the exam.
                     </p>
                 </div>
             )}
