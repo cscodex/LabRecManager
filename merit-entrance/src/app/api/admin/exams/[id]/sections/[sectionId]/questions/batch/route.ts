@@ -27,10 +27,10 @@ export async function POST(
 
         const [paragraphQ] = await sql`
             INSERT INTO questions (
-                type, text, paragraph_text, image_url, "order", section_id, marks, negative_marks
+                type, text, paragraph_text, image_url, "order", section_id, marks, negative_marks, correct_answer
             ) VALUES (
                 'paragraph', ${JSON.stringify(paragraph.text)}, ${JSON.stringify(paragraph.paragraphText)}, 
-                ${paragraph.imageUrl}, ${nextOrder}, ${sectionId}, 0, 0
+                ${paragraph.imageUrl}, ${nextOrder}, ${sectionId}, 0, 0, '[]'
             ) RETURNING id
         `;
 
@@ -38,12 +38,13 @@ export async function POST(
         const createdSubQuestions = [];
         for (let i = 0; i < subQuestions.length; i++) {
             const sq = subQuestions[i];
+            const correctAnswerJson = JSON.stringify(sq.correctAnswer || []);
             const [createdSq] = await sql`
                 INSERT INTO questions (
                     type, text, options, correct_answer, explanation, marks, negative_marks, "order", section_id, parent_id
                 ) VALUES (
                     ${sq.type}, ${JSON.stringify(sq.text)}, ${JSON.stringify(sq.options)}, 
-                    ${sq.correctAnswer}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
+                    ${correctAnswerJson}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
                     ${sq.negativeMarks}, ${nextOrder + i + 1}, ${sectionId}, ${paragraphQ.id}
                 ) RETURNING id
             `;

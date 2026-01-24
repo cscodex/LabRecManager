@@ -1424,6 +1424,11 @@ export default function ManageQuestionsPage() {
                 {(() => {
                     let displayIndex = 0;
                     return sortedQuestions.map((q, index) => {
+                        // Skip paragraphs and their sub-questions when that paragraph is being edited
+                        if (editingParagraphId && (q.id === editingParagraphId || q.parent_id === editingParagraphId)) {
+                            return null;
+                        }
+
                         const isSubQuestion = !!q.parent_id;
                         if (q.type !== 'paragraph') {
                             displayIndex++;

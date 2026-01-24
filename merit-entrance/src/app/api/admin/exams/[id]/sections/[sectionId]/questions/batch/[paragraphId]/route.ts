@@ -50,6 +50,7 @@ export async function PUT(
         // Update or Create sub-questions
         for (let i = 0; i < subQuestions.length; i++) {
             const sq = subQuestions[i];
+            const correctAnswerJson = JSON.stringify(sq.correctAnswer || []);
             if (sq.id) {
                 // Update existing
                 await sql`
@@ -57,7 +58,7 @@ export async function PUT(
                     SET type = ${sq.type},
                         text = ${JSON.stringify(sq.text)},
                         options = ${JSON.stringify(sq.options)},
-                        correct_answer = ${sq.correctAnswer},
+                        correct_answer = ${correctAnswerJson},
                         explanation = ${JSON.stringify(sq.explanation)},
                         marks = ${sq.marks},
                         negative_marks = ${sq.negativeMarks},
@@ -71,7 +72,7 @@ export async function PUT(
                         type, text, options, correct_answer, explanation, marks, negative_marks, "order", section_id, parent_id
                     ) VALUES (
                         ${sq.type}, ${JSON.stringify(sq.text)}, ${JSON.stringify(sq.options)}, 
-                        ${sq.correctAnswer}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
+                        ${correctAnswerJson}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
                         ${sq.negativeMarks}, ${paraOrder + i + 1}, ${sectionId}, ${parentId}
                     )
                 `;
