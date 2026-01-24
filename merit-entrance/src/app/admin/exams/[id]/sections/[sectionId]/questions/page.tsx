@@ -215,13 +215,12 @@ export default function ManageQuestionsPage() {
             }
         }
 
-        // Check for duplicate paragraph content
+        // Check for duplicate paragraph content (strip HTML for comparison)
+        const stripHtml = (html: string) => html?.replace(/<[^>]*>/g, '').trim().toLowerCase() || '';
         const duplicateParagraph = questions.find(q =>
             q.type === 'paragraph' &&
             q.id !== editingParagraphId &&
-            (q.paragraph_text?.en?.trim().toLowerCase() === formData.paragraphTextEn?.trim().toLowerCase() ||
-                (q.paragraph_text?.pa && formData.paragraphTextPa &&
-                    q.paragraph_text.pa.trim().toLowerCase() === formData.paragraphTextPa.trim().toLowerCase()))
+            stripHtml(q.paragraph_text?.en || '') === stripHtml(formData.paragraphTextEn || '')
         );
         if (duplicateParagraph) {
             toast.error('A paragraph with the same content already exists!');

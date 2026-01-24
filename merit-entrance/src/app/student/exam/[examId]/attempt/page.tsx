@@ -31,6 +31,8 @@ interface Question {
     negativeMarks: number | null;
     imageUrl: string | null;
     order: number;
+    parentId?: string | null;
+    paragraphText?: Record<string, string> | null;
 }
 
 interface ExamData {
@@ -72,10 +74,17 @@ export default function ExamAttemptPage() {
     const tabWarningRef = useRef<NodeJS.Timeout | null>(null);
     const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Get questions for current section
+    // Get questions for current section - FILTER OUT paragraph type (they are just containers)
     const currentSection = sections[currentSectionIndex];
-    const sectionQuestions = questions.filter(q => q.sectionId === currentSection?.id);
+    const sectionQuestions = questions.filter(q => q.sectionId === currentSection?.id && q.type !== 'paragraph');
     const currentQuestion = sectionQuestions[currentQuestionIndex];
+
+    // Helper to get parent paragraph text for a sub-question
+    const getParentParagraphText = (question: Question | undefined) => {
+        if (!question?.parentId) return null;
+        const parent = questions.find(q => q.id === question.parentId);
+        return parent?.paragraphText || null;
+    };
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -301,7 +310,7 @@ export default function ExamAttemptPage() {
         } else if (currentSectionIndex < sections.length - 1) {
             setCurrentSectionIndex(currentSectionIndex + 1);
             setCurrentQuestionIndex(0);
-            const nextSectionQuestions = questions.filter(q => q.sectionId === sections[currentSectionIndex + 1].id);
+            const nextSectionQuestions = questions.filter(q => q.sectionId === sections[currentSectionIndex + 1].id && q.type !== 'paragraph');
             if (nextSectionQuestions.length > 0) {
                 markAsVisited(nextSectionQuestions[0].id);
             }
@@ -316,7 +325,7 @@ export default function ExamAttemptPage() {
         } else if (currentSectionIndex > 0) {
             const prevSectionIdx = currentSectionIndex - 1;
             setCurrentSectionIndex(prevSectionIdx);
-            const prevSectionQuestions = questions.filter(q => q.sectionId === sections[prevSectionIdx].id);
+            const prevSectionQuestions = questions.filter(q => q.sectionId === sections[prevSectionIdx].id && q.type !== 'paragraph');
             if (prevSectionQuestions.length > 0) {
                 setCurrentQuestionIndex(prevSectionQuestions.length - 1);
                 markAsVisited(prevSectionQuestions[prevSectionQuestions.length - 1].id);
@@ -331,7 +340,7 @@ export default function ExamAttemptPage() {
     const goToQuestion = (sectionIdx: number, questionIdx: number) => {
         setCurrentSectionIndex(sectionIdx);
         setCurrentQuestionIndex(questionIdx);
-        const sectionQs = questions.filter(q => q.sectionId === sections[sectionIdx].id);
+        const sectionQs = questions.filter(q => q.sectionId === sections[sectionIdx].id && q.type !== 'paragraph');
         if (sectionQs[questionIdx]) {
             markAsVisited(sectionQs[questionIdx].id);
         }
@@ -436,7 +445,7 @@ export default function ExamAttemptPage() {
                         onClick={() => {
                             setCurrentSectionIndex(idx);
                             setCurrentQuestionIndex(0);
-                            const sectionQs = questions.filter(q => q.sectionId === section.id);
+                            const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
                             if (sectionQs[0]) markAsVisited(sectionQs[0].id);
                         }}
                         className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${currentSectionIndex === idx
@@ -461,12 +470,12 @@ export default function ExamAttemptPage() {
                                 <h3 className="text-lg font-medium text-gray-700 mb-2">No Questions in This Section</h3>
                                 <p className="text-gray-500 mb-6">This section does not have any questions yet. Please select another section to continue.</p>
                                 <div className="flex justify-center gap-3">
-                                    {sections.filter((_, i) => i !== currentSectionIndex && questions.filter(q => q.sectionId === sections[i]?.id).length > 0).length > 0 && (
+                                    {sections.filter((_, i) => i !== currentSectionIndex && questions.filter(q => q.sectionId === sections[i]?.id && q.type !== 'paragraph').length > 0).length > 0 && (
                                         <button
                                             onClick={() => {
                                                 // Find next section with questions
                                                 for (let i = currentSectionIndex + 1; i < sections.length; i++) {
-                                                    if (questions.filter(q => q.sectionId === sections[i].id).length > 0) {
+                                                    if (questions.filter(q => q.sectionId === sections[i].id && q.type !== 'paragraph').length > 0) {
                                                         setCurrentSectionIndex(i);
                                                         setCurrentQuestionIndex(0);
                                                         return;
@@ -474,7 +483,7 @@ export default function ExamAttemptPage() {
                                                 }
                                                 // Or go to previous section with questions
                                                 for (let i = currentSectionIndex - 1; i >= 0; i--) {
-                                                    if (questions.filter(q => q.sectionId === sections[i].id).length > 0) {
+                                                    if (questions.filter(q => q.sectionId === sections[i].id && q.type !== 'paragraph').length > 0) {
                                                         setCurrentSectionIndex(i);
                                                         setCurrentQuestionIndex(0);
                                                         return;
@@ -490,6 +499,17 @@ export default function ExamAttemptPage() {
                             </div>
                         ) : currentQuestion ? (
                             <>
+                                {/* Parent Paragraph Text (for sub-questions) */}
+                                {getParentParagraphText(currentQuestion) && (
+                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 overflow-x-auto">
+                                        <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
+                                        <div
+                                            className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: getText(getParentParagraphText(currentQuestion)!, language) }}
+                                        />
+                                    </div>
+                                )}
+
                                 {/* Question Header */}
                                 <div className="flex items-center justify-between mb-4 pb-4 border-b">
                                     <span className="text-sm text-gray-500">
@@ -621,7 +641,7 @@ export default function ExamAttemptPage() {
                     {/* Question Navigation */}
                     <div className="flex-1 overflow-y-auto p-3">
                         {sections.map((section, sIdx) => {
-                            const sectionQs = questions.filter(q => q.sectionId === section.id);
+                            const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
                             return (
                                 <div key={section.id} className="mb-4">
                                     <p className="text-xs font-medium text-gray-500 mb-2">
@@ -730,7 +750,7 @@ export default function ExamAttemptPage() {
                         {/* Question Grid */}
                         <div className="p-4">
                             {sections.map((section, sIdx) => {
-                                const sectionQs = questions.filter(q => q.sectionId === section.id);
+                                const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
                                 return (
                                     <div key={section.id} className="mb-4">
                                         <p className="text-xs font-medium text-gray-500 mb-2">
