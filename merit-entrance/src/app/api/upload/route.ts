@@ -11,6 +11,12 @@ cloudinary.config({
 
 export async function POST(request: NextRequest) {
     try {
+        // Check Cloudinary config
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            console.error('Cloudinary environment variables not configured');
+            return NextResponse.json({ error: 'Upload service not configured' }, { status: 500 });
+        }
+
         const session = await getSession();
         if (!session || !['admin', 'superadmin'].includes(session.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,6 +29,13 @@ export async function POST(request: NextRequest) {
         if (!file) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
+
+        // Check file size (10MB limit)
+        if (file.size > 10 * 1024 * 1024) {
+            return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+        }
+
+        console.log('Uploading file:', { name: file.name, size: file.size, type: file.type, folder });
 
         // Convert file to base64
         const bytes = await file.arrayBuffer();
@@ -37,6 +50,8 @@ export async function POST(request: NextRequest) {
             resource_type: 'auto',
         });
 
+        console.log('Upload successful:', result.secure_url);
+
         return NextResponse.json({
             success: true,
             url: result.secure_url,
@@ -44,9 +59,14 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Upload error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorDetails = error instanceof Error && 'http_code' in error
+            ? `Cloudinary error: ${(error as any).http_code}`
+            : errorMessage;
         return NextResponse.json(
-            { error: 'Upload failed', details: error instanceof Error ? error.message : 'Unknown error' },
+            { error: 'Upload failed', details: errorDetails },
             { status: 500 }
         );
     }
 }
+

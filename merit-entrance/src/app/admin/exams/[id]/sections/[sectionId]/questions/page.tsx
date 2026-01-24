@@ -506,10 +506,12 @@ export default function ManageQuestionsPage() {
                 }
                 toast.success('Image uploaded!');
             } else {
-                toast.error('Upload failed');
+                toast.error(data.details || data.error || 'Upload failed');
+                console.error('Upload failed:', data);
             }
         } catch (error) {
-            toast.error('Upload failed');
+            console.error('Upload error:', error);
+            toast.error('Upload failed - check console for details');
         } finally {
             setUploading(false);
         }
