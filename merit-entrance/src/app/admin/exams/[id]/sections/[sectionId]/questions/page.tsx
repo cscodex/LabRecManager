@@ -917,6 +917,7 @@ export default function ManageQuestionsPage() {
                                                     >
                                                         <option value="mcq_single">MCQ - Single</option>
                                                         <option value="mcq_multiple">MCQ - Multiple</option>
+                                                        <option value="fill_blank">Fill in the Blank</option>
                                                     </select>
                                                 </div>
                                                 <div>

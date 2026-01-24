@@ -201,7 +201,7 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
                                 </span>
 
                                 {/* Option Text */}
-                                <span className="flex-1 text-gray-700">
+                                <span className={cn("flex-1 text-gray-700", language === 'pa' && "text-lg")}>
                                     {getText(option.text, language)}
                                 </span>
 
