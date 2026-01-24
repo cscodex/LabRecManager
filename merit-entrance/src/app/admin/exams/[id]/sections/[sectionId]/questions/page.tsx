@@ -215,6 +215,32 @@ export default function ManageQuestionsPage() {
             }
         }
 
+        // Check for duplicate paragraph content
+        const duplicateParagraph = questions.find(q =>
+            q.type === 'paragraph' &&
+            q.id !== editingParagraphId &&
+            (q.paragraph_text?.en?.trim().toLowerCase() === formData.paragraphTextEn?.trim().toLowerCase() ||
+                (q.paragraph_text?.pa && formData.paragraphTextPa &&
+                    q.paragraph_text.pa.trim().toLowerCase() === formData.paragraphTextPa.trim().toLowerCase()))
+        );
+        if (duplicateParagraph) {
+            toast.error('A paragraph with the same content already exists!');
+            return;
+        }
+
+        // Check for duplicate sub-questions
+        for (let i = 0; i < paraSubQuestions.length; i++) {
+            const sq = paraSubQuestions[i];
+            const duplicateQ = questions.find(q =>
+                q.id !== sq.id &&
+                q.text?.en?.trim().toLowerCase() === sq.textEn?.trim().toLowerCase()
+            );
+            if (duplicateQ) {
+                toast.error(`Question ${i + 1} "${sq.textEn.substring(0, 50)}..." already exists!`);
+                return;
+            }
+        }
+
         const body = {
             paragraph: {
                 text: { en: formData.textEn || 'Paragraph', pa: formData.textPa || formData.textEn || 'ਪੈਰਾ' },
@@ -286,6 +312,16 @@ export default function ManageQuestionsPage() {
 
         if ((formData.type === 'mcq_single' || formData.type === 'mcq_multiple') && formData.correctAnswer.length === 0) {
             toast.error('Please select correct answer(s)');
+            return;
+        }
+
+        // Check for duplicate question content
+        const duplicateQuestion = questions.find(q =>
+            q.id !== editingQuestionId &&
+            q.text?.en?.trim().toLowerCase() === formData.textEn?.trim().toLowerCase()
+        );
+        if (duplicateQuestion) {
+            toast.error(`A question with the same content already exists!`);
             return;
         }
 

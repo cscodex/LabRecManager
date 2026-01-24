@@ -60,13 +60,13 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
 
         return (
             <div className="bg-white rounded-lg shadow-md p-6">
-                {/* Question Header */}
+                {/* Passage Header - no numbering */}
                 <div className="mb-4">
                     <h2 className="text-lg font-semibold text-blue-600">
-                        📖 Passage {question.order} of {totalQuestions}
+                        📖 Reading Passage
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">
-                        Read the following passage carefully
+                        Read the following passage carefully and answer the questions that follow
                     </p>
                 </div>
 
@@ -75,11 +75,12 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
                     {getText(question.text, language)}
                 </h3>
 
-                {/* Paragraph/Passage Text */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-gray-800 text-base leading-relaxed whitespace-pre-wrap">
-                        {question.paragraphText ? getText(question.paragraphText, language) : ''}
-                    </p>
+                {/* Paragraph/Passage Text - Rendered as HTML */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 overflow-x-auto">
+                    <div
+                        className="text-gray-800 text-base leading-relaxed prose prose-sm max-w-none quill-content"
+                        dangerouslySetInnerHTML={{ __html: question.paragraphText ? getText(question.paragraphText, language) : '' }}
+                    />
                 </div>
 
                 {question.imageUrl && (
@@ -115,11 +116,12 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
         <div className="bg-white rounded-lg shadow-md p-6">
             {/* Parent Paragraph Text (if this is a sub-question) */}
             {parentParagraphText && (
-                <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 overflow-x-auto">
                     <p className="text-xs font-medium text-blue-600 mb-2">📄 Related Passage:</p>
-                    <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
-                        {getText(parentParagraphText, language)}
-                    </p>
+                    <div
+                        className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none quill-content"
+                        dangerouslySetInnerHTML={{ __html: getText(parentParagraphText, language) }}
+                    />
                 </div>
             )}
 
