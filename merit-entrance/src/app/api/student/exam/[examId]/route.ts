@@ -133,7 +133,9 @@ export async function GET(
         q.marks,
         q.negative_marks,
         q.image_url,
-        q."order"
+        q."order",
+        q.paragraph_text,
+        q.parent_id
       FROM questions q
       JOIN sections s ON q.section_id = s.id
       WHERE s.exam_id = ${examId}
@@ -186,6 +188,8 @@ export async function GET(
                 negativeMarks: q.negative_marks,
                 imageUrl: q.image_url,
                 order: q.order,
+                paragraphText: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
+                parentId: q.parent_id,
             })),
             responses: responseMap,
             remainingSeconds,

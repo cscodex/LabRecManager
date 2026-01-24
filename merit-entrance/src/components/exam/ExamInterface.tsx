@@ -27,6 +27,8 @@ interface Question {
     imageUrl?: string;
     order: number;
     sectionId: string;
+    paragraphText?: Record<string, string> | null;
+    parentId?: string | null;
 }
 
 interface ExamData {
@@ -213,6 +215,11 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
                         <QuestionDisplay
                             question={currentQuestion}
                             totalQuestions={allQuestions.length}
+                            parentParagraphText={
+                                currentQuestion.parentId
+                                    ? allQuestions.find(q => q.id === currentQuestion.parentId)?.paragraphText
+                                    : null
+                            }
                         />
                     )}
                 </div>

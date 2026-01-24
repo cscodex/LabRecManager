@@ -16,11 +16,14 @@ interface QuestionDisplayProps {
         options: Option[] | null;
         imageUrl?: string;
         order: number;
+        paragraphText?: Record<string, string> | null;
+        parentId?: string | null;
     };
     totalQuestions: number;
+    parentParagraphText?: Record<string, string> | null;
 }
 
-export default function QuestionDisplay({ question, totalQuestions }: QuestionDisplayProps) {
+export default function QuestionDisplay({ question, totalQuestions, parentParagraphText }: QuestionDisplayProps) {
     const { language } = useAuthStore();
     const { responses, setResponse } = useExamStore();
 
@@ -39,13 +42,65 @@ export default function QuestionDisplay({ question, totalQuestions }: QuestionDi
         }
     };
 
+    const handleFillBlankChange = (value: string) => {
+        setResponse(question.id, value ? [value] : [], currentResponse?.markedForReview || false);
+    };
+
     const isSelected = (optionId: string) => {
         if (!selectedAnswer) return false;
         return (selectedAnswer as string[]).includes(optionId);
     };
 
+    // For paragraph type questions, just display the passage content
+    if (question.type === 'paragraph') {
+        return (
+            <div className="bg-white rounded-lg shadow-md p-6">
+                {/* Question Header */}
+                <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-blue-600">
+                        Passage {question.order} of {totalQuestions}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Read the following passage carefully
+                    </p>
+                </div>
+
+                {/* Paragraph/Passage Text */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">
+                        {question.paragraphText ? getText(question.paragraphText, language) : getText(question.text, language)}
+                    </p>
+                </div>
+
+                {question.imageUrl && (
+                    <div className="mt-4">
+                        <img
+                            src={question.imageUrl}
+                            alt="Passage diagram"
+                            className="max-w-full h-auto rounded-lg border"
+                        />
+                    </div>
+                )}
+
+                <p className="mt-4 text-sm text-gray-500 italic">
+                    Navigate to the next question to answer questions based on this passage.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white rounded-lg shadow-md p-6">
+            {/* Parent Paragraph Text (if this is a sub-question) */}
+            {parentParagraphText && (
+                <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-xs font-medium text-blue-600 mb-2">📄 Related Passage:</p>
+                    <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
+                        {getText(parentParagraphText, language)}
+                    </p>
+                </div>
+            )}
+
             {/* Question Header */}
             <div className="mb-4">
                 <h2 className="text-lg font-semibold text-blue-600">
@@ -56,11 +111,16 @@ export default function QuestionDisplay({ question, totalQuestions }: QuestionDi
                         (Multiple correct answers)
                     </p>
                 )}
+                {question.type === 'fill_blank' && (
+                    <p className="text-sm text-gray-500 mt-1">
+                        (Fill in the blank)
+                    </p>
+                )}
             </div>
 
             {/* Question Text */}
             <div className="mb-6">
-                <p className="text-gray-800 text-lg leading-relaxed">
+                <p className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">
                     {getText(question.text, language)}
                 </p>
 
@@ -75,8 +135,21 @@ export default function QuestionDisplay({ question, totalQuestions }: QuestionDi
                 )}
             </div>
 
-            {/* Options */}
-            {question.options && (
+            {/* Fill in the Blank Input */}
+            {question.type === 'fill_blank' && (
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        value={(selectedAnswer as string[])?.[0] || ''}
+                        onChange={(e) => handleFillBlankChange(e.target.value)}
+                        placeholder="Type your answer here..."
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-lg focus:border-blue-500 focus:outline-none"
+                    />
+                </div>
+            )}
+
+            {/* MCQ Options */}
+            {question.options && (question.type === 'mcq_single' || question.type === 'mcq_multiple') && (
                 <div className="space-y-3">
                     {question.options.map((option, index) => {
                         const optionLabel = String.fromCharCode(65 + index); // A, B, C, D
