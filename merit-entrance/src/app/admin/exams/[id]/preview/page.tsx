@@ -26,6 +26,8 @@ interface Question {
     negative_marks: number | null;
     order: number;
     image_url?: string;
+    paragraph_text?: Record<string, string> | null;
+    parent_id?: string | null;
 }
 
 interface Section {
@@ -491,60 +493,121 @@ export default function ExamPreviewPage() {
 
                             {/* Question Card */}
                             <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
-                                <p className="text-gray-900 text-lg mb-4">
-                                    {getText(currentQuestion.text, language)}
-                                </p>
+                                {/* Show Parent Paragraph for sub-questions */}
+                                {currentQuestion.parent_id && (() => {
+                                    const parentPara = allQuestions.find(q => q.id === currentQuestion.parent_id);
+                                    if (parentPara?.paragraph_text) {
+                                        return (
+                                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                                <p className="text-sm font-medium text-blue-700 mb-2">
+                                                    📖 {getText(parentPara.text, language)}
+                                                </p>
+                                                <p className="text-gray-700 whitespace-pre-wrap text-sm">
+                                                    {getText(parentPara.paragraph_text, language)}
+                                                </p>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
 
-                                {currentQuestion.image_url && (
-                                    <img
-                                        src={currentQuestion.image_url}
-                                        alt="Question"
-                                        className="max-w-full max-h-64 rounded-lg border mb-4"
-                                    />
-                                )}
-
-                                {/* Options or Fill Blank */}
-                                {currentQuestion.type === 'fill_blank' ? (
-                                    <div className="mt-4">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            {language === 'en' ? 'Your Answer:' : 'ਤੁਹਾਡਾ ਜਵਾਬ:'}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={answers[currentQuestion.id]?.[0] || ''}
-                                            onChange={(e) => handleFillBlankAnswer(e.target.value)}
-                                            className="w-full px-4 py-3 border-2 rounded-lg focus:border-blue-500 focus:ring-0"
-                                            placeholder={language === 'en' ? 'Type your answer here...' : 'ਆਪਣਾ ਜਵਾਬ ਇੱਥੇ ਟਾਈਪ ਕਰੋ...'}
-                                        />
-                                    </div>
-                                ) : currentQuestion.options && (
-                                    <div className="space-y-3">
-                                        {currentQuestion.options.map((opt) => {
-                                            const isSelected = answers[currentQuestion.id]?.includes(opt.id);
-                                            return (
-                                                <button
-                                                    key={opt.id}
-                                                    onClick={() => handleOptionSelect(opt.id)}
-                                                    className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${isSelected
-                                                        ? 'border-blue-500 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                                        }`}
-                                                >
-                                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
-                                                        }`}>
-                                                        {opt.id.toUpperCase()}
-                                                    </span>
-                                                    <div className="flex-1 text-left">
-                                                        {opt.image_url && (
-                                                            <img src={opt.image_url} alt="" className="max-h-20 rounded mb-2" />
-                                                        )}
-                                                        <span className="text-gray-800">{getText(opt.text, language)}</span>
+                                {/* For Paragraph Type - Show passage and linked questions info */}
+                                {currentQuestion.type === 'paragraph' ? (
+                                    <>
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                                            📖 {getText(currentQuestion.text, language)}
+                                        </h3>
+                                        {currentQuestion.paragraph_text && (
+                                            <div className="p-4 bg-gray-50 rounded-lg border mb-4">
+                                                <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                                    {getText(currentQuestion.paragraph_text, language)}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {/* Show linked sub-questions */}
+                                        {(() => {
+                                            const linkedQuestions = allQuestions.filter(q => q.parent_id === currentQuestion.id);
+                                            if (linkedQuestions.length > 0) {
+                                                const linkedNums = linkedQuestions.map(lq => {
+                                                    const idx = allQuestions.findIndex(q => q.id === lq.id);
+                                                    return idx + 1;
+                                                }).join(', ');
+                                                return (
+                                                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                                        <p className="text-sm text-green-700">
+                                                            📝 <strong>Linked Questions:</strong> {linkedNums}
+                                                        </p>
+                                                        <p className="text-xs text-green-600 mt-1">
+                                                            Navigate to these questions to answer based on this passage.
+                                                        </p>
                                                     </div>
-                                                    {isSelected && <CheckCircle className="w-5 h-5 text-blue-500" />}
-                                                </button>
+                                                );
+                                            }
+                                            return (
+                                                <p className="text-sm text-gray-500 italic">
+                                                    No sub-questions linked to this paragraph yet.
+                                                </p>
                                             );
-                                        })}
-                                    </div>
+                                        })()}
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-gray-900 text-lg mb-4 whitespace-pre-wrap">
+                                            {getText(currentQuestion.text, language)}
+                                        </p>
+
+                                        {currentQuestion.image_url && (
+                                            <img
+                                                src={currentQuestion.image_url}
+                                                alt="Question"
+                                                className="max-w-full max-h-64 rounded-lg border mb-4"
+                                            />
+                                        )}
+
+                                        {/* Options or Fill Blank */}
+                                        {currentQuestion.type === 'fill_blank' ? (
+                                            <div className="mt-4">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    {language === 'en' ? 'Your Answer:' : 'ਤੁਹਾਡਾ ਜਵਾਬ:'}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={answers[currentQuestion.id]?.[0] || ''}
+                                                    onChange={(e) => handleFillBlankAnswer(e.target.value)}
+                                                    className="w-full px-4 py-3 border-2 rounded-lg focus:border-blue-500 focus:ring-0"
+                                                    placeholder={language === 'en' ? 'Type your answer here...' : 'ਆਪਣਾ ਜਵਾਬ ਇੱਥੇ ਟਾਈਪ ਕਰੋ...'}
+                                                />
+                                            </div>
+                                        ) : currentQuestion.options && (
+                                            <div className="space-y-3">
+                                                {currentQuestion.options.map((opt) => {
+                                                    const isSelected = answers[currentQuestion.id]?.includes(opt.id);
+                                                    return (
+                                                        <button
+                                                            key={opt.id}
+                                                            onClick={() => handleOptionSelect(opt.id)}
+                                                            className={`w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${isSelected
+                                                                ? 'border-blue-500 bg-blue-50'
+                                                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                                                }`}
+                                                        >
+                                                            <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
+                                                                }`}>
+                                                                {opt.id.toUpperCase()}
+                                                            </span>
+                                                            <div className="flex-1 text-left">
+                                                                {opt.image_url && (
+                                                                    <img src={opt.image_url} alt="" className="max-h-20 rounded mb-2" />
+                                                                )}
+                                                                <span className="text-gray-800">{getText(opt.text, language)}</span>
+                                                            </div>
+                                                            {isSelected && <CheckCircle className="w-5 h-5 text-blue-500" />}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
 

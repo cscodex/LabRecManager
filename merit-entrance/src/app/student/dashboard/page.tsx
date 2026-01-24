@@ -61,7 +61,7 @@ export default function StudentDashboard() {
 
     const getExamStatus = (exam: Exam) => {
         if (exam.hasAttempted) {
-            return { status: 'completed', label: 'Completed', color: 'bg-gray-100 text-gray-600' };
+            return { status: 'completed', label: '✓ Completed', color: 'bg-green-100 text-green-700 border border-green-300' };
         }
         if (hasExamEnded(exam.schedule.endTime)) {
             return { status: 'expired', label: 'Expired', color: 'bg-red-100 text-red-600' };
@@ -93,11 +93,14 @@ export default function StudentDashboard() {
 
                         {/* Desktop User Info */}
                         <div className="hidden sm:flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-gray-600">
+                            <button
+                                onClick={() => router.push('/student/profile')}
+                                className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition"
+                            >
                                 <User className="w-5 h-5" />
                                 <span className="font-medium">{user?.name}</span>
                                 <span className="text-sm text-gray-400">({user?.rollNumber})</span>
-                            </div>
+                            </button>
                             <button
                                 onClick={handleLogout}
                                 className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
@@ -119,13 +122,16 @@ export default function StudentDashboard() {
                     {/* Mobile Menu */}
                     {showMenu && (
                         <div className="sm:hidden mt-3 pt-3 border-t">
-                            <div className="flex items-center gap-2 text-gray-600 mb-3">
+                            <button
+                                onClick={() => router.push('/student/profile')}
+                                className="flex items-center gap-2 text-gray-600 mb-3 w-full hover:bg-gray-50 p-2 rounded-lg"
+                            >
                                 <User className="w-5 h-5" />
-                                <div className="flex-1">
+                                <div className="flex-1 text-left">
                                     <p className="font-medium">{user?.name}</p>
                                     <p className="text-sm text-gray-400">{user?.rollNumber}</p>
                                 </div>
-                            </div>
+                            </button>
                             <button
                                 onClick={handleLogout}
                                 className="flex items-center gap-2 w-full px-3 py-2.5 text-red-600 bg-red-50 rounded-lg"

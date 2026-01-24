@@ -21,9 +21,10 @@ interface QuestionDisplayProps {
     };
     totalQuestions: number;
     parentParagraphText?: Record<string, string> | null;
+    allQuestions?: Array<{ id: string; parentId?: string | null; order: number }>;
 }
 
-export default function QuestionDisplay({ question, totalQuestions, parentParagraphText }: QuestionDisplayProps) {
+export default function QuestionDisplay({ question, totalQuestions, parentParagraphText, allQuestions = [] }: QuestionDisplayProps) {
     const { language } = useAuthStore();
     const { responses, setResponse } = useExamStore();
 
@@ -53,22 +54,31 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
 
     // For paragraph type questions, just display the passage content
     if (question.type === 'paragraph') {
+        // Find linked sub-questions
+        const linkedQuestions = allQuestions.filter(q => q.parentId === question.id);
+        const linkedNums = linkedQuestions.map(lq => lq.order).sort((a, b) => a - b).join(', ');
+
         return (
             <div className="bg-white rounded-lg shadow-md p-6">
                 {/* Question Header */}
                 <div className="mb-4">
                     <h2 className="text-lg font-semibold text-blue-600">
-                        Passage {question.order} of {totalQuestions}
+                        📖 Passage {question.order} of {totalQuestions}
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">
                         Read the following passage carefully
                     </p>
                 </div>
 
+                {/* Paragraph Title */}
+                <h3 className="text-lg font-medium text-gray-900 mb-3">
+                    {getText(question.text, language)}
+                </h3>
+
                 {/* Paragraph/Passage Text */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">
-                        {question.paragraphText ? getText(question.paragraphText, language) : getText(question.text, language)}
+                    <p className="text-gray-800 text-base leading-relaxed whitespace-pre-wrap">
+                        {question.paragraphText ? getText(question.paragraphText, language) : ''}
                     </p>
                 </div>
 
@@ -82,9 +92,21 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
                     </div>
                 )}
 
-                <p className="mt-4 text-sm text-gray-500 italic">
-                    Navigate to the next question to answer questions based on this passage.
-                </p>
+                {/* Show linked questions info */}
+                {linkedQuestions.length > 0 ? (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <p className="text-sm text-green-700">
+                            📝 <strong>Questions based on this passage:</strong> Q{linkedNums}
+                        </p>
+                        <p className="text-xs text-green-600 mt-1">
+                            Navigate to these questions to answer based on this passage.
+                        </p>
+                    </div>
+                ) : (
+                    <p className="mt-4 text-sm text-gray-500 italic">
+                        Navigate to the next question to answer questions based on this passage.
+                    </p>
+                )}
             </div>
         );
     }

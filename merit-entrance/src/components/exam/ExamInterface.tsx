@@ -220,6 +220,7 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
                                     ? allQuestions.find(q => q.id === currentQuestion.parentId)?.paragraphText
                                     : null
                             }
+                            allQuestions={allQuestions.map(q => ({ id: q.id, parentId: q.parentId, order: q.order }))}
                         />
                     )}
                 </div>
