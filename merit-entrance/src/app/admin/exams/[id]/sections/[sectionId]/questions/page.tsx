@@ -30,6 +30,8 @@ interface Question {
     negative_marks: number | null;
     order: number;
     image_url?: string;
+    parent_id?: string | null;
+    paragraph_text?: Record<string, string> | null;
 }
 
 interface Section {
@@ -74,6 +76,9 @@ export default function ManageQuestionsPage() {
         negativeMarks: 0,
         fillBlankAnswers: '', // Comma-separated for multiple blanks
         imageUrl: '',
+        paragraphTextEn: '', // For paragraph type
+        paragraphTextPa: '', // For paragraph type
+        parentId: '', // For sub-questions linked to paragraphs
     });
 
     const [formData, setFormData] = useState(createEmptyQuestion());
@@ -109,8 +114,14 @@ export default function ManageQuestionsPage() {
     };
 
     const handleAddQuestion = async () => {
-        if (!formData.textEn) {
+        // For paragraph type, question text is optional (only paragraphText is required)
+        if (formData.type !== 'paragraph' && !formData.textEn) {
             toast.error('Question text is required');
+            return;
+        }
+
+        if (formData.type === 'paragraph' && !formData.paragraphTextEn) {
+            toast.error('Paragraph text is required');
             return;
         }
 
@@ -127,17 +138,25 @@ export default function ManageQuestionsPage() {
         const newOrder = questions.length + 1;
         const body: any = {
             type: formData.type,
-            text: { en: formData.textEn, pa: formData.textPa || formData.textEn },
+            text: { en: formData.textEn || 'Paragraph', pa: formData.textPa || formData.textEn || 'ਪੈਰਾ' },
             explanation: formData.explanationEn
                 ? { en: formData.explanationEn, pa: formData.explanationPa || formData.explanationEn }
                 : null,
-            marks: formData.marks,
-            negativeMarks: formData.negativeMarks || null,
+            marks: formData.type === 'paragraph' ? 0 : formData.marks,
+            negativeMarks: formData.type === 'paragraph' ? 0 : (formData.negativeMarks || null),
             order: newOrder,
             imageUrl: formData.imageUrl || null,
         };
 
-        if (formData.type === 'fill_blank') {
+        // Add paragraphText for paragraph type
+        if (formData.type === 'paragraph') {
+            body.paragraphText = {
+                en: formData.paragraphTextEn,
+                pa: formData.paragraphTextPa || formData.paragraphTextEn
+            };
+            body.options = null;
+            body.correctAnswer = [];
+        } else if (formData.type === 'fill_blank') {
             body.options = null;
             // Support multiple answers separated by comma
             body.correctAnswer = formData.fillBlankAnswers.split(',').map(a => a.trim()).filter(Boolean);
@@ -169,8 +188,16 @@ export default function ManageQuestionsPage() {
     };
 
     const handleUpdateQuestion = async () => {
-        if (!editingQuestionId || !formData.textEn) {
+        // For paragraph type, question text is optional (only paragraphText is required)
+        if (!editingQuestionId) return;
+
+        if (formData.type !== 'paragraph' && !formData.textEn) {
             toast.error('Question text is required');
+            return;
+        }
+
+        if (formData.type === 'paragraph' && !formData.paragraphTextEn) {
+            toast.error('Paragraph text is required');
             return;
         }
 
@@ -179,17 +206,25 @@ export default function ManageQuestionsPage() {
 
         const body: any = {
             type: formData.type,
-            text: { en: formData.textEn, pa: formData.textPa || formData.textEn },
+            text: { en: formData.textEn || 'Paragraph', pa: formData.textPa || formData.textEn || 'ਪੈਰਾ' },
             explanation: formData.explanationEn
                 ? { en: formData.explanationEn, pa: formData.explanationPa || formData.explanationEn }
                 : null,
-            marks: formData.marks,
-            negativeMarks: formData.negativeMarks || null,
+            marks: formData.type === 'paragraph' ? 0 : formData.marks,
+            negativeMarks: formData.type === 'paragraph' ? 0 : (formData.negativeMarks || null),
             order: currentQuestion.order,
             imageUrl: formData.imageUrl || null,
         };
 
-        if (formData.type === 'fill_blank') {
+        // Add paragraphText for paragraph type
+        if (formData.type === 'paragraph') {
+            body.paragraphText = {
+                en: formData.paragraphTextEn,
+                pa: formData.paragraphTextPa || formData.paragraphTextEn
+            };
+            body.options = null;
+            body.correctAnswer = [];
+        } else if (formData.type === 'fill_blank') {
             body.options = null;
             body.correctAnswer = formData.fillBlankAnswers.split(',').map(a => a.trim()).filter(Boolean);
         } else {
@@ -349,6 +384,9 @@ export default function ManageQuestionsPage() {
             negativeMarks: question.negative_marks || 0,
             fillBlankAnswers: question.type === 'fill_blank' ? (question.correct_answer?.join(', ') || '') : '',
             imageUrl: question.image_url || '',
+            paragraphTextEn: question.paragraph_text?.en || '',
+            paragraphTextPa: question.paragraph_text?.pa || '',
+            parentId: question.parent_id || '',
         });
     };
 
@@ -551,6 +589,7 @@ export default function ManageQuestionsPage() {
                         <option value="mcq_single">MCQ - Single</option>
                         <option value="mcq_multiple">MCQ - Multiple</option>
                         <option value="fill_blank">Fill in the Blank</option>
+                        <option value="paragraph">📄 Paragraph (Passage)</option>
                     </select>
                 </div>
                 <div>
@@ -626,8 +665,45 @@ export default function ManageQuestionsPage() {
                 </div>
             </div>
 
-            {/* Fill in the Blank Answers */}
-            {formData.type === 'fill_blank' ? (
+            {/* Paragraph Text - only for paragraph type */}
+            {formData.type === 'paragraph' && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <label className="block text-sm font-medium text-blue-700 mb-2">
+                        📄 Paragraph / Passage Content
+                    </label>
+                    <p className="text-xs text-blue-600 mb-3">
+                        Enter the reading passage that will be displayed above the sub-questions.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Paragraph (English) *</label>
+                            <textarea
+                                value={formData.paragraphTextEn}
+                                onChange={(e) => setFormData({ ...formData, paragraphTextEn: e.target.value })}
+                                rows={6}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                placeholder="Enter the passage content in English..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Paragraph (Punjabi)</label>
+                            <textarea
+                                value={formData.paragraphTextPa}
+                                onChange={(e) => setFormData({ ...formData, paragraphTextPa: e.target.value })}
+                                rows={6}
+                                className="w-full px-3 py-2 border rounded-lg"
+                                placeholder="ਪੈਰਾ ਸਮੱਗਰੀ ਪੰਜਾਬੀ ਵਿੱਚ ਦਰਜ ਕਰੋ..."
+                            />
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                        💡 After creating this paragraph, you can add sub-questions that reference it via CSV import or by creating questions with this paragraph as parent.
+                    </p>
+                </div>
+            )}
+
+            {/* Fill in the Blank Answers / MCQ Options - hidden for paragraph type */}
+            {formData.type !== 'paragraph' && (formData.type === 'fill_blank' ? (
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Correct Answer(s) * <span className="font-normal text-gray-500">(comma-separated for multiple blanks)</span>
@@ -730,29 +806,31 @@ export default function ManageQuestionsPage() {
                         ))}
                     </div>
                 </div>
-            )}
+            ))}
 
-            {/* Explanation */}
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Explanation (EN)</label>
-                    <textarea
-                        value={formData.explanationEn}
-                        onChange={(e) => setFormData({ ...formData, explanationEn: e.target.value })}
-                        rows={2}
-                        className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
+            {/* Explanation - hidden for paragraph type */}
+            {formData.type !== 'paragraph' && (
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Explanation (EN)</label>
+                        <textarea
+                            value={formData.explanationEn}
+                            onChange={(e) => setFormData({ ...formData, explanationEn: e.target.value })}
+                            rows={2}
+                            className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Explanation (PA)</label>
+                        <textarea
+                            value={formData.explanationPa}
+                            onChange={(e) => setFormData({ ...formData, explanationPa: e.target.value })}
+                            rows={2}
+                            className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Explanation (PA)</label>
-                    <textarea
-                        value={formData.explanationPa}
-                        onChange={(e) => setFormData({ ...formData, explanationPa: e.target.value })}
-                        rows={2}
-                        className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
-                </div>
-            </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 pt-3 border-t">
@@ -874,12 +952,26 @@ export default function ManageQuestionsPage() {
                                 <div className="flex-1 min-w-0">
                                     <p className="text-gray-900 font-medium mb-2">{getText(q.text, language)}</p>
 
+                                    {/* Paragraph text for paragraph type */}
+                                    {q.type === 'paragraph' && q.paragraph_text && (
+                                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-2">
+                                            <p className="text-xs text-blue-600 font-medium mb-1">📄 Passage Content:</p>
+                                            <p className="text-gray-700 text-sm whitespace-pre-wrap">
+                                                {getText(q.paragraph_text, language)}
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {/* Question image */}
                                     {q.image_url && (
                                         <img src={q.image_url} alt="" className="max-h-32 rounded border mb-2" />
                                     )}
 
-                                    {q.type === 'fill_blank' ? (
+                                    {q.type === 'paragraph' ? (
+                                        <div className="bg-gray-100 p-2 rounded text-sm text-gray-600">
+                                            📝 Sub-questions can be linked to this paragraph via CSV import
+                                        </div>
+                                    ) : q.type === 'fill_blank' ? (
                                         <div className="bg-green-50 border border-green-200 p-2 rounded inline-block">
                                             <span className="text-sm text-green-700">
                                                 Answer(s): <strong>{q.correct_answer?.join(', ')}</strong>
