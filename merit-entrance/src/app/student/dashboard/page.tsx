@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 interface Exam {
     id: string;
+    assignmentId: string;
     title: Record<string, string>;
     duration: number;
     totalMarks: number;
@@ -55,8 +56,8 @@ export default function StudentDashboard() {
         router.push('/');
     };
 
-    const handleStartExam = (examId: string) => {
-        router.push(`/student/exam/${examId}`);
+    const handleStartExam = (examId: string, assignmentId: string) => {
+        router.push(`/student/exam/${examId}?assignmentId=${assignmentId}`);
     };
 
     const getExamStatus = (exam: Exam) => {
@@ -99,11 +100,10 @@ export default function StudentDashboard() {
                             >
                                 <User className="w-5 h-5" />
                                 <span className="font-medium">{user?.name}</span>
-                                <span className="text-sm text-gray-400">({user?.rollNumber})</span>
                             </button>
                             <button
                                 onClick={handleLogout}
-                                className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                className="flex items-center gap-2 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition"
                             >
                                 <LogOut className="w-4 h-4" />
                                 Logout
@@ -112,36 +112,42 @@ export default function StudentDashboard() {
 
                         {/* Mobile Menu Button */}
                         <button
-                            className="sm:hidden p-2 text-gray-600"
                             onClick={() => setShowMenu(!showMenu)}
+                            className="sm:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
                         >
                             {showMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                         </button>
                     </div>
-
-                    {/* Mobile Menu */}
-                    {showMenu && (
-                        <div className="sm:hidden mt-3 pt-3 border-t">
-                            <button
-                                onClick={() => router.push('/student/profile')}
-                                className="flex items-center gap-2 text-gray-600 mb-3 w-full hover:bg-gray-50 p-2 rounded-lg"
-                            >
-                                <User className="w-5 h-5" />
-                                <div className="flex-1 text-left">
-                                    <p className="font-medium">{user?.name}</p>
-                                    <p className="text-sm text-gray-400">{user?.rollNumber}</p>
-                                </div>
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className="flex items-center gap-2 w-full px-3 py-2.5 text-red-600 bg-red-50 rounded-lg"
-                            >
-                                <LogOut className="w-4 h-4" />
-                                Logout
-                            </button>
-                        </div>
-                    )}
                 </div>
+
+                {/* Mobile Menu Dropdown */}
+                {showMenu && (
+                    <div className="sm:hidden border-t bg-white px-4 py-2 space-y-2">
+                        <div className="flex items-center gap-3 p-2 border-b pb-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                                {user?.name?.charAt(0)}
+                            </div>
+                            <div>
+                                <p className="font-semibold">{user?.name}</p>
+                                <p className="text-xs text-gray-500">{user?.role}</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => router.push('/student/profile')}
+                            className="w-full flex items-center gap-2 p-3 text-gray-700 hover:bg-gray-50 rounded-lg"
+                        >
+                            <User className="w-5 h-5" />
+                            My Profile
+                        </button>
+                        <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-2 p-3 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                            <LogOut className="w-5 h-5" />
+                            Logout
+                        </button>
+                    </div>
+                )}
             </header>
 
             {/* Main Content - Mobile Optimized */}
@@ -159,7 +165,7 @@ export default function StudentDashboard() {
                             const { status, label, color } = getExamStatus(exam);
                             return (
                                 <div
-                                    key={exam.id}
+                                    key={exam.assignmentId}
                                     className="bg-white rounded-xl shadow-sm p-4 sm:p-6 hover:shadow-md transition"
                                 >
                                     {/* Mobile Layout */}
@@ -191,7 +197,7 @@ export default function StudentDashboard() {
                                         <div className="sm:flex-shrink-0">
                                             {status === 'active' && (
                                                 <button
-                                                    onClick={() => handleStartExam(exam.id)}
+                                                    onClick={() => handleStartExam(exam.id, exam.assignmentId)}
                                                     className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
                                                 >
                                                     Start Exam

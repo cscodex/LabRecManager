@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { getText, formatDateTimeIST } from '@/lib/utils';
 import { Clock, BookOpen, AlertCircle, ChevronRight } from 'lucide-react';
@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 interface ExamDetails {
     id: string;
+    assignmentId?: string;
     title: Record<string, string>;
     description: Record<string, string> | null;
     instructions: Record<string, string> | null;
@@ -21,7 +22,9 @@ interface ExamDetails {
 export default function ExamInstructionsPage() {
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
     const examId = params.examId as string;
+    const assignmentId = searchParams.get('assignmentId');
     const { user, language, isAuthenticated, _hasHydrated } = useAuthStore();
 
     const [exam, setExam] = useState<ExamDetails | null>(null);
@@ -37,7 +40,7 @@ export default function ExamInstructionsPage() {
         }
         loadExamDetails();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [_hasHydrated, isAuthenticated, user, router]);
+    }, [_hasHydrated, isAuthenticated, user, router, assignmentId]);
 
     const loadExamDetails = async () => {
         try {
@@ -45,10 +48,17 @@ export default function ExamInstructionsPage() {
             const response = await fetch('/api/student/exams');
             const data = await response.json();
             if (data.success) {
-                const examData = data.exams.find((e: any) => e.id === examId);
+                let examData;
+                if (assignmentId) {
+                    examData = data.exams.find((e: any) => e.assignmentId === assignmentId);
+                } else {
+                    examData = data.exams.find((e: any) => e.id === examId);
+                }
+
                 if (examData) {
                     setExam({
                         id: examData.id,
+                        assignmentId: examData.assignmentId,
                         title: examData.title,
                         description: null,
                         instructions: examData.instructions,

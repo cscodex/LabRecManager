@@ -12,7 +12,7 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// GET - Generate backup and optionally upload to cloud
+// GET - Generate SQL backup and optionally upload to cloud
 export async function GET(request: NextRequest) {
     try {
         const session = await getSession();
@@ -24,50 +24,79 @@ export async function GET(request: NextRequest) {
         const uploadToCloud = searchParams.get('upload') === 'true';
 
         console.log('Starting database backup...');
-        const backup: Record<string, unknown[]> = {};
+        let sqlDump = `-- Merit Entrance Database Backup\n-- Generated at: ${new Date().toISOString()}\n\n`;
 
-        // Backup each table
-        try { backup.admins = await sql`SELECT * FROM admins`; } catch { backup.admins = []; }
-        try { backup.students = await sql`SELECT * FROM students`; } catch { backup.students = []; }
-        try { backup.exams = await sql`SELECT * FROM exams`; } catch { backup.exams = []; }
-        try { backup.sections = await sql`SELECT * FROM sections`; } catch { backup.sections = []; }
-        try { backup.questions = await sql`SELECT * FROM questions`; } catch { backup.questions = []; }
-        try { backup.exam_schedules = await sql`SELECT * FROM exam_schedules`; } catch { backup.exam_schedules = []; }
-        try { backup.exam_assignments = await sql`SELECT * FROM exam_assignments`; } catch { backup.exam_assignments = []; }
-        try { backup.exam_attempts = await sql`SELECT * FROM exam_attempts`; } catch { backup.exam_attempts = []; }
-        try { backup.question_responses = await sql`SELECT * FROM question_responses`; } catch { backup.question_responses = []; }
-        try { backup.demo_content = await sql`SELECT * FROM demo_content`; } catch { backup.demo_content = []; }
-
-        const backupData = JSON.stringify(backup, null, 2);
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `merit-backup-${timestamp}.json`;
-
-        // Calculate stats
-        const stats = {
-            admins: backup.admins.length,
-            students: backup.students.length,
-            exams: backup.exams.length,
-            sections: backup.sections.length,
-            questions: backup.questions.length,
-            exam_schedules: backup.exam_schedules.length,
-            exam_assignments: backup.exam_assignments.length,
-            exam_attempts: backup.exam_attempts.length,
-            question_responses: backup.question_responses.length,
-            demo_content: backup.demo_content.length,
-            size: (Buffer.byteLength(backupData) / 1024).toFixed(2) + ' KB',
-            timestamp: new Date().toISOString(),
+        // Helper to escape string for SQL
+        const escape = (val: any) => {
+            if (val === null || val === undefined) return 'NULL';
+            if (typeof val === 'number') return val;
+            if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+            if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+            // Handle timestamps
+            if (val instanceof Date) return `'${val.toISOString()}'`;
+            return `'${String(val).replace(/'/g, "''")}'`;
         };
+
+        // Table definitions and data
+        const tables = [
+            'admins', 'students', 'exams', 'sections', 'questions',
+            'exam_schedules', 'exam_assignments', 'exam_attempts',
+            'question_responses', 'demo_content'
+        ];
+
+        // Fetch data for each table explicitly to satisfy tagged template requirement
+        const tableData: Record<string, any[]> = {};
+        try { tableData.admins = await sql`SELECT * FROM admins`; } catch { tableData.admins = []; }
+        try { tableData.students = await sql`SELECT * FROM students`; } catch { tableData.students = []; }
+        try { tableData.exams = await sql`SELECT * FROM exams`; } catch { tableData.exams = []; }
+        try { tableData.sections = await sql`SELECT * FROM sections`; } catch { tableData.sections = []; }
+        try { tableData.questions = await sql`SELECT * FROM questions`; } catch { tableData.questions = []; }
+        try { tableData.exam_schedules = await sql`SELECT * FROM exam_schedules`; } catch { tableData.exam_schedules = []; }
+        try { tableData.exam_assignments = await sql`SELECT * FROM exam_assignments`; } catch { tableData.exam_assignments = []; }
+        try { tableData.exam_attempts = await sql`SELECT * FROM exam_attempts`; } catch { tableData.exam_attempts = []; }
+        try { tableData.question_responses = await sql`SELECT * FROM question_responses`; } catch { tableData.question_responses = []; }
+        try { tableData.demo_content = await sql`SELECT * FROM demo_content`; } catch { tableData.demo_content = []; }
+
+        for (const table of tables) {
+            try {
+                // Get table schema (simplified - strictly we'd query information_schema, 
+                // but simpler to just dump data for restore if schema exists, 
+                // or user can use prisma db push for schema)
+                sqlDump += `\n-- Data for table: ${table}\n`;
+
+                const rows = tableData[table];
+
+                if (rows && rows.length > 0) {
+                    const columns = Object.keys(rows[0]);
+                    sqlDump += `INSERT INTO "${table}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES\n`;
+
+                    const values = rows.map((row: any) => {
+                        return `(${columns.map(col => escape(row[col])).join(', ')})`;
+                    }).join(',\n');
+
+                    sqlDump += values + ';\n';
+                }
+            } catch (e) {
+                console.error(`Error banking up table ${table}:`, e);
+                sqlDump += `\n-- Error banking up table ${table}\n`;
+            }
+        }
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `merit-full-backup-${timestamp}.sql`;
+        const size = (Buffer.byteLength(sqlDump) / 1024).toFixed(2) + ' KB';
 
         let cloudUrl = null;
         if (uploadToCloud) {
             // Upload to Cloudinary as raw file
-            const base64Data = Buffer.from(backupData).toString('base64');
-            const dataUri = `data:application/json;base64,${base64Data}`;
+            const base64Data = Buffer.from(sqlDump).toString('base64');
+            const dataUri = `data:text/plain;base64,${base64Data}`;
 
             const result = await cloudinary.uploader.upload(dataUri, {
                 folder: 'merit-entrance/backups',
                 resource_type: 'raw',
-                public_id: filename.replace('.json', ''),
+                public_id: filename.replace('.sql', ''),
+                format: 'sql'
             });
             cloudUrl = result.secure_url;
         }
@@ -75,9 +104,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             success: true,
             filename,
-            stats,
+            stats: {
+                size,
+                timestamp: new Date().toISOString(),
+                tableCount: tables.length
+            },
             cloudUrl,
-            data: uploadToCloud ? undefined : backup, // Only include data if not uploading
+            data: uploadToCloud ? undefined : sqlDump, // Return SQL string if not uploading
         });
     } catch (error) {
         console.error('Backup error:', error);
