@@ -35,11 +35,14 @@ interface ExamResult {
     questions: {
         id: string;
         sectionId: string;
+        type: string;
         text: Record<string, string>;
         options: { id: string; text: Record<string, string> }[] | null;
         correctAnswer: string[];
         explanation: Record<string, string> | null;
         marks: number;
+        paragraphText?: Record<string, string> | null;
+        parentId?: string | null;
         studentAnswer: string[] | null;
         isCorrect: boolean | null;
         marksAwarded: number;
@@ -203,7 +206,16 @@ export default function ResultsPage() {
                     </div>
 
                     {sections.map(section => {
-                        const sectionQuestions = questions.filter(q => q.sectionId === section.id);
+                        // Filter out paragraph type questions - they are containers, not answerable
+                        const sectionQuestions = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+
+                        // Helper to get parent paragraph text
+                        const getParentParagraphText = (q: ExamResult['questions'][0]) => {
+                            if (!q.parentId) return null;
+                            const parent = questions.find(p => p.id === q.parentId);
+                            return parent?.paragraphText || null;
+                        };
+
                         return (
                             <div key={section.id} className="border-b last:border-b-0">
                                 <div className="px-4 py-3 bg-gray-50">
@@ -212,6 +224,7 @@ export default function ResultsPage() {
 
                                 {sectionQuestions.map((q, idx) => {
                                     const isExpanded = expandedQuestions.has(q.id);
+                                    const parentParagraph = getParentParagraphText(q);
 
                                     return (
                                         <div key={q.id} className="border-t">
@@ -242,6 +255,17 @@ export default function ResultsPage() {
 
                                             {isExpanded && (
                                                 <div className="px-4 pb-4 bg-gray-50">
+                                                    {/* Parent paragraph text for sub-questions */}
+                                                    {parentParagraph && (
+                                                        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                            <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
+                                                            <div
+                                                                className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
+                                                                dangerouslySetInnerHTML={{ __html: getText(parentParagraph, language) }}
+                                                            />
+                                                        </div>
+                                                    )}
+
                                                     <p className="text-gray-800 mb-3">{getText(q.text, language)}</p>
 
                                                     {q.options && (

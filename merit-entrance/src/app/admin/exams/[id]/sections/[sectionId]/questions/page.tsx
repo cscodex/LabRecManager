@@ -1540,7 +1540,7 @@ export default function ManageQuestionsPage() {
                                                         Passage Content
                                                     </p>
                                                     <div
-                                                        className="text-sm text-gray-700 max-h-40 overflow-y-auto pr-2 custom-scrollbar quill-content"
+                                                        className="text-sm text-gray-700 prose prose-sm max-w-none quill-content"
                                                         dangerouslySetInnerHTML={{ __html: getText(q.paragraph_text, language) }}
                                                     />
                                                 </div>

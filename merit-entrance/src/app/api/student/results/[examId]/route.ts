@@ -52,12 +52,15 @@ export async function GET(
       SELECT 
         q.id,
         q.section_id,
+        q.type,
         q.text,
         q.options,
         q.correct_answer,
         q.explanation,
         q.marks,
         q."order",
+        q.paragraph_text,
+        q.parent_id,
         qr.answer as student_answer,
         qr.is_correct,
         qr.marks_awarded
@@ -68,11 +71,12 @@ export async function GET(
       ORDER BY s."order", q."order"
     `;
 
-        // Calculate stats
-        const totalQuestions = questions.length;
-        const attempted = questions.filter(q => q.student_answer && JSON.stringify(q.student_answer) !== '[]').length;
-        const correct = questions.filter(q => q.is_correct).length;
-        const incorrect = questions.filter(q => q.is_correct === false && q.student_answer).length;
+        // Calculate stats (exclude paragraph type as they are not answerable)
+        const answerableQuestions = questions.filter(q => q.type !== 'paragraph');
+        const totalQuestions = answerableQuestions.length;
+        const attempted = answerableQuestions.filter(q => q.student_answer && JSON.stringify(q.student_answer) !== '[]').length;
+        const correct = answerableQuestions.filter(q => q.is_correct).length;
+        const incorrect = answerableQuestions.filter(q => q.is_correct === false && q.student_answer).length;
         const unattempted = totalQuestions - attempted;
 
         return NextResponse.json({
@@ -105,12 +109,15 @@ export async function GET(
                 questions: questions.map(q => ({
                     id: q.id,
                     sectionId: q.section_id,
+                    type: q.type,
                     text: typeof q.text === 'string' ? JSON.parse(q.text) : q.text,
                     options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : null,
                     correctAnswer: typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : q.correct_answer,
                     explanation: q.explanation ? (typeof q.explanation === 'string' ? JSON.parse(q.explanation) : q.explanation) : null,
                     marks: q.marks,
                     order: q.order,
+                    paragraphText: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
+                    parentId: q.parent_id,
                     studentAnswer: q.student_answer ? (typeof q.student_answer === 'string' ? JSON.parse(q.student_answer) : q.student_answer) : null,
                     isCorrect: q.is_correct,
                     marksAwarded: q.marks_awarded ? parseFloat(q.marks_awarded) : 0,
