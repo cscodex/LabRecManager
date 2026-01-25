@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
     ChevronLeft, Database, CloudUpload, Download, Upload, Trash2,
-    RefreshCw, CheckCircle, AlertCircle, Cloud, HardDrive
+    RefreshCw, CheckCircle, AlertCircle, Cloud, HardDrive, Copy, FileText, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -38,6 +38,8 @@ export default function BackupPage() {
     const [restoreData, setRestoreData] = useState<unknown>(null);
     const [restoreFilename, setRestoreFilename] = useState('');
     const [restoring, setRestoring] = useState(false);
+    const [sqlContent, setSqlContent] = useState<string>('');
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         loadCloudBackups();
@@ -60,6 +62,8 @@ export default function BackupPage() {
 
     const createBackup = async (uploadToCloud: boolean) => {
         setLoading(true);
+        setSqlContent('');
+        setLastBackup(null);
         try {
             const response = await fetch(`/api/admin/backup?upload=${uploadToCloud}`);
             const data = await response.json();
@@ -71,15 +75,9 @@ export default function BackupPage() {
                     toast.success('Backup uploaded to cloud!');
                     loadCloudBackups();
                 } else {
-                    // Download the backup file
-                    const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = data.filename;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    toast.success('Backup downloaded!');
+                    // Show SQL content
+                    setSqlContent(data.data);
+                    toast.success('Backup generated!');
                 }
             } else {
                 toast.error(data.error || 'Backup failed');
@@ -91,6 +89,25 @@ export default function BackupPage() {
         }
     };
 
+    const downloadSql = () => {
+        if (!sqlContent || !lastBackup) return;
+        const blob = new Blob([sqlContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `merit-backup-${new Date().toISOString().slice(0, 10)}.sql`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const copyToClipboard = () => {
+        if (!sqlContent) return;
+        navigator.clipboard.writeText(sqlContent);
+        setCopied(true);
+        toast.success('SQL copied to clipboard');
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -98,10 +115,21 @@ export default function BackupPage() {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
-                const data = JSON.parse(event.target?.result as string);
-                setRestoreData(data);
-                setRestoreFilename(file.name);
-                toast.success('Backup file loaded');
+                // Determine if JSON or SQL
+                const content = event.target?.result as string;
+                if (content.trim().startsWith('--')) {
+                    // SQL file - handled differently?
+                    // Currently restore API expects JSON object { backup: ... }
+                    // We might need to handle SQL restore separately or block it here.
+                    // For now, let's assume JSON restore still works for legacy/JSON files
+                    // But users recovering with SQL should use Neon Console.
+                    toast.error('SQL restore via Admin Panel not supported yet. Please use Neon Console.');
+                } else {
+                    const data = JSON.parse(content);
+                    setRestoreData(data);
+                    setRestoreFilename(file.name);
+                    toast.success('Backup file loaded');
+                }
             } catch {
                 toast.error('Invalid backup file');
             }
@@ -207,17 +235,17 @@ export default function BackupPage() {
                         Create Backup
                     </h2>
                     <p className="text-gray-600 mb-4">
-                        Create a complete backup of all database tables including exams, questions, students, and attempts.
+                        Generate a complete SQL dump of your schema and data. You can download it or copy it directly.
                     </p>
 
-                    <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-wrap gap-4 mb-6">
                         <button
                             onClick={() => createBackup(false)}
                             disabled={loading}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
-                            <HardDrive className="w-4 h-4" />
-                            {loading ? 'Creating...' : 'Download to Computer'}
+                            <FileText className="w-4 h-4" />
+                            {loading ? 'Generating...' : 'Generate SQL Dump'}
                         </button>
                         <button
                             onClick={() => createBackup(true)}
@@ -225,15 +253,42 @@ export default function BackupPage() {
                             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                         >
                             <CloudUpload className="w-4 h-4" />
-                            {loading ? 'Uploading...' : 'Upload to Cloud'}
+                            {loading ? 'Uploading...' : 'Generate & Upload to Cloud'}
                         </button>
                     </div>
+
+                    {sqlContent && (
+                        <div className="mt-6 border rounded-lg overflow-hidden">
+                            <div className="bg-gray-100 px-4 py-2 border-b flex items-center justify-between">
+                                <span className="font-mono text-sm font-medium text-gray-700">database_dump.sql</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={copyToClipboard}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-white rounded-md border border-transparent hover:border-gray-300 transition"
+                                    >
+                                        {copied ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
+                                        {copied ? 'Copied' : 'Copy SQL'}
+                                    </button>
+                                    <button
+                                        onClick={downloadSql}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition"
+                                    >
+                                        <Download className="w-3 h-3" />
+                                        Download
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 max-h-96 overflow-y-auto font-mono text-xs text-gray-800 whitespace-pre shadow-inner">
+                                {sqlContent}
+                            </div>
+                        </div>
+                    )}
 
                     {lastBackup && (
                         <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                             <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
                                 <CheckCircle className="w-4 h-4" />
-                                Backup Created Successfully
+                                Backup Generated Successfully
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm text-green-800">
                                 <div>Exams: {lastBackup.exams}</div>
@@ -250,16 +305,16 @@ export default function BackupPage() {
                 <div className="bg-white rounded-xl shadow-sm p-6">
                     <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <Upload className="w-5 h-5" />
-                        Restore from Backup
+                        Restore from JSON Backup
                     </h2>
                     <p className="text-gray-600 mb-4">
-                        Upload a backup file to restore data. Existing data will not be deleted.
+                        Upload a legacy JSON backup file to restore data. <span className="text-red-600 font-medium">To restore a .sql dump, please use the Neon Console directly.</span>
                     </p>
 
                     <div className="flex flex-wrap items-center gap-4">
                         <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400">
                             <Upload className="w-4 h-4 text-gray-500" />
-                            <span className="text-gray-600">Choose backup file</span>
+                            <span className="text-gray-600">Choose JSON file</span>
                             <input
                                 type="file"
                                 accept=".json"
@@ -326,7 +381,7 @@ export default function BackupPage() {
                                     </div>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => downloadFromCloud(backup.url, backup.publicId.split('/').pop() + '.json')}
+                                            onClick={() => downloadFromCloud(backup.url, backup.publicId.split('/').pop() + (backup.url.endsWith('.json') ? '.json' : '.sql'))}
                                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
                                             title="Download"
                                         >
