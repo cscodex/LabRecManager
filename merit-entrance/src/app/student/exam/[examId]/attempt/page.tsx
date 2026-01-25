@@ -179,6 +179,86 @@ export default function ExamAttemptPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [submitting, showSubmitConfirm]);
 
+    // Security: Block context menu, keyboard shortcuts, and detect window blur
+    useEffect(() => {
+        // Block right-click context menu
+        const handleContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+            toast.error('Right-click is disabled during exam');
+        };
+
+        // Block keyboard shortcuts
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Block: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A, Ctrl+S, Ctrl+P, F12, Ctrl+Shift+I/J/C
+            const blockedCombos = [
+                e.ctrlKey && e.key === 'c', // Copy
+                e.ctrlKey && e.key === 'v', // Paste
+                e.ctrlKey && e.key === 'x', // Cut
+                e.ctrlKey && e.key === 'a', // Select all
+                e.ctrlKey && e.key === 's', // Save
+                e.ctrlKey && e.key === 'p', // Print
+                e.ctrlKey && e.key === 'u', // View source
+                e.key === 'F12', // Dev tools
+                e.ctrlKey && e.shiftKey && e.key === 'I', // Dev tools
+                e.ctrlKey && e.shiftKey && e.key === 'J', // Console
+                e.ctrlKey && e.shiftKey && e.key === 'C', // Inspect
+            ];
+
+            if (blockedCombos.some(Boolean)) {
+                e.preventDefault();
+                toast.error('This keyboard shortcut is disabled during exam');
+            }
+        };
+
+        // Detect window blur (switching windows/apps)
+        const handleWindowBlur = () => {
+            if (!submitting && !showSubmitConfirm) {
+                setViolationCount(prev => prev + 1);
+                setShowTabWarning(true);
+                setTabSwitchCountdown(10);
+
+                // Start auto-submit countdown
+                if (!countdownRef.current) {
+                    countdownRef.current = setInterval(() => {
+                        setTabSwitchCountdown(prev => {
+                            if (prev <= 1) {
+                                if (countdownRef.current) clearInterval(countdownRef.current);
+                                countdownRef.current = null;
+                                handleSubmit(true);
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                }
+            }
+        };
+
+        const handleWindowFocus = () => {
+            // Cancel countdown when window gains focus
+            if (countdownRef.current) {
+                clearInterval(countdownRef.current);
+                countdownRef.current = null;
+            }
+            setShowTabWarning(false);
+            setTabSwitchCountdown(10);
+        };
+
+        // Add event listeners
+        document.addEventListener('contextmenu', handleContextMenu);
+        document.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('blur', handleWindowBlur);
+        window.addEventListener('focus', handleWindowFocus);
+
+        return () => {
+            document.removeEventListener('contextmenu', handleContextMenu);
+            document.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('blur', handleWindowBlur);
+            window.removeEventListener('focus', handleWindowFocus);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [submitting, showSubmitConfirm]);
+
     const loadExamData = async () => {
         try {
             const response = await fetch(`/api/student/exam/${examId}`);
@@ -622,9 +702,9 @@ export default function ExamAttemptPage() {
                 </div>
 
                 {/* Right Panel - Timer & Navigation (Hidden on mobile, shown on desktop) */}
-                <div className="hidden lg:flex w-72 bg-white border-l flex-col">
+                <div className="hidden lg:flex w-72 bg-white border-l flex-col h-full max-h-screen overflow-hidden">
                     {/* Timer */}
-                    <div className={`p-4 text-center border-b ${timeRemaining < 300 ? 'bg-red-50' : 'bg-blue-50'}`}>
+                    <div className={`p-4 text-center border-b shrink-0 ${timeRemaining < 300 ? 'bg-red-50' : 'bg-blue-50'}`}>
                         <div className="flex items-center justify-center gap-2 mb-1">
                             <Clock className={`w-5 h-5 ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`} />
                             <span className="text-sm text-gray-600">Time Remaining</span>
@@ -634,28 +714,40 @@ export default function ExamAttemptPage() {
                         </p>
                     </div>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-2 p-3 text-xs border-b">
-                        <div className="flex items-center gap-2">
+                    {/* Submit Button - Moved to top */}
+                    <div className="p-3 border-b shrink-0">
+                        <button
+                            onClick={() => setShowSubmitConfirm(true)}
+                            disabled={submitting}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
+                        >
+                            <Send className="w-4 h-4" />
+                            Submit Exam
+                        </button>
+                    </div>
+
+                    {/* Stats - Compact */}
+                    <div className="grid grid-cols-4 gap-1 p-2 text-xs border-b shrink-0 bg-gray-50">
+                        <div className="flex flex-col items-center">
                             <span className="w-4 h-4 rounded bg-green-500"></span>
-                            <span>Answered: {answeredCount}</span>
+                            <span className="text-gray-500">{answeredCount}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-center">
                             <span className="w-4 h-4 rounded bg-red-500"></span>
-                            <span>Not Ans: {notAnsweredCount}</span>
+                            <span className="text-gray-500">{notAnsweredCount}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-center">
                             <span className="w-4 h-4 rounded bg-purple-500"></span>
-                            <span>Marked: {markedCount}</span>
+                            <span className="text-gray-500">{markedCount}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-center">
                             <span className="w-4 h-4 rounded bg-gray-300"></span>
-                            <span>Not Visited: {answerableQuestions.length - visitedQuestions.size}</span>
+                            <span className="text-gray-500">{answerableQuestions.length - visitedQuestions.size}</span>
                         </div>
                     </div>
 
-                    {/* Question Navigation */}
-                    <div className="flex-1 overflow-y-auto p-3">
+                    {/* Question Navigation - Scrollable */}
+                    <div className="flex-1 overflow-y-auto p-3 min-h-0">
                         {sections.map((section, sIdx) => {
                             const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
                             const isCollapsed = collapsedSections.has(section.id);
@@ -693,18 +785,6 @@ export default function ExamAttemptPage() {
                                 </div>
                             );
                         })}
-                    </div>
-
-                    {/* Submit Button */}
-                    <div className="p-3 border-t">
-                        <button
-                            onClick={() => setShowSubmitConfirm(true)}
-                            disabled={submitting}
-                            className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
-                        >
-                            <Send className="w-4 h-4" />
-                            Submit Exam
-                        </button>
                     </div>
                 </div>
             </div>

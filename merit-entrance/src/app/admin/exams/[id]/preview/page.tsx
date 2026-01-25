@@ -498,12 +498,12 @@ export default function ExamPreviewPage() {
                                     const parentPara = allQuestions.find(q => q.id === currentQuestion.parent_id);
                                     if (parentPara?.paragraph_text) {
                                         return (
-                                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                                <p className="text-sm font-medium text-blue-700 mb-2">
+                                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-60 overflow-y-auto">
+                                                <p className="text-sm font-medium text-blue-700 mb-2 sticky top-0 bg-blue-50 pb-1">
                                                     📖 {getText(parentPara.text, language)}
                                                 </p>
                                                 <div
-                                                    className="text-gray-700 text-sm prose prose-sm max-w-none"
+                                                    className="text-gray-700 text-sm prose prose-sm max-w-none whitespace-pre-wrap break-words"
                                                     dangerouslySetInnerHTML={{ __html: getText(parentPara.paragraph_text, language) }}
                                                 />
                                             </div>
@@ -519,9 +519,9 @@ export default function ExamPreviewPage() {
                                             📖 {getText(currentQuestion.text, language)}
                                         </h3>
                                         {currentQuestion.paragraph_text && (
-                                            <div className="p-4 bg-gray-50 rounded-lg border mb-4">
+                                            <div className="p-4 bg-gray-50 rounded-lg border mb-4 max-h-80 overflow-y-auto">
                                                 <div
-                                                    className="text-gray-800 leading-relaxed prose prose-sm max-w-none"
+                                                    className="text-gray-800 leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
                                                     dangerouslySetInnerHTML={{ __html: getText(currentQuestion.paragraph_text, language) }}
                                                 />
                                             </div>
