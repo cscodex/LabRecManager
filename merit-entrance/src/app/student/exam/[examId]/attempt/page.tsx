@@ -597,7 +597,7 @@ export default function ExamAttemptPage() {
                             <>
                                 {/* Parent Paragraph Text (for sub-questions) */}
                                 {getParentParagraphText(currentQuestion) && (
-                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 max-h-60 sm:max-h-80 overflow-y-auto">
+                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 max-h-60 sm:max-h-96 overflow-y-auto">
                                         <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Reading Passage</p>
                                         <div
                                             className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"

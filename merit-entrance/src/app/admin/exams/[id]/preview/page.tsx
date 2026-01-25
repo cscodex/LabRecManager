@@ -6,7 +6,7 @@ import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import {
     ChevronLeft, ChevronRight, Clock, Flag, CheckCircle,
-    Circle, AlertCircle, Menu, X, Eye
+    Circle, AlertCircle, Menu, X, Eye, BookOpen
 } from 'lucide-react';
 
 interface Option {
@@ -67,6 +67,9 @@ export default function ExamPreviewPage() {
     const [questionStatus, setQuestionStatus] = useState<Record<string, QuestionStatus>>({});
     const [showPalette, setShowPalette] = useState(true);
     const [examStarted, setExamStarted] = useState(false);
+
+    // Sidebar collapse state
+    const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
@@ -181,6 +184,18 @@ export default function ExamPreviewPage() {
         }
     };
 
+    const toggleSectionCollapse = (sectionIdx: number) => {
+        setCollapsedSections(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(sectionIdx)) {
+                newSet.delete(sectionIdx);
+            } else {
+                newSet.add(sectionIdx);
+            }
+            return newSet;
+        });
+    };
+
     const handleOptionSelect = (optionId: string) => {
         if (!currentQuestion) return;
 
@@ -278,16 +293,6 @@ export default function ExamPreviewPage() {
         }
     };
 
-    const getStatusColor = (status: QuestionStatus) => {
-        switch (status) {
-            case 'answered': return 'bg-green-500 text-white';
-            case 'not_answered': return 'bg-red-500 text-white';
-            case 'marked': return 'bg-purple-500 text-white';
-            case 'marked_answered': return 'bg-purple-500 text-white border-2 border-green-400';
-            default: return 'bg-gray-300 text-gray-700';
-        }
-    };
-
     const getStatusCounts = () => {
         const counts = { answered: 0, not_answered: 0, marked: 0, not_visited: 0 };
         Object.values(questionStatus).forEach(status => {
@@ -297,6 +302,17 @@ export default function ExamPreviewPage() {
             else counts.not_visited++;
         });
         return counts;
+    };
+
+    // Helper for sidebar status colors
+    const getQuestionStatusColor = (status: string) => {
+        switch (status) {
+            case 'answered': return 'bg-green-500 text-white border-green-600';
+            case 'marked': return 'bg-purple-500 text-white border-purple-600';
+            case 'marked_answered': return 'bg-purple-500 text-white border-purple-600 ring-2 ring-green-400';
+            case 'not_answered': return 'bg-red-500 text-white border-red-600';
+            default: return 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200';
+        }
     };
 
     if (loading) {
@@ -468,26 +484,43 @@ export default function ExamPreviewPage() {
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <span className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold">
-                                        {currentQuestionIndex + 1}
+                                        {currentQuestion.type === 'paragraph' ? (
+                                            <BookOpen className="w-5 h-5" />
+                                        ) : (
+                                            (() => {
+                                                // Calculate display number by counting only non-paragraph questions before this one
+                                                const displayNum = allQuestions
+                                                    .filter((q, idx) => q.type !== 'paragraph' &&
+                                                        allQuestions.findIndex(allQ => allQ.id === q.id) <= allQuestions.findIndex(allQ => allQ.id === currentQuestion.id)
+                                                    ).length;
+                                                return displayNum;
+                                            })()
+                                        )}
                                     </span>
                                     <div>
                                         <span className="text-sm text-gray-500">
                                             {getText(currentSection?.name || {}, language)}
                                         </span>
                                         <div className="flex items-center gap-2 text-xs text-gray-500">
-                                            <span>Marks: {currentQuestion.marks}</span>
-                                            {currentQuestion.negative_marks && (
-                                                <span className="text-red-500">-{currentQuestion.negative_marks}</span>
+                                            {currentQuestion.type !== 'paragraph' && (
+                                                <>
+                                                    <span>Marks: {currentQuestion.marks}</span>
+                                                    {currentQuestion.negative_marks && (
+                                                        <span className="text-red-500">-{currentQuestion.negative_marks}</span>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     </div>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentQuestion.type === 'mcq_single' ? 'bg-blue-100 text-blue-700' :
                                     currentQuestion.type === 'mcq_multiple' ? 'bg-purple-100 text-purple-700' :
-                                        'bg-orange-100 text-orange-700'
+                                        currentQuestion.type === 'paragraph' ? 'bg-gray-100 text-gray-700' :
+                                            'bg-orange-100 text-orange-700'
                                     }`}>
                                     {currentQuestion.type === 'mcq_single' ? 'Single Choice' :
-                                        currentQuestion.type === 'mcq_multiple' ? 'Multiple Choice' : 'Fill Blank'}
+                                        currentQuestion.type === 'mcq_multiple' ? 'Multiple Choice' :
+                                            currentQuestion.type === 'paragraph' ? 'Passage' : 'Fill Blank'}
                                 </span>
                             </div>
 
@@ -498,12 +531,13 @@ export default function ExamPreviewPage() {
                                     const parentPara = allQuestions.find(q => q.id === currentQuestion.parent_id);
                                     if (parentPara?.paragraph_text) {
                                         return (
-                                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200 max-h-60 overflow-y-auto">
-                                                <p className="text-sm font-medium text-blue-700 mb-2 sticky top-0 bg-blue-50 pb-1">
-                                                    📖 {getText(parentPara.text, language)}
+                                            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200 h-96 overflow-y-auto">
+                                                <p className="text-sm font-medium text-blue-700 mb-2 sticky top-0 bg-blue-50 pb-1 z-10 flex items-center gap-2">
+                                                    <BookOpen className="w-4 h-4" />
+                                                    {getText(parentPara.text, language)}
                                                 </p>
                                                 <div
-                                                    className="text-gray-700 text-sm prose prose-sm max-w-none whitespace-pre-wrap break-words"
+                                                    className="text-gray-800 text-base leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
                                                     dangerouslySetInnerHTML={{ __html: getText(parentPara.paragraph_text, language) }}
                                                 />
                                             </div>
@@ -515,13 +549,14 @@ export default function ExamPreviewPage() {
                                 {/* For Paragraph Type - Show passage and linked questions info */}
                                 {currentQuestion.type === 'paragraph' ? (
                                     <>
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                                            📖 {getText(currentQuestion.text, language)}
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                            <BookOpen className="w-5 h-5 text-gray-500" />
+                                            {getText(currentQuestion.text, language)}
                                         </h3>
                                         {currentQuestion.paragraph_text && (
-                                            <div className="p-4 bg-gray-50 rounded-lg border mb-4 max-h-80 overflow-y-auto">
+                                            <div className="p-4 bg-gray-50 rounded-lg border mb-4 h-96 overflow-y-auto">
                                                 <div
-                                                    className="text-gray-800 leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
+                                                    className="text-gray-900 leading-relaxed text-base prose prose-sm max-w-none whitespace-pre-wrap break-words font-serif"
                                                     dangerouslySetInnerHTML={{ __html: getText(currentQuestion.paragraph_text, language) }}
                                                 />
                                             </div>
@@ -531,8 +566,12 @@ export default function ExamPreviewPage() {
                                             const linkedQuestions = allQuestions.filter(q => q.parent_id === currentQuestion.id);
                                             if (linkedQuestions.length > 0) {
                                                 const linkedNums = linkedQuestions.map(lq => {
-                                                    const idx = allQuestions.findIndex(q => q.id === lq.id);
-                                                    return idx + 1;
+                                                    // Calculate display number relative to all answerable questions
+                                                    const displayNum = allQuestions
+                                                        .filter((q, idx) => q.type !== 'paragraph' &&
+                                                            allQuestions.findIndex(allQ => allQ.id === q.id) <= allQuestions.findIndex(allQ => allQ.id === lq.id)
+                                                        ).length;
+                                                    return displayNum;
                                                 }).join(', ');
                                                 return (
                                                     <div className="p-3 bg-green-50 rounded-lg border border-green-200">
@@ -554,7 +593,7 @@ export default function ExamPreviewPage() {
                                     </>
                                 ) : (
                                     <>
-                                        <p className="text-gray-900 text-lg mb-4 whitespace-pre-wrap">
+                                        <p className="text-gray-900 text-lg mb-4 whitespace-pre-wrap font-medium">
                                             {getText(currentQuestion.text, language)}
                                         </p>
 
@@ -693,41 +732,56 @@ export default function ExamPreviewPage() {
 
                     {/* Question Grid by Section */}
                     <div className="p-4 space-y-4">
-                        {exam.sections.map((section, sIdx) => (
-                            <div key={section.id}>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                                    {getText(section.name, language)}
-                                </h4>
-                                <div className="grid grid-cols-5 gap-2">
-                                    {section.questions.map((q, qIdx) => {
-                                        const status = questionStatus[q.id] || 'not_visited';
-                                        const isCurrent = sIdx === currentSectionIndex && qIdx === currentQuestionIndex;
-                                        return (
-                                            <button
-                                                key={q.id}
-                                                onClick={() => navigateToQuestion(sIdx, qIdx)}
-                                                className={`w-10 h-10 rounded-lg text-sm font-medium transition-all ${getStatusColor(status)} ${isCurrent ? 'ring-2 ring-offset-2 ring-blue-500' : ''
-                                                    }`}
-                                            >
-                                                {qIdx + 1}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                        {exam.sections.map((section, sIdx) => {
+                            const isCollapsed = collapsedSections.has(sIdx);
+                            const sectionQs = section.questions;
+                            const sectionAnswered = sectionQs.filter(q => {
+                                const st = questionStatus[q.id];
+                                return st === 'answered' || st === 'marked_answered';
+                            }).length;
 
-                    {/* Submit Button */}
-                    <div className="p-4 border-t mt-auto">
-                        <button
-                            onClick={() => {
-                                alert('This is preview mode. Submit is disabled.');
-                            }}
-                            className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
-                        >
-                            {language === 'en' ? 'Submit Exam' : 'ਪ੍ਰੀਖਿਆ ਜਮ੍ਹਾਂ ਕਰੋ'}
-                        </button>
+                            return (
+                                <div key={section.id} className="bg-white border rounded-lg overflow-hidden shadow-sm">
+                                    <button
+                                        onClick={() => toggleSectionCollapse(sIdx)}
+                                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 transition border-b"
+                                    >
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="font-bold">{getText(section.name, language)}</span>
+                                            <span className="text-gray-400 font-normal">({sectionAnswered}/{sectionQs.length})</span>
+                                        </span>
+                                        {isCollapsed ? <ChevronLeft className="w-3 h-3 rotate-180" /> : <ChevronLeft className="w-3 h-3 -rotate-90" />}
+                                    </button>
+
+                                    {!isCollapsed && (
+                                        <div className="grid grid-cols-5 gap-1.5 p-2">
+                                            {sectionQs.map((q, qIdx) => {
+                                                const status = questionStatus[q.id];
+                                                const isActive = sIdx === currentSectionIndex && qIdx === currentQuestionIndex;
+
+                                                // Calculate display number
+                                                const displayNum = allQuestions
+                                                    .filter((aq, idx) => aq.type !== 'paragraph' &&
+                                                        allQuestions.findIndex(allQ => allQ.id === aq.id) <= allQuestions.findIndex(allQ => allQ.id === q.id)
+                                                    ).length;
+
+                                                return (
+                                                    <button
+                                                        key={q.id}
+                                                        onClick={() => navigateToQuestion(sIdx, qIdx)}
+                                                        className={`w-8 h-8 rounded text-xs font-bold transition flex items-center justify-center border ${isActive ? 'ring-2 ring-blue-600 ring-offset-1 z-10' : ''
+                                                            } ${getQuestionStatusColor(status || 'not_visited')}`}
+                                                        title={isActive ? 'Current Question' : ''}
+                                                    >
+                                                        {q.type === 'paragraph' ? <BookOpen className="w-4 h-4" /> : displayNum}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
                     </div>
                 </aside>
             </div>
