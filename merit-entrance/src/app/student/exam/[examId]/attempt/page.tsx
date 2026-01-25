@@ -79,6 +79,9 @@ export default function ExamAttemptPage() {
     const sectionQuestions = questions.filter(q => q.sectionId === currentSection?.id && q.type !== 'paragraph');
     const currentQuestion = sectionQuestions[currentQuestionIndex];
 
+    // All answerable questions (excluding paragraphs) for counts
+    const answerableQuestions = questions.filter(q => q.type !== 'paragraph');
+
     // Helper to get parent paragraph text for a sub-question
     const getParentParagraphText = (question: Question | undefined) => {
         if (!question?.parentId) return null;
@@ -634,7 +637,7 @@ export default function ExamAttemptPage() {
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="w-4 h-4 rounded bg-gray-300"></span>
-                            <span>Not Visited: {questions.length - visitedQuestions.size}</span>
+                            <span>Not Visited: {answerableQuestions.length - visitedQuestions.size}</span>
                         </div>
                     </div>
 
@@ -697,7 +700,7 @@ export default function ExamAttemptPage() {
                         className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm"
                     >
                         <span className="text-green-600 font-medium">{answeredCount}</span>/
-                        <span>{questions.length}</span>
+                        <span>{answerableQuestions.length}</span>
                         <ChevronUp className={`w-4 h-4 transition ${showMobileNav ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -743,7 +746,7 @@ export default function ExamAttemptPage() {
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="w-3 h-3 rounded bg-gray-300"></span>
-                                <span>{questions.length - visitedQuestions.size}</span>
+                                <span>{answerableQuestions.length - visitedQuestions.size}</span>
                             </div>
                         </div>
 
@@ -807,7 +810,7 @@ export default function ExamAttemptPage() {
                             </div>
                             <div className="flex justify-between">
                                 <span>Not Visited</span>
-                                <span className="font-medium text-gray-600">{questions.length - visitedQuestions.size}</span>
+                                <span className="font-medium text-gray-600">{answerableQuestions.length - visitedQuestions.size}</span>
                             </div>
                         </div>
 
