@@ -27,6 +27,8 @@ interface Question {
     negative_marks: number | null;
     order: number;
     image_url?: string;
+    paragraph_text?: Record<string, string> | null;
+    parent_id?: string | null;
 }
 
 interface Section {
@@ -327,6 +329,17 @@ export default function ViewExamPage() {
                                                         </span>
                                                     </div>
                                                     <p className="text-gray-900">{getText(question.text, language)}</p>
+
+                                                    {/* Paragraph content for paragraph-type questions */}
+                                                    {question.type === 'paragraph' && question.paragraph_text && (
+                                                        <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                                            <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Passage Content</p>
+                                                            <div
+                                                                className="text-gray-700 prose prose-sm max-w-none"
+                                                                dangerouslySetInnerHTML={{ __html: getText(question.paragraph_text, language) }}
+                                                            />
+                                                        </div>
+                                                    )}
 
                                                     {question.image_url && (
                                                         <img

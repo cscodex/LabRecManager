@@ -502,9 +502,10 @@ export default function ExamPreviewPage() {
                                                 <p className="text-sm font-medium text-blue-700 mb-2">
                                                     📖 {getText(parentPara.text, language)}
                                                 </p>
-                                                <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                                                    {getText(parentPara.paragraph_text, language)}
-                                                </p>
+                                                <div
+                                                    className="text-gray-700 text-sm prose prose-sm max-w-none"
+                                                    dangerouslySetInnerHTML={{ __html: getText(parentPara.paragraph_text, language) }}
+                                                />
                                             </div>
                                         );
                                     }
@@ -519,9 +520,10 @@ export default function ExamPreviewPage() {
                                         </h3>
                                         {currentQuestion.paragraph_text && (
                                             <div className="p-4 bg-gray-50 rounded-lg border mb-4">
-                                                <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-                                                    {getText(currentQuestion.paragraph_text, language)}
-                                                </p>
+                                                <div
+                                                    className="text-gray-800 leading-relaxed prose prose-sm max-w-none"
+                                                    dangerouslySetInnerHTML={{ __html: getText(currentQuestion.paragraph_text, language) }}
+                                                />
                                             </div>
                                         )}
                                         {/* Show linked sub-questions */}

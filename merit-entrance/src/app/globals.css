@@ -228,3 +228,36 @@ body {
     display: none !important;
   }
 }
+
+/* Quill editor content styles */
+.quill-content {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+.quill-content p {
+  margin-bottom: 0.75rem;
+}
+
+.quill-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Ensure prose paragraphs don't get truncated */
+.prose p {
+  white-space: normal;
+}
+
+/* React Quill editor styling */
+.ql-container {
+  font-size: 1rem !important;
+}
+
+.ql-editor {
+  min-height: 150px;
+}
+
+.ql-editor p {
+  margin-bottom: 0.75rem;
+}
