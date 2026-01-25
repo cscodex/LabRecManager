@@ -97,26 +97,30 @@ model Question {
 
 // ============ SCHEDULING ============
 model ExamSchedule {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId    String   @map("exam_id") @db.Uuid
-  startTime DateTime @map("start_time") @db.Timestamptz
-  endTime   DateTime @map("end_time") @db.Timestamptz
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId      String           @map("exam_id") @db.Uuid
+  startTime   DateTime         @map("start_time") @db.Timestamptz
+  endTime     DateTime         @map("end_time") @db.Timestamptz
   
-  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  assignments ExamAssignment[]
   
   @@map("exam_schedules")
 }
 
 model ExamAssignment {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId     String   @map("exam_id") @db.Uuid
-  studentId  String   @map("student_id") @db.Uuid
-  assignedAt DateTime @default(now()) @map("assigned_at")
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId      String   @map("exam_id") @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  scheduleId  String?  @map("schedule_id") @db.Uuid
+  maxAttempts Int      @default(1) @map("max_attempts")
+  assignedAt  DateTime @default(now()) @map("assigned_at")
   
-  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam     Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student  Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule ExamSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   
-  @@unique([examId, studentId])
+  @@unique([examId, studentId, scheduleId])
   @@map("exam_assignments")
 }
 

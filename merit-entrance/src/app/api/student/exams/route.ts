@@ -15,22 +15,29 @@ export async function GET(request: NextRequest) {
 
         const studentId = session.id;
 
-        // Get exams assigned to this student with their schedules
-        const exams = await sql`
+        // Get exams assigned to this student - each assignment is a separate entry
+        const assignments = await sql`
             SELECT 
-                e.id,
+                ea.id as assignment_id,
+                ea.max_attempts,
+                ea.schedule_id,
+                e.id as exam_id,
                 e.title,
                 e.duration,
                 e.total_marks,
                 e.status,
                 e.instructions,
-                es.start_time,
-                es.end_time,
+                COALESCE(es.start_time, es_default.start_time) as start_time,
+                COALESCE(es.end_time, es_default.end_time) as end_time,
+                (
+                    SELECT COUNT(*) FROM exam_attempts 
+                    WHERE exam_id = e.id AND student_id = ${studentId}
+                ) as attempt_count,
                 (
                     SELECT status FROM exam_attempts 
                     WHERE exam_id = e.id AND student_id = ${studentId}
                     ORDER BY started_at DESC LIMIT 1
-                ) as attempt_status,
+                ) as last_attempt_status,
                 (
                     SELECT COUNT(*) FROM sections WHERE exam_id = e.id
                 ) as section_count,
@@ -41,31 +48,36 @@ export async function GET(request: NextRequest) {
                 ) as question_count
             FROM exam_assignments ea
             JOIN exams e ON ea.exam_id = e.id
-            LEFT JOIN (
-                SELECT DISTINCT ON (exam_id) exam_id, start_time, end_time
-                FROM exam_schedules
-                ORDER BY exam_id, start_time ASC
-            ) es ON es.exam_id = e.id
+            LEFT JOIN exam_schedules es ON es.id = ea.schedule_id
+            LEFT JOIN LATERAL (
+                SELECT start_time, end_time FROM exam_schedules 
+                WHERE exam_id = e.id 
+                ORDER BY start_time ASC LIMIT 1
+            ) es_default ON es.id IS NULL
             WHERE ea.student_id = ${studentId}
               AND e.status = 'published'
-            ORDER BY es.start_time ASC
+            ORDER BY COALESCE(es.start_time, es_default.start_time) ASC
         `;
 
-        const formattedExams = exams
-            .filter((exam: any) => exam.start_time && exam.end_time)
-            .map((exam: any) => ({
-                id: exam.id,
-                title: exam.title as Record<string, string>,
-                duration: exam.duration,
-                totalMarks: exam.total_marks,
-                instructions: exam.instructions,
-                sectionCount: parseInt(exam.section_count) || 0,
-                questionCount: parseInt(exam.question_count) || 0,
+        const formattedExams = assignments
+            .filter((a: any) => a.start_time && a.end_time)
+            .map((a: any) => ({
+                id: a.exam_id,
+                assignmentId: a.assignment_id,
+                title: a.title as Record<string, string>,
+                duration: a.duration,
+                totalMarks: a.total_marks,
+                instructions: a.instructions,
+                sectionCount: parseInt(a.section_count) || 0,
+                questionCount: parseInt(a.question_count) || 0,
+                maxAttempts: a.max_attempts,
+                attemptCount: parseInt(a.attempt_count) || 0,
                 schedule: {
-                    startTime: exam.start_time,
-                    endTime: exam.end_time,
+                    startTime: a.start_time,
+                    endTime: a.end_time,
                 },
-                hasAttempted: exam.attempt_status === 'submitted',
+                hasAttempted: a.last_attempt_status === 'submitted',
+                canAttempt: (parseInt(a.attempt_count) || 0) < a.max_attempts,
             }));
 
         return NextResponse.json({

@@ -20,10 +20,15 @@ export async function GET(
         ea.id,
         ea.student_id,
         ea.assigned_at,
+        ea.max_attempts,
+        ea.schedule_id,
         s.roll_number,
-        s.name
+        s.name,
+        es.start_time,
+        es.end_time
       FROM exam_assignments ea
       JOIN students s ON ea.student_id = s.id
+      LEFT JOIN exam_schedules es ON es.id = ea.schedule_id
       WHERE ea.exam_id = ${params.id}
       ORDER BY s.roll_number
     `;
@@ -58,22 +63,23 @@ export async function POST(
         }
 
         const body = await request.json();
-        const { studentIds } = body;
+        const { studentIds, maxAttempts = 1, scheduleId = null } = body;
 
         if (!studentIds || !Array.isArray(studentIds)) {
             return NextResponse.json({ error: 'Student IDs are required' }, { status: 400 });
         }
 
-        // Insert new assignments, ignore duplicates
+        // Insert new assignments with maxAttempts and scheduleId
         for (const studentId of studentIds) {
             try {
                 await sql`
-          INSERT INTO exam_assignments (exam_id, student_id)
-          VALUES (${params.id}, ${studentId})
-          ON CONFLICT (exam_id, student_id) DO NOTHING
+          INSERT INTO exam_assignments (exam_id, student_id, max_attempts, schedule_id)
+          VALUES (${params.id}, ${studentId}, ${maxAttempts}, ${scheduleId})
+          ON CONFLICT (exam_id, student_id, schedule_id) DO UPDATE SET max_attempts = ${maxAttempts}
         `;
             } catch (e) {
-                // Ignore duplicates
+                // Ignore errors
+                console.error('Assignment error:', e);
             }
         }
 
