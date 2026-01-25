@@ -332,10 +332,10 @@ export default function ViewExamPage() {
 
                                                     {/* Paragraph content for paragraph-type questions */}
                                                     {question.type === 'paragraph' && question.paragraph_text && (
-                                                        <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                                            <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Passage Content</p>
+                                                        <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg max-h-80 overflow-y-auto">
+                                                            <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Passage Content</p>
                                                             <div
-                                                                className="text-gray-700 prose prose-sm max-w-none"
+                                                                className="text-gray-700 prose prose-sm max-w-none whitespace-pre-wrap break-words"
                                                                 dangerouslySetInnerHTML={{ __html: getText(question.paragraph_text, language) }}
                                                             />
                                                         </div>

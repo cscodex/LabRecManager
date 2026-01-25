@@ -62,6 +62,7 @@ export default function ExamAttemptPage() {
     const [submitting, setSubmitting] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
     const [showMobileNav, setShowMobileNav] = useState(false);
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
     // Fullscreen and visibility tracking
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -340,6 +341,18 @@ export default function ExamAttemptPage() {
         setVisitedQuestions(prev => new Set(Array.from(prev).concat([questionId])));
     };
 
+    const toggleSectionCollapse = (sectionId: string) => {
+        setCollapsedSections(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(sectionId)) {
+                newSet.delete(sectionId);
+            } else {
+                newSet.add(sectionId);
+            }
+            return newSet;
+        });
+    };
+
     const goToQuestion = (sectionIdx: number, questionIdx: number) => {
         setCurrentSectionIndex(sectionIdx);
         setCurrentQuestionIndex(questionIdx);
@@ -504,10 +517,10 @@ export default function ExamAttemptPage() {
                             <>
                                 {/* Parent Paragraph Text (for sub-questions) */}
                                 {getParentParagraphText(currentQuestion) && (
-                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 overflow-x-auto">
-                                        <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
+                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 max-h-60 sm:max-h-80 overflow-y-auto">
+                                        <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Reading Passage</p>
                                         <div
-                                            className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none"
+                                            className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
                                             dangerouslySetInnerHTML={{ __html: getText(getParentParagraphText(currentQuestion)!, language) }}
                                         />
                                     </div>
@@ -645,27 +658,38 @@ export default function ExamAttemptPage() {
                     <div className="flex-1 overflow-y-auto p-3">
                         {sections.map((section, sIdx) => {
                             const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+                            const isCollapsed = collapsedSections.has(section.id);
+                            const sectionAnswered = sectionQs.filter(q => responses[q.id]?.answer?.length > 0).length;
                             return (
-                                <div key={section.id} className="mb-4">
-                                    <p className="text-xs font-medium text-gray-500 mb-2">
-                                        {getText(section.name, language)}
-                                    </p>
-                                    <div className="grid grid-cols-5 gap-1">
-                                        {sectionQs.map((q, qIdx) => {
-                                            const status = getQuestionStatus(q.id);
-                                            const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
-                                            return (
-                                                <button
-                                                    key={q.id}
-                                                    onClick={() => goToQuestion(sIdx, qIdx)}
-                                                    className={`w-9 h-9 rounded text-sm font-medium transition ${isActive ? 'ring-2 ring-blue-600 ring-offset-1' : ''
-                                                        } ${getQuestionStatusColor(status)}`}
-                                                >
-                                                    {qIdx + 1}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                                <div key={section.id} className="mb-3">
+                                    <button
+                                        onClick={() => toggleSectionCollapse(section.id)}
+                                        className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition"
+                                    >
+                                        <span className="flex items-center gap-1">
+                                            {getText(section.name, language)}
+                                            <span className="text-gray-400">({sectionAnswered}/{sectionQs.length})</span>
+                                        </span>
+                                        {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                                    </button>
+                                    {!isCollapsed && (
+                                        <div className="grid grid-cols-5 gap-1 mt-2">
+                                            {sectionQs.map((q, qIdx) => {
+                                                const status = getQuestionStatus(q.id);
+                                                const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
+                                                return (
+                                                    <button
+                                                        key={q.id}
+                                                        onClick={() => goToQuestion(sIdx, qIdx)}
+                                                        className={`w-9 h-9 rounded text-sm font-medium transition ${isActive ? 'ring-2 ring-blue-600 ring-offset-1' : ''
+                                                            } ${getQuestionStatusColor(status)}`}
+                                                    >
+                                                        {qIdx + 1}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

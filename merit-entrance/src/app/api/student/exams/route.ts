@@ -23,13 +23,22 @@ export async function GET(request: NextRequest) {
                 e.duration,
                 e.total_marks,
                 e.status,
+                e.instructions,
                 es.start_time,
                 es.end_time,
                 (
                     SELECT status FROM exam_attempts 
                     WHERE exam_id = e.id AND student_id = ${studentId}
                     ORDER BY started_at DESC LIMIT 1
-                ) as attempt_status
+                ) as attempt_status,
+                (
+                    SELECT COUNT(*) FROM sections WHERE exam_id = e.id
+                ) as section_count,
+                (
+                    SELECT COUNT(*) FROM questions q 
+                    JOIN sections s ON q.section_id = s.id 
+                    WHERE s.exam_id = e.id AND q.type != 'paragraph'
+                ) as question_count
             FROM exam_assignments ea
             JOIN exams e ON ea.exam_id = e.id
             LEFT JOIN (
@@ -49,6 +58,9 @@ export async function GET(request: NextRequest) {
                 title: exam.title as Record<string, string>,
                 duration: exam.duration,
                 totalMarks: exam.total_marks,
+                instructions: exam.instructions,
+                sectionCount: parseInt(exam.section_count) || 0,
+                questionCount: parseInt(exam.question_count) || 0,
                 schedule: {
                     startTime: exam.start_time,
                     endTime: exam.end_time,

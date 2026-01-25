@@ -11,6 +11,7 @@ interface ExamDetails {
     id: string;
     title: Record<string, string>;
     description: Record<string, string> | null;
+    instructions: Record<string, string> | null;
     duration: number;
     totalMarks: number;
     sectionCount: number;
@@ -50,10 +51,11 @@ export default function ExamInstructionsPage() {
                         id: examData.id,
                         title: examData.title,
                         description: null,
+                        instructions: examData.instructions,
                         duration: examData.duration,
                         totalMarks: examData.totalMarks,
-                        sectionCount: 4, // Will be updated when exam starts
-                        questionCount: 20,
+                        sectionCount: examData.sectionCount || 0,
+                        questionCount: examData.questionCount || 0,
                     });
                 }
             }
@@ -136,11 +138,25 @@ export default function ExamInstructionsPage() {
                         </div>
                     </div>
 
-                    {/* Instructions */}
+                    {/* Custom Exam Instructions */}
+                    {exam.instructions && getText(exam.instructions, language) && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start gap-2 mb-3">
+                                <BookOpen className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <h3 className="font-semibold text-blue-800">Exam Instructions</h3>
+                            </div>
+                            <div
+                                className="text-sm text-blue-900 prose prose-sm max-w-none"
+                                dangerouslySetInnerHTML={{ __html: getText(exam.instructions, language) }}
+                            />
+                        </div>
+                    )}
+
+                    {/* General Instructions */}
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                         <div className="flex items-start gap-2 mb-3">
                             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                            <h3 className="font-semibold text-amber-800">Important Instructions</h3>
+                            <h3 className="font-semibold text-amber-800">General Guidelines</h3>
                         </div>
                         <ul className="text-sm text-amber-900 space-y-2 ml-7">
                             <li>• The exam will start as soon as you click &quot;Start Exam&quot;</li>
