@@ -12,6 +12,30 @@ import {
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
 import MasterImportModal from '@/components/MasterImportModal';
+import RichTextEditor from '@/components/RichTextEditor';
+
+interface Section {
+    id: string;
+    name: Record<string, string>;
+    order: number;
+    duration: number | null;
+    question_count: number;
+}
+
+interface Exam {
+    id: string;
+    title: Record<string, string>;
+    description: Record<string, string> | null;
+    instructions: Record<string, string> | null;
+    duration: number;
+    total_marks: number;
+    passing_marks: number | null;
+    negative_marking: number | null;
+    shuffle_questions: boolean;
+    status: string;
+    sections: Section[];
+    schedules: { id: string; start_time: string; end_time: string }[];
+}
 
 // ... (existing imports)
 
