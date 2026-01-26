@@ -292,8 +292,34 @@ export default function ManageQuestionsPage() {
         }
     };
 
+    // Helper to calculate correct order placement
+    const calculateOrderForLocation = (parentId: string | null | undefined): number => {
+        const sorted = [...questions].sort((a, b) => a.order - b.order);
+
+        if (parentId) {
+            // Find parent and its current children (excluding self if editing)
+            const parent = sorted.find(q => q.id === parentId);
+            if (!parent) return sorted.length + 1;
+
+            const children = sorted.filter(q => q.parent_id === parentId && q.id !== editingQuestionId);
+
+            // If children exist, place after the last child. 
+            // If no children, place immediately after parent.
+            let lastItemOrder = parent.order;
+            if (children.length > 0) {
+                lastItemOrder = children[children.length - 1].order;
+            }
+
+            return lastItemOrder + 1;
+        }
+
+        // Default: End of list
+        const maxOrder = sorted.length > 0 ? sorted[sorted.length - 1].order : 0;
+        return maxOrder + 1;
+    };
+
     const handleAddQuestion = async () => {
-        // For paragraph type, question text is optional (only paragraphText is required)
+        // Validation checks... (Keep existing checks)
         if (formData.type !== 'paragraph' && !formData.textEn) {
             toast.error('Question text is required');
             return;
@@ -314,7 +340,7 @@ export default function ManageQuestionsPage() {
             return;
         }
 
-        // Check for duplicate question content
+        // Duplicate Check
         const duplicateQuestion = questions.find(q =>
             q.id !== editingQuestionId &&
             q.text?.en?.trim().toLowerCase() === formData.textEn?.trim().toLowerCase()
@@ -324,7 +350,15 @@ export default function ManageQuestionsPage() {
             return;
         }
 
-        const newOrder = questions.length + 1;
+        const targetOrder = calculateOrderForLocation(formData.parentId);
+
+        // Pre-shift existing orders if inserting in middle
+        // Note: The API usually handles simple append, but for "INSERT" we might need to batch update others.
+        // However, standard API might blindly insert. 
+        // Strategy: We will determine order, verify if we need to shift.
+        const needsShift = questions.some(q => q.order >= targetOrder);
+
+        // Prepare Body
         const body: any = {
             type: formData.type,
             text: { en: formData.textEn || 'Paragraph', pa: formData.textPa || formData.textEn || 'ਪੈਰਾ' },
@@ -333,11 +367,10 @@ export default function ManageQuestionsPage() {
                 : null,
             marks: formData.type === 'paragraph' ? 0 : formData.marks,
             negativeMarks: formData.type === 'paragraph' ? 0 : (formData.negativeMarks || null),
-            order: newOrder,
+            order: targetOrder,
             imageUrl: formData.imageUrl || null,
         };
 
-        // Add paragraphText for paragraph type
         if (formData.type === 'paragraph') {
             body.paragraphText = {
                 en: formData.paragraphTextEn,
@@ -347,7 +380,6 @@ export default function ManageQuestionsPage() {
             body.correctAnswer = [];
         } else if (formData.type === 'fill_blank') {
             body.options = null;
-            // Support multiple answers separated by comma
             body.correctAnswer = formData.fillBlankAnswers.split(',').map(a => a.trim()).filter(Boolean);
             if (formData.parentId) body.parentId = formData.parentId;
         } else {
@@ -361,6 +393,31 @@ export default function ManageQuestionsPage() {
         }
 
         try {
+            // First, shift others if needed (Bulk Reorder via API or sequential updates? 
+            // Better to rely on the backend or do a bulk update. 
+            // But we don't want to complicate. Let's create it, then reorder if needed.
+            // Actually, inserting with existing order might cause collision or duplicates.
+            // Let's rely on our bulk reorder logic or just send "order". 
+            // If we use `reorder` API afterwards, it's safer.
+
+            // To support "Insert", we should shift local state orders, then create.
+            if (needsShift) {
+                // We'll optimistically shift everything >= targetOrder by 1 locally to avoid conflict?
+                // But we can't update server easily without bulk API.
+                // We HAVE a bulk API now: `/reorder`.
+                const updates = questions
+                    .filter(q => q.order >= targetOrder)
+                    .map(q => ({ id: q.id, order: q.order + 1 }));
+
+                if (updates.length > 0) {
+                    await fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions/reorder`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: updates }),
+                    });
+                }
+            }
+
             const response = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -379,14 +436,13 @@ export default function ManageQuestionsPage() {
     };
 
     const handleUpdateQuestion = async () => {
-        // For paragraph type, question text is optional (only paragraphText is required)
         if (!editingQuestionId) return;
 
+        // Validation... (Keep existing validation)
         if (formData.type !== 'paragraph' && !formData.textEn) {
             toast.error('Question text is required');
             return;
         }
-
         if (formData.type === 'paragraph' && !formData.paragraphTextEn) {
             toast.error('Paragraph text is required');
             return;
@@ -394,6 +450,15 @@ export default function ManageQuestionsPage() {
 
         const currentQuestion = questions.find(q => q.id === editingQuestionId);
         if (!currentQuestion) return;
+
+        // Determine if parent changed or just content
+        const parentChanged = (formData.parentId || null) !== (currentQuestion.parent_id || null);
+
+        let newOrder = currentQuestion.order;
+        if (parentChanged) {
+            // Recalculate order to move it into the new group
+            newOrder = calculateOrderForLocation(formData.parentId);
+        }
 
         const body: any = {
             type: formData.type,
@@ -403,11 +468,10 @@ export default function ManageQuestionsPage() {
                 : null,
             marks: formData.type === 'paragraph' ? 0 : formData.marks,
             negativeMarks: formData.type === 'paragraph' ? 0 : (formData.negativeMarks || null),
-            order: currentQuestion.order,
+            order: newOrder,
             imageUrl: formData.imageUrl || null,
         };
 
-        // Add paragraphText for paragraph type
         if (formData.type === 'paragraph') {
             body.paragraphText = {
                 en: formData.paragraphTextEn,
@@ -429,21 +493,25 @@ export default function ManageQuestionsPage() {
             body.parentId = formData.parentId || null;
         }
 
-        // Optimistic update
-        const updatedQuestion: Question = {
-            ...currentQuestion,
-            type: body.type,
-            text: body.text,
-            options: body.options,
-            correct_answer: body.correctAnswer,
-            explanation: body.explanation,
-            marks: body.marks,
-            negative_marks: body.negativeMarks,
-            image_url: body.imageUrl,
-        };
-        updateQuestionsOptimistically(questions.map(q => q.id === editingQuestionId ? updatedQuestion : q));
-
         try {
+            // If moving to a new group, we might need to shift others to make space
+            if (parentChanged) {
+                const needsShift = questions.some(q => q.id !== editingQuestionId && q.order >= newOrder);
+                if (needsShift) {
+                    const updates = questions
+                        .filter(q => q.id !== editingQuestionId && q.order >= newOrder)
+                        .map(q => ({ id: q.id, order: q.order + 1 }));
+
+                    if (updates.length > 0) {
+                        await fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions/reorder`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items: updates }),
+                        });
+                    }
+                }
+            }
+
             const response = await fetch(
                 `/api/admin/exams/${examId}/sections/${sectionId}/questions/${editingQuestionId}`,
                 {
@@ -457,8 +525,9 @@ export default function ManageQuestionsPage() {
                 toast.success('Question updated!');
                 setEditingQuestionId(null);
                 setFormData(createEmptyQuestion());
+                loadData();
             } else {
-                loadData(); // Revert on error
+                loadData();
                 toast.error('Failed to update question');
             }
         } catch (error) {
