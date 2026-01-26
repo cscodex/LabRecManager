@@ -17,7 +17,16 @@ export async function POST(
         const { paragraph, subQuestions } = await req.json();
         const { sectionId } = params;
 
-        // 1. Create Paragraph Question
+        // 1. Create Paragraph Entry (New Schema)
+        const [paragraphEntry] = await sql`
+            INSERT INTO paragraphs (text, content, image_url)
+            VALUES (
+                ${JSON.stringify(paragraph.text)}, 
+                ${JSON.stringify(paragraph.paragraphText)}, 
+                ${paragraph.imageUrl}
+            ) RETURNING id
+        `;
+
         const lastOrderRes = await sql`
             SELECT MAX("order") as max_order 
             FROM questions 
@@ -25,11 +34,12 @@ export async function POST(
         `;
         const nextOrder = (lastOrderRes[0]?.max_order || 0) + 1;
 
+        // Create the "Paragraph Question" placeholder linked to the paragraph
         const [paragraphQ] = await sql`
             INSERT INTO questions (
-                type, text, paragraph_text, image_url, "order", section_id, marks, negative_marks, correct_answer
+                type, text, paragraph_id, image_url, "order", section_id, marks, negative_marks, correct_answer
             ) VALUES (
-                'paragraph', ${JSON.stringify(paragraph.text)}, ${JSON.stringify(paragraph.paragraphText)}, 
+                'paragraph', ${JSON.stringify(paragraph.text)}, ${paragraphEntry.id}, 
                 ${paragraph.imageUrl}, ${nextOrder}, ${sectionId}, 0, 0, '[]'
             ) RETURNING id
         `;

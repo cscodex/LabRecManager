@@ -714,43 +714,101 @@ export default function ManageQuestionsPage() {
     };
 
     const handleMoveQuestion = async (questionId: string, direction: 'up' | 'down') => {
-        const sortedQuestions = [...questions].sort((a, b) => a.order - b.order);
-        const index = sortedQuestions.findIndex(q => q.id === questionId);
+        const sorted = [...questions].sort((a, b) => a.order - b.order);
+        const currentIndex = sorted.findIndex(q => q.id === questionId);
+        if (currentIndex === -1) return;
 
-        if ((direction === 'up' && index === 0) || (direction === 'down' && index === sortedQuestions.length - 1)) {
-            return;
+        const currentQ = sorted[currentIndex];
+
+        // Grouping Logic: Build groups of [Parent, ...Children] or [Standalone]
+        const groups: Question[][] = [];
+        const visited = new Set<string>();
+
+        for (const q of sorted) {
+            if (visited.has(q.id)) continue;
+
+            if (q.type === 'paragraph') {
+                // Paragraph: Find all linked children from the source list
+                const children = questions
+                    .filter(sq => sq.parent_id === q.id)
+                    .sort((a, b) => a.order - b.order);
+
+                groups.push([q, ...children]);
+                visited.add(q.id);
+                children.forEach(c => visited.add(c.id));
+            } else if (q.parent_id) {
+                // Child: Check if parent exists
+                const parentExists = questions.some(p => p.id === q.parent_id);
+                if (parentExists) {
+                    // Skip, it will be added when parent is processed (or was already)
+                    continue;
+                } else {
+                    // Orphaned child (treat as standalone)
+                    groups.push([q]);
+                    visited.add(q.id);
+                }
+            } else {
+                // Standalone question
+                groups.push([q]);
+                visited.add(q.id);
+            }
         }
 
-        const swapIndex = direction === 'up' ? index - 1 : index + 1;
-        const currentQ = { ...sortedQuestions[index] };
-        const swapQ = { ...sortedQuestions[swapIndex] };
+        const currentGroupIndex = groups.findIndex(g => g.some(item => item.id === questionId));
+        if (currentGroupIndex === -1) return;
+        const currentGroup = groups[currentGroupIndex];
 
-        // Swap orders
-        const tempOrder = currentQ.order;
-        currentQ.order = swapQ.order;
-        swapQ.order = tempOrder;
+        const newGroups = [...groups];
 
-        // Optimistic update
-        const updated = sortedQuestions.map((q, i) => {
-            if (i === index) return currentQ;
-            if (i === swapIndex) return swapQ;
-            return q;
+        // Determine Move Logic
+        if (currentQ.type === 'paragraph') {
+            // Move Whole Group
+            const swapGroupIndex = direction === 'up' ? currentGroupIndex - 1 : currentGroupIndex + 1;
+
+            if (swapGroupIndex >= 0 && swapGroupIndex < groups.length) {
+                [newGroups[currentGroupIndex], newGroups[swapGroupIndex]] = [newGroups[swapGroupIndex], newGroups[currentGroupIndex]];
+            }
+
+        } else if (currentQ.parent_id) {
+            // Move Child within Group
+            const indexInGroup = currentGroup.findIndex(q => q.id === questionId);
+            const swapIndexInGroup = direction === 'up' ? indexInGroup - 1 : indexInGroup + 1;
+
+            // Constraint: Index 0 is Parent. Cannot move child above Parent (index 0).
+            if (swapIndexInGroup > 0 && swapIndexInGroup < currentGroup.length) {
+                const newGroup = [...currentGroup];
+                [newGroup[indexInGroup], newGroup[swapIndexInGroup]] = [newGroup[swapIndexInGroup], newGroup[indexInGroup]];
+                newGroups[currentGroupIndex] = newGroup;
+            }
+
+        } else {
+            // Standalone: Move Group (Size 1)
+            const swapGroupIndex = direction === 'up' ? currentGroupIndex - 1 : currentGroupIndex + 1;
+            if (swapGroupIndex >= 0 && swapGroupIndex < groups.length) {
+                [newGroups[currentGroupIndex], newGroups[swapGroupIndex]] = [newGroups[swapGroupIndex], newGroups[currentGroupIndex]];
+            }
+        }
+
+        // Re-calculate orders for EVERY question based on flattened groups
+        const flattened = newGroups.flat();
+        const updates = flattened.map((q, i) => ({
+            id: q.id,
+            order: i + 1
+        }));
+
+        // Optimistic Update
+        const newQuestions = questions.map(q => {
+            const up = updates.find(u => u.id === q.id);
+            return up ? { ...q, order: up.order } : q;
         });
-        updateQuestionsOptimistically(updated);
+        updateQuestionsOptimistically(newQuestions);
 
         try {
-            await Promise.all([
-                fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions/${currentQ.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order: currentQ.order }),
-                }),
-                fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions/${swapQ.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order: swapQ.order }),
-                }),
-            ]);
+            await fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions/reorder`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: updates }),
+            });
             toast.success('Reordered');
         } catch (error) {
             loadData();

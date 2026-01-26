@@ -15,10 +15,11 @@ export async function GET(
         }
 
         const questions = await sql`
-      SELECT *
-      FROM questions
-      WHERE section_id = ${params.sectionId}
-      ORDER BY "order"
+      SELECT q.*, p.content as paragraph_text
+      FROM questions q
+      LEFT JOIN paragraphs p ON q.paragraph_id = p.id
+      WHERE q.section_id = ${params.sectionId}
+      ORDER BY q."order"
     `;
 
         return NextResponse.json({
@@ -60,8 +61,21 @@ export async function POST(
             return NextResponse.json({ error: 'Question text and answer are required' }, { status: 400 });
         }
 
+        let paragraphId = null;
+        if (type === 'paragraph') {
+            const [pEntry] = await sql`
+                INSERT INTO paragraphs (text, content, image_url)
+                VALUES (
+                    ${text ? JSON.stringify(text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
+                    ${paragraphText ? JSON.stringify(paragraphText) : null}::jsonb,
+                    ${imageUrl || null}
+                ) RETURNING id
+            `;
+            paragraphId = pEntry.id;
+        }
+
         const result = await sql`
-      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, negative_marks, image_url, "order", parent_id, paragraph_text)
+      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, negative_marks, image_url, "order", parent_id, paragraph_id)
       VALUES (
         ${params.sectionId},
         ${type || 'mcq_single'},
@@ -74,7 +88,7 @@ export async function POST(
         ${imageUrl || null},
         ${order || 1},
         ${parentId || null},
-        ${paragraphText ? JSON.stringify(paragraphText) : null}::jsonb
+        ${paragraphId}
       )
       RETURNING id
     `;

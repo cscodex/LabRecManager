@@ -17,6 +17,19 @@ export async function PUT(
         const body = await request.json();
         const { type, text, options, correctAnswer, explanation, marks, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
 
+        // 1. Handle Paragraph Content Update
+        const [existingQ] = await sql`SELECT paragraph_id FROM questions WHERE id = ${params.questionId}`;
+
+        if (existingQ?.paragraph_id && paragraphText) {
+            await sql`
+                UPDATE paragraphs 
+                SET content = ${JSON.stringify(paragraphText)}::jsonb,
+                    text = ${text ? JSON.stringify(text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
+                    image_url = ${imageUrl || null}
+                WHERE id = ${existingQ.paragraph_id}
+            `;
+        }
+
         await sql`
       UPDATE questions SET
         type = ${type || 'mcq_single'},
@@ -28,8 +41,7 @@ export async function PUT(
         negative_marks = ${negativeMarks || null},
         image_url = ${imageUrl || null},
         "order" = ${order || 1},
-        parent_id = ${parentId || null},
-        paragraph_text = ${paragraphText ? JSON.stringify(paragraphText) : null}::jsonb
+        parent_id = ${parentId || null}
       WHERE id = ${params.questionId} AND section_id = ${params.sectionId}
     `;
 
@@ -50,7 +62,14 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Check if it's a paragraph question to cleanup
+        const [qData] = await sql`SELECT paragraph_id FROM questions WHERE id = ${params.questionId}`;
+
         await sql`DELETE FROM questions WHERE id = ${params.questionId} AND section_id = ${params.sectionId}`;
+
+        if (qData?.paragraph_id) {
+            await sql`DELETE FROM paragraphs WHERE id = ${qData.paragraph_id}`;
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

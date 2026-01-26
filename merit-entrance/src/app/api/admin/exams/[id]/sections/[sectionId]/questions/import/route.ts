@@ -82,16 +82,27 @@ export async function POST(
                         paragraphText.pa = q.textPa || '';
                     }
 
+                    // We need the ID to allow re-use if we wanted, but here we just create one entry per paragraph question.
+                    const paragraphEntryId = randomUUID();
+                    await sql`
+                        INSERT INTO paragraphs (id, text, content)
+                        VALUES (
+                           ${paragraphEntryId},
+                           ${JSON.stringify({ en: '', pa: '' })}::jsonb,
+                           ${JSON.stringify(paragraphText)}::jsonb
+                        )
+                    `;
+
                     await sql`
                         INSERT INTO questions (
-                            id, section_id, type, text, paragraph_text, options, correct_answer, 
+                            id, section_id, type, text, paragraph_id, options, correct_answer, 
                             marks, negative_marks, "order"
                         ) VALUES (
                             ${questionId},
                             ${sectionId},
                             'paragraph',
                             ${JSON.stringify({ en: '', pa: '' })}::jsonb,
-                            ${JSON.stringify(paragraphText)}::jsonb,
+                            ${paragraphEntryId},
                             ${null}::jsonb,
                             ${JSON.stringify([])}::jsonb,
                             ${0},

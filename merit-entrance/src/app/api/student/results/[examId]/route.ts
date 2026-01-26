@@ -59,13 +59,14 @@ export async function GET(
         q.explanation,
         q.marks,
         q."order",
-        q.paragraph_text,
+        p.content as paragraph_text,
         q.parent_id,
         qr.answer as student_answer,
         qr.is_correct,
         qr.marks_awarded
       FROM questions q
       JOIN sections s ON q.section_id = s.id
+      LEFT JOIN paragraphs p ON q.paragraph_id = p.id
       LEFT JOIN question_responses qr ON qr.question_id = q.id AND qr.attempt_id = ${attempt.id}
       WHERE s.exam_id = ${examId}
       ORDER BY s."order", q."order"

@@ -134,10 +134,11 @@ export async function GET(
         q.negative_marks,
         q.image_url,
         q."order",
-        q.paragraph_text,
+        p.content as paragraph_text,
         q.parent_id
       FROM questions q
       JOIN sections s ON q.section_id = s.id
+      LEFT JOIN paragraphs p ON q.paragraph_id = p.id
       WHERE s.exam_id = ${examId}
       ORDER BY s."order", q."order"
     `;

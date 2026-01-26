@@ -17,14 +17,39 @@ export async function PUT(
         const { paragraph, subQuestions } = await req.json();
         const { sectionId, paragraphId: parentId } = params;
 
-        // 1. Update Paragraph Question
-        await sql`
-            UPDATE questions 
-            SET text = ${JSON.stringify(paragraph.text)},
-                paragraph_text = ${JSON.stringify(paragraph.paragraphText)},
-                image_url = ${paragraph.imageUrl}
-            WHERE id = ${parentId}
-        `;
+        // 1. Update Paragraph Entry and Question Link
+        const [qData] = await sql`SELECT paragraph_id FROM questions WHERE id = ${parentId}`;
+
+        if (qData?.paragraph_id) {
+            // Update the separate paragraphs table
+            await sql`
+                UPDATE paragraphs
+                SET text = ${JSON.stringify(paragraph.text)},
+                    content = ${JSON.stringify(paragraph.paragraphText)},
+                    image_url = ${paragraph.imageUrl},
+                    updated_at = NOW()
+                WHERE id = ${qData.paragraph_id}
+            `;
+
+            // Update the question metadata (title, etc)
+            await sql`
+                UPDATE questions 
+                SET text = ${JSON.stringify(paragraph.text)},
+                    image_url = ${paragraph.imageUrl}
+                WHERE id = ${parentId}
+            `;
+        } else {
+            // Fallback: If for some reason migration didn't link it, create new?
+            // Or maybe valid if user didn't run migration properly?
+            // For now assume migration ran. If not, this might fail or do nothing for content.
+            // Let's at least update the question text.
+            await sql`
+                UPDATE questions 
+                SET text = ${JSON.stringify(paragraph.text)},
+                    image_url = ${paragraph.imageUrl}
+                WHERE id = ${parentId}
+            `;
+        }
 
         // 2. Manage Sub-Questions
         // Get existing sub-questions

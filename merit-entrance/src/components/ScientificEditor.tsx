@@ -415,7 +415,7 @@ export default function ScientificEditor({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
-                className="w-full min-h-[200px] p-4 font-mono text-base resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                className="w-full min-h-[200px] p-4 font-mono text-base text-gray-900 bg-white resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
             />
         </div>
     );
