@@ -37,13 +37,392 @@ interface Exam {
     schedules: { id: string; start_time: string; end_time: string }[];
 }
 
-// ... (existing imports)
-
 export default function EditExamPage() {
-    // ... (existing state)
+    const router = useRouter();
+    const params = useParams();
+    const examId = params.id as string;
+    const { language, setLanguage } = useAuthStore();
+    const { confirm, DialogComponent } = useConfirmDialog();
+
+    const [exam, setExam] = useState<Exam | null>(null);
+    const [sections, setSections] = useState<Section[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
+    const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections'>('details');
+    const [editingSection, setEditingSection] = useState<Section | null>(null);
+    const [editSectionData, setEditSectionData] = useState({ nameEn: '', namePa: '', duration: '' });
+
+    const [formData, setFormData] = useState({
+        titleEn: '',
+        titlePa: '',
+        descriptionEn: '',
+        descriptionPa: '',
+        instructionsEn: '',
+        instructionsPa: '',
+        duration: 60,
+        totalMarks: 100,
+        passingMarks: 40,
+        negativeMarking: 0,
+        shuffleQuestions: false,
+        status: 'draft',
+    });
+
+    const [newSection, setNewSection] = useState({ nameEn: '', namePa: '', duration: '' });
+    const [showAddSection, setShowAddSection] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
 
-    // ... (rest of component logic)
+    // Refs for auto-save debouncing
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const initialLoadRef = useRef(true);
+    const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+
+    const loadExam = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/admin/exams/${examId}`);
+            const data = await response.json();
+            if (data.success) {
+                const e = data.exam;
+                setExam(e);
+                setSections(e.sections || []);
+                setFormData({
+                    titleEn: e.title.en || '',
+                    titlePa: e.title.pa || '',
+                    descriptionEn: e.description?.en || '',
+                    descriptionPa: e.description?.pa || '',
+                    instructionsEn: e.instructions?.en || '',
+                    instructionsPa: e.instructions?.pa || '',
+                    duration: e.duration,
+                    totalMarks: e.total_marks,
+                    passingMarks: e.passing_marks || 0,
+                    negativeMarking: e.negative_marking || 0,
+                    shuffleQuestions: e.shuffle_questions,
+                    status: e.status,
+                });
+            }
+        } catch (error) {
+            toast.error('Failed to load exam');
+        } finally {
+            setLoading(false);
+            // Mark initial load complete so auto-save can start
+            setTimeout(() => {
+                initialLoadRef.current = false;
+            }, 100);
+        }
+    }, [examId]);
+
+    useEffect(() => {
+        loadExam();
+    }, [examId, loadExam]);
+
+    // Auto-save with debounce
+    useEffect(() => {
+        // Skip auto-save on initial load
+        if (initialLoadRef.current) {
+            return;
+        }
+
+        // Skip if still loading or no exam data
+        if (loading || !exam) {
+            return;
+        }
+
+        setAutoSaveStatus('pending');
+
+        // Clear any existing timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Debounce save for 1.5 seconds
+        saveTimeoutRef.current = setTimeout(async () => {
+            setAutoSaveStatus('saving');
+            setSaving(true);
+            try {
+                const response = await fetch(`/api/admin/exams/${examId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
+                        description: formData.descriptionEn
+                            ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn }
+                            : null,
+                        instructions: formData.instructionsEn
+                            ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
+                            : null,
+                        duration: formData.duration,
+                        totalMarks: formData.totalMarks,
+                        passingMarks: formData.passingMarks,
+                        negativeMarking: formData.negativeMarking || null,
+                        shuffleQuestions: formData.shuffleQuestions,
+                        status: formData.status,
+                    }),
+                });
+
+                if (response.ok) {
+                    setAutoSaveStatus('saved');
+                    // Clear saved status after 2 seconds
+                    if (savedStatusTimeoutRef.current) {
+                        clearTimeout(savedStatusTimeoutRef.current);
+                    }
+                    savedStatusTimeoutRef.current = setTimeout(() => {
+                        setAutoSaveStatus('idle');
+                    }, 2000);
+                } else {
+                    const errorData = await response.json();
+                    setAutoSaveStatus('error');
+                    toast.error(`Auto-save failed: ${errorData.details || errorData.error || 'Unknown error'}`);
+                    console.error('Auto-save error:', errorData);
+                }
+            } catch (error) {
+                setAutoSaveStatus('error');
+                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                toast.error(`Auto-save failed: ${errorMsg}`);
+                console.error('Auto-save exception:', error);
+            } finally {
+                setSaving(false);
+            }
+        }, 1500);
+
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
+    }, [formData, examId, loading, exam]);
+
+
+
+    const updateSectionsOptimistically = (newSections: Section[]) => {
+        setSections(newSections);
+        if (exam) {
+            setExam({ ...exam, sections: newSections });
+        }
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const response = await fetch(`/api/admin/exams/${examId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
+                    description: formData.descriptionEn
+                        ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn }
+                        : null,
+                    instructions: formData.instructionsEn
+                        ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
+                        : null,
+                    duration: formData.duration,
+                    totalMarks: formData.totalMarks,
+                    passingMarks: formData.passingMarks,
+                    negativeMarking: formData.negativeMarking || null,
+                    shuffleQuestions: formData.shuffleQuestions,
+                    status: formData.status,
+                }),
+            });
+
+            if (response.ok) {
+                toast.success('Exam saved!');
+            } else {
+                toast.error('Failed to save');
+            }
+        } catch (error) {
+            toast.error('An error occurred');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleAddSection = async () => {
+        if (!newSection.nameEn) {
+            toast.error('Section name is required');
+            return;
+        }
+
+        const newOrder = sections.length + 1;
+        const tempId = `temp-${Date.now()}`;
+        const newSec: Section = {
+            id: tempId,
+            name: { en: newSection.nameEn, pa: newSection.namePa || newSection.nameEn },
+            order: newOrder,
+            duration: newSection.duration ? parseInt(newSection.duration) : null,
+            question_count: 0,
+        };
+
+        updateSectionsOptimistically([...sections, newSec]);
+        setNewSection({ nameEn: '', namePa: '', duration: '' });
+        setShowAddSection(false);
+
+        try {
+            const response = await fetch(`/api/admin/exams/${examId}/sections`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: { en: newSection.nameEn, pa: newSection.namePa || newSection.nameEn },
+                    order: newOrder,
+                    duration: newSection.duration ? parseInt(newSection.duration) : null,
+                }),
+            });
+
+            if (response.ok) {
+                toast.success('Section added!');
+                loadExam();
+            } else {
+                loadExam();
+                toast.error('Failed to add section');
+            }
+        } catch (error) {
+            loadExam();
+            toast.error('Failed to add section');
+        }
+    };
+
+    const handleDeleteSection = (sectionId: string) => {
+        confirm({
+            title: 'Delete Section',
+            message: 'Are you sure you want to delete this section? All questions in this section will also be deleted.',
+            variant: 'danger',
+            confirmText: 'Delete',
+            onConfirm: async () => {
+                updateSectionsOptimistically(sections.filter(s => s.id !== sectionId));
+                try {
+                    const response = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}`, {
+                        method: 'DELETE',
+                    });
+                    if (response.ok) {
+                        toast.success('Section deleted');
+                    } else {
+                        loadExam();
+                        toast.error('Failed to delete section');
+                    }
+                } catch (error) {
+                    loadExam();
+                    toast.error('Failed to delete section');
+                }
+            },
+        });
+    };
+
+    const handleMoveSection = async (sectionId: string, direction: 'up' | 'down') => {
+        const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+        const index = sortedSections.findIndex(s => s.id === sectionId);
+
+        if ((direction === 'up' && index === 0) || (direction === 'down' && index === sortedSections.length - 1)) {
+            return;
+        }
+
+        const swapIndex = direction === 'up' ? index - 1 : index + 1;
+        const current = { ...sortedSections[index] };
+        const swap = { ...sortedSections[swapIndex] };
+
+        const tempOrder = current.order;
+        current.order = swap.order;
+        swap.order = tempOrder;
+
+        const updated = sortedSections.map((s, i) => {
+            if (i === index) return current;
+            if (i === swapIndex) return swap;
+            return s;
+        });
+        updateSectionsOptimistically(updated);
+
+        try {
+            await Promise.all([
+                fetch(`/api/admin/exams/${examId}/sections/${current.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: current.name,
+                        order: current.order,
+                        duration: current.duration,
+                    }),
+                }),
+                fetch(`/api/admin/exams/${examId}/sections/${swap.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: swap.name,
+                        order: swap.order,
+                        duration: swap.duration,
+                    }),
+                }),
+            ]);
+            toast.success('Reordered');
+        } catch (error) {
+            loadExam();
+            toast.error('Failed to reorder sections');
+        }
+    };
+
+    const startEditSection = (section: Section) => {
+        setEditingSection(section);
+        setEditSectionData({
+            nameEn: section.name.en || '',
+            namePa: section.name.pa || '',
+            duration: section.duration?.toString() || '',
+        });
+    };
+
+    const saveEditSection = async () => {
+        if (!editingSection) return;
+
+        const updatedSection: Section = {
+            ...editingSection,
+            name: { en: editSectionData.nameEn, pa: editSectionData.namePa || editSectionData.nameEn },
+            duration: editSectionData.duration ? parseInt(editSectionData.duration) : null,
+        };
+
+        updateSectionsOptimistically(sections.map(s => s.id === editingSection.id ? updatedSection : s));
+        setEditingSection(null);
+
+        try {
+            const response = await fetch(`/api/admin/exams/${examId}/sections/${editingSection.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: { en: editSectionData.nameEn, pa: editSectionData.namePa || editSectionData.nameEn },
+                    order: editingSection.order,
+                    duration: editSectionData.duration ? parseInt(editSectionData.duration) : null,
+                }),
+            });
+
+            if (response.ok) {
+                toast.success('Section updated!');
+            } else {
+                const errorData = await response.json();
+                loadExam();
+                toast.error(`Failed: ${errorData.details || errorData.error || 'Unknown error'}`);
+                console.error('Section update error:', errorData);
+            }
+        } catch (error) {
+            loadExam();
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            toast.error(`Failed: ${errorMsg}`);
+            console.error('Section update exception:', error);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
+
+    if (!exam) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <p className="text-gray-500">Exam not found</p>
+            </div>
+        );
+    }
+
+    const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+    const totalQuestions = sections.reduce((a, s) => a + s.question_count, 0);
 
     return (
         <div className="min-h-screen bg-gray-50">
