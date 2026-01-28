@@ -62,11 +62,33 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Check if it's a paragraph question to cleanup
+        // Check if it's a paragraph question and get its dependencies
         const [qData] = await sql`SELECT paragraph_id FROM questions WHERE id = ${params.questionId}`;
 
+        // 1. Delete associated responses (if any) - Manual Cascade
+        await sql`DELETE FROM question_responses WHERE question_id = ${params.questionId}`;
+
+        // 2. Delete children dependencies
+        // If this is a parent, its children might have responses too!
+        // We need to find children, delete THEIR responses, and then delete them.
+        const children = await sql`SELECT id FROM questions WHERE parent_id = ${params.questionId}`;
+        if (children.length > 0) {
+            const childIds = children.map(c => c.id);
+            // Delete responses for children
+            // Note: using ANY(${childIds}) might be cleaner but let's loop or simple IN clause
+            // neondatabase/serverless template literal handling for arrays can be tricky, let's use manual loop or specific strategy
+            // Using a simple loop is safe/easy for small numbers
+            for (const child of children) {
+                await sql`DELETE FROM question_responses WHERE question_id = ${child.id}`;
+            }
+            // Now delete children
+            await sql`DELETE FROM questions WHERE parent_id = ${params.questionId}`;
+        }
+
+        // 3. Delete the question itself
         await sql`DELETE FROM questions WHERE id = ${params.questionId} AND section_id = ${params.sectionId}`;
 
+        // 4. Cleanup paragraph content if applicable
         if (qData?.paragraph_id) {
             await sql`DELETE FROM paragraphs WHERE id = ${qData.paragraph_id}`;
         }

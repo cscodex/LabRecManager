@@ -1,27 +1,18 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import { cookies } from 'next/headers';
-import * as jose from 'jose';
+import { getSession } from '@/lib/auth';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.DATABASE_URL!);
 
 export async function GET() {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth-token')?.value;
+        const session = await getSession();
 
-        if (!token) {
-            return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+        if (!session || session.role !== 'student') {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret');
-        const { payload } = await jose.jwtVerify(token, secret);
-
-        if (payload.role !== 'student') {
-            return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
-        }
-
-        const studentId = payload.userId as string;
+        const studentId = session.id;
 
         // Get exam results for this student
         const results = await sql`

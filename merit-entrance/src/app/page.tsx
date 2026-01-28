@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
+import Link from 'next/link';
 import { useTranslation } from '@/lib/useTranslation';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { BookOpen, User, Lock, Eye, EyeOff } from 'lucide-react';
@@ -156,6 +157,15 @@ export default function HomePage() {
                 t('common.login')
               )}
             </button>
+
+            {/* Register Link - Only for Students */}
+            {loginType === 'student' && (
+              <div className="text-center mt-2">
+                <Link href="/student/register" className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline">
+                  Don&apos;t have an account? Create one
+                </Link>
+              </div>
+            )}
 
             {/* Google Sign-In - Only for Students */}
             {loginType === 'student' && (

@@ -156,7 +156,7 @@ export default function ExamInstructionsPage() {
                                 <h3 className="font-semibold text-blue-800">Exam Instructions</h3>
                             </div>
                             <div
-                                className="text-sm text-blue-900 prose prose-sm max-w-none"
+                                className="text-sm text-blue-900 prose prose-sm max-w-none break-words whitespace-pre-wrap"
                                 dangerouslySetInnerHTML={{ __html: getText(exam.instructions, language) }}
                             />
                         </div>

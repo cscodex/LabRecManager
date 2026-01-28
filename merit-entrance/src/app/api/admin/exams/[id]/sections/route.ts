@@ -20,7 +20,7 @@ export async function GET(
         s.name,
         s."order",
         s.duration,
-        (SELECT COUNT(*) FROM questions WHERE section_id = s.id) as question_count
+        (SELECT COUNT(*) FROM questions WHERE section_id = s.id AND type != 'paragraph') as question_count
       FROM sections s
       WHERE s.exam_id = ${params.id}
       ORDER BY s."order"

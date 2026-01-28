@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Image from 'next/image';
 import { useAuthStore, useExamStore } from '@/lib/store';
 import { getText, formatTimer, getQuestionStatusColor } from '@/lib/utils';
 import {
@@ -33,6 +34,7 @@ interface Question {
     order: number;
     parentId?: string | null;
     paragraphText?: Record<string, string> | null;
+    paragraphTitle?: Record<string, string> | null;
 }
 
 interface ExamData {
@@ -87,7 +89,10 @@ export default function ExamAttemptPage() {
     const getParentParagraphText = (question: Question | undefined) => {
         if (!question?.parentId) return null;
         const parent = questions.find(q => q.id === question.parentId);
-        return parent?.paragraphText || null;
+        return {
+            text: parent?.paragraphText || null,
+            title: parent?.paragraphTitle || null
+        };
     };
 
     useEffect(() => {
@@ -261,7 +266,7 @@ export default function ExamAttemptPage() {
 
     const loadExamData = async () => {
         try {
-            const response = await fetch(`/api/student/exam/${examId}`);
+            const response = await fetch(`/api/student/exam/${examId}`, { cache: 'no-store' });
             const data = await response.json();
 
             if (!data.success) {
@@ -464,6 +469,12 @@ export default function ExamAttemptPage() {
                 if (autoSaveRef.current) clearInterval(autoSaveRef.current);
                 toast.success(autoSubmit ? 'Time up! Exam submitted.' : 'Exam submitted successfully!');
                 router.push(`/student/results/${examId}`);
+            } else if (data.error === 'Already submitted') {
+                // Handle already submitted gracefully
+                if (timerRef.current) clearInterval(timerRef.current);
+                if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+                toast.success('Exam was already submitted.');
+                router.push(`/student/results/${examId}`);
             } else {
                 toast.error(data.error || 'Failed to submit');
                 setSubmitting(false);
@@ -596,12 +607,14 @@ export default function ExamAttemptPage() {
                         ) : currentQuestion ? (
                             <>
                                 {/* Parent Paragraph Text (for sub-questions) */}
-                                {getParentParagraphText(currentQuestion) && (
+                                {getParentParagraphText(currentQuestion) && getParentParagraphText(currentQuestion)?.text && (
                                     <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 max-h-60 sm:max-h-96 overflow-y-auto">
-                                        <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Reading Passage</p>
+                                        <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">
+                                            {getParentParagraphText(currentQuestion)?.title ? getText(getParentParagraphText(currentQuestion)!.title!, language) : '📖 Reading Passage'}
+                                        </p>
                                         <div
                                             className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
-                                            dangerouslySetInnerHTML={{ __html: getText(getParentParagraphText(currentQuestion)!, language) }}
+                                            dangerouslySetInnerHTML={{ __html: getText(getParentParagraphText(currentQuestion)!.text!, language) }}
                                         />
                                     </div>
                                 )}
@@ -625,11 +638,14 @@ export default function ExamAttemptPage() {
                                         {getText(currentQuestion.text, language)}
                                     </p>
                                     {currentQuestion.imageUrl && (
-                                        <img
-                                            src={currentQuestion.imageUrl}
-                                            alt="Question"
-                                            className="mt-4 max-w-md rounded-lg"
-                                        />
+                                        <div className="relative h-64 w-full mt-4 max-w-md">
+                                            <Image
+                                                src={currentQuestion.imageUrl}
+                                                alt="Question"
+                                                fill
+                                                className="object-contain rounded-lg"
+                                            />
+                                        </div>
                                     )}
                                 </div>
 
@@ -666,18 +682,23 @@ export default function ExamAttemptPage() {
                                 <div className="flex flex-wrap gap-3 mt-8 pt-4 border-t">
                                     <button
                                         onClick={handleMarkForReview}
-                                        className="flex items-center gap-2 px-4 py-2.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${responses[currentQuestion.id]?.markedForReview
+                                            ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                            }`}
                                     >
                                         <Flag className="w-4 h-4" />
-                                        Mark for Review & Next
+                                        {responses[currentQuestion.id]?.markedForReview ? 'Marked' : 'Mark for Review'}
                                     </button>
-                                    <button
-                                        onClick={handleClearResponse}
-                                        className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                                    >
-                                        <RotateCcw className="w-4 h-4" />
-                                        Clear Response
-                                    </button>
+                                    {responses[currentQuestion.id]?.answer?.length > 0 && (
+                                        <button
+                                            onClick={handleClearResponse}
+                                            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                            Clear Response
+                                        </button>
+                                    )}
                                     <div className="flex-1"></div>
                                     <button
                                         onClick={moveToPrev}
@@ -687,14 +708,50 @@ export default function ExamAttemptPage() {
                                         <ChevronLeft className="w-4 h-4" />
                                         Previous
                                     </button>
-                                    <button
-                                        onClick={handleSaveAndNext}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                                    >
-                                        <Save className="w-4 h-4" />
-                                        Save & Next
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
+
+                                    {/* Smart Logic for Next/Save Button */}
+                                    {(() => {
+                                        const hasResponse = responses[currentQuestion.id]?.answer?.length > 0;
+                                        const isLastQuestion =
+                                            currentSectionIndex === sections.length - 1 &&
+                                            currentQuestionIndex === sectionQuestions.length - 1;
+
+                                        if (isLastQuestion && hasResponse) {
+                                            return (
+                                                <button
+                                                    onClick={handleSaveAndNext}
+                                                    className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                                >
+                                                    <Save className="w-4 h-4" />
+                                                    Save
+                                                </button>
+                                            );
+                                        }
+
+                                        if (hasResponse) {
+                                            return (
+                                                <button
+                                                    onClick={handleSaveAndNext}
+                                                    className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                                >
+                                                    <Save className="w-4 h-4" />
+                                                    Save & Next
+                                                    <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                            );
+                                        }
+
+                                        // Skip / Next (if no response)
+                                        return (
+                                            <button
+                                                onClick={moveToNext}
+                                                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                            >
+                                                Next
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             </>
                         ) : null}
@@ -895,33 +952,50 @@ export default function ExamAttemptPage() {
                     <div className="bg-white rounded-xl max-w-md w-full p-6">
                         <div className="flex items-start gap-3 mb-4">
                             <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
-                            <div>
+                            <div className="flex-1">
                                 <h3 className="font-bold text-lg text-gray-900">Submit Exam?</h3>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Are you sure you want to submit? This action cannot be undone.
-                                </p>
+                                {[
+                                    { label: 'Time Remaining', value: formatTimer(timeRemaining), color: timeRemaining < 300 ? 'text-red-600 font-bold' : 'text-blue-600 font-mono' }
+                                ].map((item, i) => (
+                                    <p key={i} className={`text-sm mt-1 ${item.color}`}>
+                                        {item.label}: {item.value}
+                                    </p>
+                                ))}
                             </div>
                         </div>
 
-                        <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm">
-                            <div className="flex justify-between mb-2">
-                                <span>Answered</span>
-                                <span className="font-medium text-green-600">{answeredCount}</span>
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                    Answered
+                                </span>
+                                <span className="font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">{answeredCount}</span>
                             </div>
-                            <div className="flex justify-between mb-2">
-                                <span>Not Answered</span>
-                                <span className="font-medium text-red-600">{visitedQuestions.size - answeredCount}</span>
+                            <div className="flex justify-between items-center">
+                                <span className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                                    Marked for Review
+                                </span>
+                                <span className="font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{markedCount}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span>Not Visited</span>
-                                <span className="font-medium text-gray-600">{answerableQuestions.length - visitedQuestions.size}</span>
+                            <div className="flex justify-between items-center">
+                                <span className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                    Not Answered
+                                </span>
+                                <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">{notAnsweredCount}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                <span className="text-gray-500">Total Questions</span>
+                                <span className="font-medium">{answerableQuestions.length}</span>
                             </div>
                         </div>
 
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowSubmitConfirm(false)}
-                                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
                             >
                                 Continue Exam
                             </button>
@@ -930,7 +1004,7 @@ export default function ExamAttemptPage() {
                                 disabled={submitting}
                                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                             >
-                                {submitting ? 'Submitting...' : 'Submit'}
+                                {submitting ? 'Submitting...' : 'Submit Now'}
                             </button>
                         </div>
                     </div>

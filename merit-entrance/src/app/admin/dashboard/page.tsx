@@ -6,8 +6,8 @@ import { useAuthStore } from '@/lib/store';
 import Link from 'next/link';
 import {
     BookOpen, Users, FileText, Calendar,
-    PlusCircle, LogOut, Settings, BarChart3,
-    ChevronRight, Database, HardDrive
+    PlusCircle, Settings, BarChart3,
+    ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -74,143 +74,82 @@ export default function AdminDashboard() {
     ];
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="bg-white shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <BookOpen className="w-8 h-8 text-blue-600" />
-                        <div>
-                            <h1 className="text-xl font-bold text-gray-900">Merit Entrance</h1>
-                            <p className="text-sm text-gray-500">Admin Panel</p>
-                        </div>
-                    </div>
+        <div className="bg-gray-50 h-full">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-sm text-gray-500">Welcome back, {user?.name}</p>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white rounded-xl p-6 shadow-sm">
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-600">Welcome, <strong>{user?.name}</strong></span>
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                        >
-                            <LogOut className="w-4 h-4" />
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 py-8">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-white rounded-xl p-6 shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-lg">
-                                <FileText className="w-6 h-6 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-gray-900">{stats.totalExams}</p>
-                                <p className="text-sm text-gray-500">Total Exams</p>
-                            </div>
+                        <div className="p-3 bg-blue-100 rounded-lg">
+                            <FileText className="w-6 h-6 text-blue-600" />
                         </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-green-100 rounded-lg">
-                                <Users className="w-6 h-6 text-green-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
-                                <p className="text-sm text-gray-500">Total Students</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-purple-100 rounded-lg">
-                                <BookOpen className="w-6 h-6 text-purple-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-gray-900">{stats.totalQuestions}</p>
-                                <p className="text-sm text-gray-500">Total Questions</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-orange-100 rounded-lg">
-                                <Calendar className="w-6 h-6 text-orange-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-gray-900">{stats.activeExams}</p>
-                                <p className="text-sm text-gray-500">Active Exams</p>
-                            </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">{stats.totalExams}</p>
+                            <p className="text-sm text-gray-500">Total Exams</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Quick Actions */}
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {quickActions.map((action) => (
-                        <Link
-                            key={action.label}
-                            href={action.href}
-                            className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition group"
-                        >
-                            <div className={`w-12 h-12 ${action.color} rounded-lg flex items-center justify-center mb-4`}>
-                                <action.icon className="w-6 h-6 text-white" />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium text-gray-900">{action.label}</span>
-                                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition" />
-                            </div>
-                        </Link>
-                    ))}
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-green-100 rounded-lg">
+                            <Users className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
+                            <p className="text-sm text-gray-500">Total Students</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Navigation Menu */}
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Management</h2>
-                <div className="bg-white rounded-xl shadow-sm divide-y">
-                    <Link href="/admin/exams" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
-                        <div className="flex items-center gap-3">
-                            <FileText className="w-5 h-5 text-gray-500" />
-                            <span className="font-medium">Manage Exams</span>
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-purple-100 rounded-lg">
+                            <BookOpen className="w-6 h-6 text-purple-600" />
                         </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                    <Link href="/admin/students" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
-                        <div className="flex items-center gap-3">
-                            <Users className="w-5 h-5 text-gray-500" />
-                            <span className="font-medium">Manage Students</span>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">{stats.totalQuestions}</p>
+                            <p className="text-sm text-gray-500">Total Questions</p>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                    <Link href="/admin/results" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
-                        <div className="flex items-center gap-3">
-                            <BarChart3 className="w-5 h-5 text-gray-500" />
-                            <span className="font-medium">View Results & Analytics</span>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                    <Link href="/admin/backup" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
-                        <div className="flex items-center gap-3">
-                            <HardDrive className="w-5 h-5 text-gray-500" />
-                            <span className="font-medium">Backup & Restore</span>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
-                    <Link href="/admin/query-logs" className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
-                        <div className="flex items-center gap-3">
-                            <Database className="w-5 h-5 text-gray-500" />
-                            <span className="font-medium">Query Logs</span>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </Link>
+                    </div>
                 </div>
-            </main>
+
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-orange-100 rounded-lg">
+                            <Calendar className="w-6 h-6 text-orange-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">{stats.activeExams}</p>
+                            <p className="text-sm text-gray-500">Active Exams</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Actions */}
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {quickActions.map((action) => (
+                    <Link
+                        key={action.label}
+                        href={action.href}
+                        className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition group border border-transparent hover:border-gray-200"
+                    >
+                        <div className={`w-12 h-12 ${action.color} rounded-lg flex items-center justify-center mb-4`}>
+                            <action.icon className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="font-medium text-gray-900">{action.label}</span>
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition" />
+                        </div>
+                    </Link>
+                ))}
+            </div>
         </div>
     );
 }

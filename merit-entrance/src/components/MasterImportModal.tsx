@@ -41,6 +41,8 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
     const [importing, setImporting] = useState(false);
     const [parsedQuestions, setParsedQuestions] = useState<ImportedQuestion[]>([]);
     const [importLanguage, setImportLanguage] = useState<'both' | 'en' | 'pa'>('both');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     if (!isOpen) return null;
 
@@ -126,11 +128,34 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
             return;
         }
 
+
         // Detect delimiter (Tab vs Comma)
         const firstLine = lines[0];
         const tabCount = (firstLine.match(/\t/g) || []).length;
         const commaCount = (firstLine.match(/,/g) || []).length;
         const delimiter = tabCount > commaCount ? '\t' : ',';
+
+        const expectedHeaders = [
+            'section name', 'type', 'question_en', 'question_pa',
+            'optiona_en', 'optiona_pa', 'optionb_en', 'optionb_pa',
+            'optionc_en', 'optionc_pa', 'optiond_en', 'optiond_pa',
+            'correctanswer', 'marks', 'negativemarks',
+            'explanation_en', 'explanation_pa', 'parentrow'
+        ];
+
+        const headerRow = lines[0].toLowerCase()
+            .replace(/"/g, '') // remove quotes
+            .split(delimiter === '\t' ? '\t' : ',')
+            .map(h => h.trim());
+
+        // Basic check: Ensure 'Section Name' and 'Type' exist
+        const sectionIndex = headerRow.findIndex(h => h.includes('section'));
+        const typeIndex = headerRow.findIndex(h => h.includes('type'));
+
+        if (sectionIndex === -1 || typeIndex === -1) {
+            toast.error('Invalid CSV format. "Section Name" and "Type" columns are required.');
+            return;
+        }
 
         const dataRows = lines.slice(1);
         const questions: ImportedQuestion[] = [];
@@ -343,48 +368,107 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                                 </div>
                             </div>
 
-                            <div className="border rounded-xl overflow-hidden max-h-[500px] overflow-auto">
-                                <table className="w-full text-xs text-left">
-                                    <thead className="bg-gray-50 sticky top-0 z-10">
+                            <div className="border rounded-xl w-full h-[500px] overflow-scroll relative">
+                                <table className="w-full text-xs text-left min-w-[2500px] table-fixed">
+                                    <thead className="bg-gray-50 sticky top-0 z-20 shadow-sm">
                                         <tr>
-                                            <th className="px-3 py-2 border-b">#</th>
-                                            <th className="px-3 py-2 border-b">Section</th>
-                                            <th className="px-3 py-2 border-b">Type</th>
-                                            <th className="px-3 py-2 border-b">Question (EN)</th>
-                                            <th className="px-3 py-2 border-b">Answer</th>
-                                            <th className="px-3 py-2 border-b">Status</th>
+                                            <th className="px-3 py-2 border-b w-12">#</th>
+                                            <th className="px-3 py-2 border-b w-32">Section</th>
+                                            <th className="px-3 py-2 border-b w-24">Type</th>
+                                            <th className="px-3 py-2 border-b w-64">Question (EN)</th>
+                                            <th className="px-3 py-2 border-b w-64">Question (PA)</th>
+                                            <th className="px-3 py-2 border-b w-24">Correct</th>
+                                            <th className="px-3 py-2 border-b w-48">Option A</th>
+                                            <th className="px-3 py-2 border-b w-48">Option B</th>
+                                            <th className="px-3 py-2 border-b w-48">Option C</th>
+                                            <th className="px-3 py-2 border-b w-48">Option D</th>
+                                            <th className="px-3 py-2 border-b w-16">Marks</th>
+                                            <th className="px-3 py-2 border-b w-16">Neg.</th>
+                                            <th className="px-3 py-2 border-b w-64">Explanation</th>
+                                            <th className="px-3 py-2 border-b w-16">Parent</th>
+                                            <th className="px-3 py-2 border-b w-24 sticky right-0 bg-gray-50 shadow-l">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {parsedQuestions.map((q, i) => (
-                                            <tr key={i} className={q.error ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                                                <td className="px-3 py-2 text-gray-500">{q.row}</td>
-                                                <td className="px-3 py-2 font-medium text-gray-700">
-                                                    {sections.find(s => s.id === q.section)?.name?.en || q.section}
-                                                </td>
-                                                <td className="px-3 py-2">
-                                                    <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                                                        {q.type}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-2 max-w-[200px] truncate" title={q.textEn}>{q.textEn}</td>
-                                                <td className="px-3 py-2 font-mono text-gray-600">{q.correctAnswer}</td>
-                                                <td className="px-3 py-2">
-                                                    {q.error ? (
-                                                        <span className="text-red-600 flex items-center gap-1" title={q.error}>
-                                                            <AlertCircle className="w-3 h-3" /> Error
+                                        {parsedQuestions
+                                            .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                            .map((q, i) => (
+                                                <tr key={i} className={q.error ? 'bg-red-50' : 'hover:bg-gray-50'}>
+                                                    <td className="px-3 py-2 text-gray-500">{q.row}</td>
+                                                    <td className="px-3 py-2 font-medium text-gray-700">
+                                                        {sections.find(s => s.id === q.section)?.name?.en || q.section}
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600 block w-max">
+                                                            {q.type}
                                                         </span>
-                                                    ) : (
-                                                        <span className="text-green-600 flex items-center gap-1">
-                                                            <CheckCircle className="w-3 h-3" /> Ready
-                                                        </span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words" title={q.textEn}>{q.textEn}</td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words" title={q.textPa}>{q.textPa}</td>
+                                                    <td className="px-3 py-2 font-mono break-all">{q.correctAnswer}</td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <div>{q.optionAEn}</div>
+                                                        {q.optionAPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionAPa}</div>}
+                                                    </td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <div>{q.optionBEn}</div>
+                                                        {q.optionBPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionBPa}</div>}
+                                                    </td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <div>{q.optionCEn}</div>
+                                                        {q.optionCPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionCPa}</div>}
+                                                    </td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <div>{q.optionDEn}</div>
+                                                        {q.optionDPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionDPa}</div>}
+                                                    </td>
+                                                    <td className="px-3 py-2">{q.marks}</td>
+                                                    <td className="px-3 py-2">{q.negativeMarks}</td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <div>{q.explanationEn}</div>
+                                                        {q.explanationPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.explanationPa}</div>}
+                                                    </td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">{q.explanationPa}</td>
+                                                    <td className="px-3 py-2">{q.parentRow}</td>
+                                                    <td className="px-3 py-2 sticky right-0 bg-inherit shadow-l">
+                                                        {q.error ? (
+                                                            <span className="text-red-600 flex items-center gap-1 font-medium" title={q.error}>
+                                                                <AlertCircle className="w-3 h-3" /> Error
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-green-600 flex items-center gap-1 font-medium">
+                                                                <CheckCircle className="w-3 h-3" /> OK
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Pagination Controls */}
+                            {parsedQuestions.length > itemsPerPage && (
+                                <div className="flex items-center justify-between border-t pt-4">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        Previous
+                                    </button>
+                                    <span className="text-sm text-gray-600">
+                                        Page {currentPage} of {Math.ceil(parsedQuestions.length / itemsPerPage)}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(parsedQuestions.length / itemsPerPage), p + 1))}
+                                        disabled={currentPage === Math.ceil(parsedQuestions.length / itemsPerPage)}
+                                        className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

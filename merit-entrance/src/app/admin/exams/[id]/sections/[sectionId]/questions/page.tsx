@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -10,8 +10,9 @@ import {
     ChevronLeft, Plus, Save, Trash2, Globe,
     CheckCircle, Edit2, X, ChevronUp, ChevronDown,
     Image as ImageIcon, Upload, ChevronRight, Hash, FileText,
-    GripVertical, Copy
+    Check, AlertCircle
 } from 'lucide-react';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
 
@@ -130,29 +131,38 @@ export default function ManageQuestionsPage() {
     const [formData, setFormData] = useState(createEmptyQuestion());
     const [uploading, setUploading] = useState(false);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
-            const sectionsRes = await fetch(`/api/admin/exams/${examId}/sections`);
-            const sectionsData = await sectionsRes.json();
-            const sec = sectionsData.sections?.find((s: Section) => s.id === sectionId);
-            setSection(sec);
+            // Load questions
+            const qRes = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions`);
+            const qData = await qRes.json();
+            if (qData.success) {
+                setQuestions(qData.questions);
+            }
 
-            const questionsRes = await fetch(`/api/admin/exams/${examId}/sections/${sectionId}/questions`);
-            const questionsData = await questionsRes.json();
-            if (questionsData.success) {
-                setQuestions(questionsData.questions);
+            // Load section details
+            const sRes = await fetch(`/api/admin/exams/${examId}`);
+            const sData = await sRes.json();
+            if (sData.success) {
+                const section = sData.exam.sections.find((s: any) => s.id === sectionId);
+                if (section) {
+                    setSection(section);
+                }
             }
         } catch (error) {
             toast.error('Failed to load data');
         } finally {
             setLoading(false);
         }
-    };
+    }, [examId, sectionId]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+
+
 
     const updateQuestionsOptimistically = (updatedQuestions: Question[]) => {
         setQuestions(updatedQuestions);
@@ -537,9 +547,15 @@ export default function ManageQuestionsPage() {
     };
 
     const handleDeleteQuestion = (questionId: string) => {
+        const question = questions.find(q => q.id === questionId);
+        const isParagraph = question?.type === 'paragraph';
+        const linkedCount = questions.filter(q => q.parent_id === questionId).length;
+
         confirm({
-            title: 'Delete Question',
-            message: 'Are you sure you want to delete this question? This action cannot be undone.',
+            title: isParagraph ? 'Delete Paragraph Section?' : 'Delete Question',
+            message: isParagraph
+                ? `This paragraph has ${linkedCount} linked question(s). Deleting it will also delete ALL linked questions. This action cannot be undone.`
+                : 'Are you sure you want to delete this question? This action cannot be undone.',
             variant: 'danger',
             confirmText: 'Delete',
             onConfirm: async () => {
@@ -616,10 +632,14 @@ export default function ManageQuestionsPage() {
     };
 
     const toggleSelectAll = () => {
-        if (selectedQuestions.size === questions.length) {
+        if (selectedQuestions.size === questions.filter(q => q.type !== 'paragraph').length) {
             setSelectedQuestions(new Set());
         } else {
-            setSelectedQuestions(new Set(questions.map(q => q.id)));
+            setSelectedQuestions(new Set(
+                questions
+                    .filter(q => q.type !== 'paragraph')
+                    .map(q => q.id)
+            ));
         }
     };
 
@@ -1287,7 +1307,9 @@ export default function ManageQuestionsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Question Image</label>
                     <div className="flex items-center gap-3">
                         {formData.imageUrl && (
-                            <img src={formData.imageUrl} alt="Question" className="h-16 w-auto rounded border" />
+                            <div className="relative h-16 w-16">
+                                <Image src={formData.imageUrl} alt="Question" fill className="object-cover rounded border" />
+                            </div>
                         )}
                         <label className="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer hover:bg-gray-50">
                             <Upload className="w-4 h-4" />
@@ -1441,7 +1463,11 @@ export default function ManageQuestionsPage() {
                                         </div>
                                         {/* Option image */}
                                         <div className="flex items-center gap-2">
-                                            {opt.imageUrl && <img src={opt.imageUrl} alt="" className="h-8 w-auto rounded" />}
+                                            {opt.imageUrl && (
+                                                <div className="relative h-8 w-8">
+                                                    <Image src={opt.imageUrl} alt="" fill className="object-cover rounded" />
+                                                </div>
+                                            )}
                                             <label className="text-xs text-blue-600 cursor-pointer hover:underline flex items-center gap-1">
                                                 <ImageIcon className="w-3 h-3" />
                                                 {opt.imageUrl ? 'Change' : 'Add image'}
@@ -1531,7 +1557,7 @@ export default function ManageQuestionsPage() {
                                 <h1 className="text-xl font-bold text-gray-900">
                                     {section ? getText(section.name, language) : 'Section'} - Questions
                                 </h1>
-                                <p className="text-sm text-gray-500">{questions.length} questions</p>
+                                <p className="text-sm text-gray-500">{questions.filter(q => q.type !== 'paragraph').length} questions</p>
                             </div>
                         </div>
                         <button
@@ -1573,12 +1599,13 @@ export default function ManageQuestionsPage() {
                     <div className="flex items-center gap-3 px-4 py-2 bg-gray-100 rounded-lg">
                         <input
                             type="checkbox"
-                            checked={selectedQuestions.size === questions.length && questions.length > 0}
+                            checked={selectedQuestions.size > 0 && selectedQuestions.size === questions.filter(q => q.type !== 'paragraph').length}
                             onChange={toggleSelectAll}
                             className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-pointer"
                         />
                         <span className="text-sm text-gray-700">
-                            {selectedQuestions.size === questions.length ? 'Deselect All' : 'Select All'} ({questions.length} questions)
+                            {selectedQuestions.size === questions.filter(q => q.type !== 'paragraph').length ? 'Deselect All' : 'Select All Questions'}
+                            {' '}({questions.filter(q => q.type !== 'paragraph').length} questions)
                         </span>
                     </div>
                 )}
@@ -1675,7 +1702,9 @@ export default function ManageQuestionsPage() {
 
                                             {/* Question image */}
                                             {q.image_url && (
-                                                <img src={q.image_url} alt="" className="max-h-32 rounded border mb-2" />
+                                                <div className="relative h-32 w-full mb-2">
+                                                    <Image src={q.image_url!} alt="" fill className="object-contain rounded border" />
+                                                </div>
                                             )}
 
                                             {q.type === 'paragraph' ? (
@@ -1697,7 +1726,11 @@ export default function ManageQuestionsPage() {
                                                                 }`}
                                                         >
                                                             <span className="font-medium text-gray-500">{opt.id.toUpperCase()}.</span>
-                                                            {opt.image_url && <img src={opt.image_url} alt="" className="h-6 w-auto rounded" />}
+                                                            {opt.image_url && (
+                                                                <div className="relative h-6 w-6">
+                                                                    <Image src={opt.image_url} alt="" fill className="object-cover rounded" />
+                                                                </div>
+                                                            )}
                                                             <span className="text-gray-700">{getText(opt.text, language)}</span>
                                                             {q.correct_answer?.includes(opt.id) && (
                                                                 <CheckCircle className="w-4 h-4 text-green-600 ml-auto" />

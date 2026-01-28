@@ -15,9 +15,11 @@ model Admin {
   role         String   @default("admin") // admin, superadmin
   createdAt    DateTime @default(now()) @map("created_at")
   exams        Exam[]
+  assignmentLogs ExamAssignmentLog[]
   
   @@map("admins")
 }
+
 
 model Student {
   id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -34,6 +36,7 @@ model Student {
   createdAt    DateTime     @default(now()) @map("created_at")
   attempts     ExamAttempt[]
   assignments  ExamAssignment[]
+  assignmentLogs ExamAssignmentLog[]
   
   @@map("students")
 }
@@ -60,6 +63,7 @@ model Exam {
   schedules   ExamSchedule[]
   assignments ExamAssignment[]
   attempts    ExamAttempt[]
+  assignmentLogs ExamAssignmentLog[]
   
   @@map("exams")
 }
@@ -109,6 +113,7 @@ model ExamSchedule {
   
   exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
   assignments ExamAssignment[]
+  assignmentLogs ExamAssignmentLog[]
   
   @@map("exam_schedules")
 }
@@ -129,6 +134,25 @@ model ExamAssignment {
   @@map("exam_assignments")
 }
 
+model ExamAssignmentLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId      String   @map("exam_id") @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  scheduleId  String?  @map("schedule_id") @db.Uuid
+  maxAttempts Int      @default(1) @map("max_attempts")
+  action      String   // 'ASSIGNED' | 'UPDATED' | 'REMOVED'
+  assignedBy  String?  @map("assigned_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  exam      Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student   Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule  ExamSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  admin     Admin?        @relation(fields: [assignedBy], references: [id], onDelete: SetNull)
+
+  @@index([examId, studentId])
+  @@map("exam_assignment_logs")
+}
+
 // ============ ATTEMPTS & RESPONSES ============
 model ExamAttempt {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -144,7 +168,6 @@ model ExamAttempt {
   student   Student   @relation(fields: [studentId], references: [id])
   responses QuestionResponse[]
   
-  @@unique([examId, studentId])
   @@index([examId, status])
   @@map("exam_attempts")
 }
@@ -191,7 +214,31 @@ model QueryLog {
   userId    String?  @map("user_id") @db.Uuid // Admin who made the request
   createdAt DateTime @default(now()) @map("created_at")
   
-  @@index([success, createdAt])
   @@index([route])
   @@map("query_logs")
+}
+
+// ============ AUDIT & LOGS ============
+model BackupLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type      String   // 'json' | 'sql'
+  action    String   // 'backup' | 'restore'
+  status    String   // 'success' | 'failed'
+  filename  String?
+  size      Int?     // bytes
+  adminId   String?  @map("admin_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("backup_logs")
+}
+
+model ActivityLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action    String   // e.g. 'COMMIT', 'PUBLISH_EXAM'
+  message   String
+  adminId   String?  @map("admin_id") @db.Uuid
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("activity_logs")
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Database, AlertCircle, CheckCircle, Clock, RefreshCw, Trash2, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -37,12 +37,8 @@ export default function QueryLogsPage() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteTimeRange, setDeleteTimeRange] = useState('7d');
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        loadData();
-    }, [pagination.page, filters.success]);
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -68,7 +64,11 @@ export default function QueryLogsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [pagination.page, pagination.limit, filters.success, filters.search]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const timeRangeOptions = [
         { value: '1h', label: 'Last hour', days: 0.042 },

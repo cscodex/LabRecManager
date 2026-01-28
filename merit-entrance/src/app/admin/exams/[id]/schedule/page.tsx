@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatDateTimeIST } from '@/lib/utils';
@@ -23,12 +23,8 @@ export default function ExamSchedulePage() {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        loadSchedules();
-    }, []);
 
-    const loadSchedules = async () => {
+    const loadSchedules = useCallback(async () => {
         try {
             const response = await fetch(`/api/admin/exams/${examId}/schedule`);
             const data = await response.json();
@@ -40,7 +36,13 @@ export default function ExamSchedulePage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [examId]);
+
+    useEffect(() => {
+        loadSchedules();
+    }, [loadSchedules]);
+
+
 
     const handleAddSchedule = async () => {
         if (!startTime || !endTime) {

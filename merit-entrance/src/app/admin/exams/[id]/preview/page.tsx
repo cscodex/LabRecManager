@@ -8,6 +8,7 @@ import {
     ChevronLeft, ChevronRight, Clock, Flag, CheckCircle,
     Circle, AlertCircle, Menu, X, Eye, BookOpen
 } from 'lucide-react';
+import Image from 'next/image';
 
 interface Option {
     id: string;
@@ -71,29 +72,8 @@ export default function ExamPreviewPage() {
     // Sidebar collapse state
     const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        loadExam();
-    }, [examId]);
 
-    // Timer
-    useEffect(() => {
-        if (!examStarted || timeRemaining <= 0) return;
-
-        const timer = setInterval(() => {
-            setTimeRemaining(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [examStarted, timeRemaining]);
-
-    const loadExam = async () => {
+    const loadExam = useCallback(async () => {
         try {
             // Get exam details
             const examRes = await fetch(`/api/admin/exams/${examId}`);
@@ -136,7 +116,30 @@ export default function ExamPreviewPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [examId]);
+
+    useEffect(() => {
+        loadExam();
+    }, [loadExam]);
+
+    // Timer
+    useEffect(() => {
+        if (!examStarted || timeRemaining <= 0) return;
+
+        const timer = setInterval(() => {
+            setTimeRemaining(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [examStarted, timeRemaining]);
+
+
 
     const formatTime = (seconds: number) => {
         const hrs = Math.floor(seconds / 3600);
@@ -598,11 +601,14 @@ export default function ExamPreviewPage() {
                                         </p>
 
                                         {currentQuestion.image_url && (
-                                            <img
-                                                src={currentQuestion.image_url}
-                                                alt="Question"
-                                                className="max-w-full max-h-64 rounded-lg border mb-4"
-                                            />
+                                            <div className="relative h-64 w-full mb-4">
+                                                <Image
+                                                    src={currentQuestion.image_url}
+                                                    alt="Question"
+                                                    fill
+                                                    className="object-contain rounded-lg border"
+                                                />
+                                            </div>
                                         )}
 
                                         {/* Options or Fill Blank */}
@@ -638,7 +644,15 @@ export default function ExamPreviewPage() {
                                                             </span>
                                                             <div className="flex-1 text-left">
                                                                 {opt.image_url && (
-                                                                    <img src={opt.image_url} alt="" className="max-h-20 rounded mb-2" />
+                                                                    <div className="relative h-20 w-auto mb-2">
+                                                                        <Image
+                                                                            src={opt.image_url}
+                                                                            alt=""
+                                                                            width={200}
+                                                                            height={80}
+                                                                            className="max-h-20 w-auto rounded object-contain"
+                                                                        />
+                                                                    </div>
                                                                 )}
                                                                 <span className="text-gray-800">{getText(opt.text, language)}</span>
                                                             </div>

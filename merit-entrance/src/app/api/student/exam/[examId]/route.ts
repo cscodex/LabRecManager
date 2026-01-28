@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
 
+// Force dynamic to ensure fresh data
+export const dynamic = 'force-dynamic';
+
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 // Start or resume an exam attempt
@@ -19,14 +22,16 @@ export async function POST(
         const studentId = session.id;
 
         // Check if student is assigned to this exam
-        const assignment = await sql`
-      SELECT id FROM exam_assignments 
+        const assignments = await sql`
+      SELECT id, max_attempts FROM exam_assignments 
       WHERE exam_id = ${examId} AND student_id = ${studentId}
     `;
 
-        if (assignment.length === 0) {
+        if (assignments.length === 0) {
             return NextResponse.json({ error: 'Not assigned to this exam' }, { status: 403 });
         }
+
+        const max_attempts = assignments[0].max_attempts ? parseInt(String(assignments[0].max_attempts)) : 1;
 
         // Check if exam is active
         const schedules = await sql`
@@ -40,23 +45,29 @@ export async function POST(
             return NextResponse.json({ error: 'Exam is not currently active' }, { status: 400 });
         }
 
-        // Check for existing attempt
-        const existingAttempt = await sql`
+        // Check for existing attempts
+        const attempts = await sql`
       SELECT id, started_at, status FROM exam_attempts
       WHERE exam_id = ${examId} AND student_id = ${studentId}
+      ORDER BY started_at DESC
     `;
 
-        if (existingAttempt.length > 0) {
-            const attempt = existingAttempt[0];
-            if (attempt.status === 'submitted') {
-                return NextResponse.json({ error: 'Exam already submitted' }, { status: 400 });
-            }
+        const activeAttempt = attempts.find(a => a.status === 'in_progress');
+        if (activeAttempt) {
             return NextResponse.json({
                 success: true,
-                attemptId: attempt.id,
-                startedAt: attempt.started_at,
+                attemptId: activeAttempt.id,
+                startedAt: activeAttempt.started_at,
                 resumed: true,
             });
+        }
+
+        // Check if attempts exhausted
+        if (attempts.length >= max_attempts) {
+            return NextResponse.json({
+                error: 'Maximum attempts reached',
+                details: `Used ${attempts.length} of ${max_attempts} attempts`
+            }, { status: 400 });
         }
 
         // Create new attempt
@@ -93,10 +104,14 @@ export async function GET(
         const { examId } = params;
         const studentId = session.id;
 
-        // Get attempt
+        // Get attempt - Prioritize 'in_progress' to ensure resuming works even if there are newer submitted attempts
         const attempts = await sql`
       SELECT id, started_at, status FROM exam_attempts
       WHERE exam_id = ${examId} AND student_id = ${studentId}
+      ORDER BY 
+        CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END,
+        started_at DESC 
+      LIMIT 1
     `;
 
         if (attempts.length === 0) {
@@ -135,6 +150,7 @@ export async function GET(
         q.image_url,
         q."order",
         p.content as paragraph_text,
+        p.text as paragraph_title,
         q.parent_id
       FROM questions q
       JOIN sections s ON q.section_id = s.id
@@ -190,6 +206,7 @@ export async function GET(
                 imageUrl: q.image_url,
                 order: q.order,
                 paragraphText: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
+                paragraphTitle: q.paragraph_title ? (typeof q.paragraph_title === 'string' ? JSON.parse(q.paragraph_title) : q.paragraph_title) : null,
                 parentId: q.parent_id,
             })),
             responses: responseMap,

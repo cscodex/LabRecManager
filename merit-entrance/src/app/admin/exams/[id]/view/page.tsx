@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
@@ -9,6 +9,7 @@ import {
     ChevronLeft, Clock, FileText, BookOpen, Globe,
     CheckCircle, Edit, Eye, ChevronDown, ChevronUp
 } from 'lucide-react';
+import Image from 'next/image';
 
 interface Option {
     id: string;
@@ -64,12 +65,8 @@ export default function ViewExamPage() {
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
     const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        loadExam();
-    }, [examId]);
 
-    const loadExam = async () => {
+    const loadExam = useCallback(async () => {
         try {
             const examRes = await fetch(`/api/admin/exams/${examId}`);
             const examData = await examRes.json();
@@ -104,7 +101,14 @@ export default function ViewExamPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [examId]);
+
+    useEffect(() => {
+        loadExam();
+    }, [loadExam]);
+
+
+
 
     const toggleSection = (sectionId: string) => {
         setExpandedSections(prev => {
@@ -342,11 +346,14 @@ export default function ViewExamPage() {
                                                     )}
 
                                                     {question.image_url && (
-                                                        <img
-                                                            src={question.image_url}
-                                                            alt="Question"
-                                                            className="mt-2 max-w-md rounded-lg border"
-                                                        />
+                                                        <div className="relative h-40 w-full mb-4">
+                                                            <Image
+                                                                src={question.image_url}
+                                                                alt="Question"
+                                                                fill
+                                                                className="object-contain rounded border"
+                                                            />
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -380,7 +387,15 @@ export default function ViewExamPage() {
                                                                     {getText(opt.text, language)}
                                                                 </span>
                                                                 {opt.image_url && (
-                                                                    <img src={opt.image_url} alt="" className="max-h-12 rounded" />
+                                                                    <div className="relative h-12 w-auto">
+                                                                        <Image
+                                                                            src={opt.image_url}
+                                                                            alt=""
+                                                                            width={100}
+                                                                            height={48}
+                                                                            className="max-h-12 w-auto rounded object-contain"
+                                                                        />
+                                                                    </div>
                                                                 )}
                                                                 {isCorrect && (
                                                                     <CheckCircle className="w-5 h-5 text-green-500" />
