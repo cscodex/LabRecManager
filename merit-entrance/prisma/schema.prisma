@@ -53,6 +53,7 @@ model Exam {
   shuffleQuestions Boolean      @default(false) @map("shuffle_questions")
   showResults      String       @default("after_submit") // after_submit, after_end, manual
   status           String       @default("draft") // draft, published, archived
+  securityMode     Boolean      @default(false) @map("security_mode")
   instructions     Json?
   createdById      String       @map("created_by") @db.Uuid
   createdAt        DateTime     @default(now()) @map("created_at")

@@ -52,7 +52,6 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
                 q.options,
                 q.correct_answer,
                 q.explanation,
-                q.explanation,
                 qr.answer as student_response,
                 qr.is_correct,
                 qr.marks_awarded,
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
             LEFT JOIN paragraphs p ON q.paragraph_id = p.id
             LEFT JOIN question_responses qr ON qr.question_id = q.id AND qr.attempt_id = ${attemptId}
             WHERE s.exam_id = ${attempt[0].exam_id} AND q.type != 'paragraph'
-            ORDER BY s.order_index ASC, q.order_index ASC
+            ORDER BY s."order" ASC, q."order" ASC
         `;
 
         // Group by sections for cleaner display if needed, or just return flat list

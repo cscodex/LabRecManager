@@ -22,6 +22,7 @@ export default function CreateExamPage() {
         passingMarks: 40,
         negativeMarking: 0,
         shuffleQuestions: false,
+        securityMode: false,
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -47,6 +48,7 @@ export default function CreateExamPage() {
                     passingMarks: formData.passingMarks,
                     negativeMarking: formData.negativeMarking || null,
                     shuffleQuestions: formData.shuffleQuestions,
+                    securityMode: formData.securityMode,
                 }),
             });
 
@@ -212,6 +214,19 @@ export default function CreateExamPage() {
                         />
                         <label htmlFor="shuffle" className="text-sm text-gray-700">
                             Shuffle questions for each student
+                        </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="security"
+                            checked={formData.securityMode}
+                            onChange={(e) => setFormData({ ...formData, securityMode: e.target.checked })}
+                            className="w-4 h-4 text-blue-600 rounded"
+                        />
+                        <label htmlFor="security" className="text-sm text-gray-700">
+                            <strong>Controlled Environment</strong> (Disable tab switching, context menu, etc.)
                         </label>
                     </div>
 

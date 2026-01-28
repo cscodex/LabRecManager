@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
         const now = new Date().toISOString();
         const result = await sql`
-      INSERT INTO exams (title, description, duration, total_marks, passing_marks, negative_marking, shuffle_questions, status, created_by, created_at, updated_at)
+      INSERT INTO exams (title, description, duration, total_marks, passing_marks, negative_marking, shuffle_questions, status, security_mode, created_by, created_at, updated_at)
       VALUES (
         ${JSON.stringify(title)}::jsonb,
         ${description ? JSON.stringify(description) : null}::jsonb,
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         ${negativeMarking || null},
         ${shuffleQuestions || false},
         'draft',
+        ${body.securityMode || false},
         ${session.id},
         ${now},
         ${now}

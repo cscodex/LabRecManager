@@ -217,8 +217,47 @@ export default function ExamHistoryPage() {
                                         <div className="text-right">
                                             {getStatusBadge(attempt.status, attempt.score, attempt.totalMarks)}
                                             {attempt.status === 'submitted' && attempt.score !== null && (
-                                                <div className="mt-1 text-xs text-gray-500 font-medium">
-                                                    Score: <span className="text-gray-900 font-bold text-base">{attempt.score}</span> / {attempt.totalMarks}
+                                                <div className="mt-1 flex flex-col items-end">
+                                                    <div className="text-xs text-gray-500 font-medium">
+                                                        Score: <span className="text-gray-900 font-bold text-base">{attempt.score}</span> / {attempt.totalMarks}
+                                                    </div>
+
+                                                    {/* Performance Trend */}
+                                                    {(() => {
+                                                        const currentIndex = attempts.findIndex(a => a.id === attempt.id);
+                                                        // Find next chronologically previous attempt (which is at a higher index due to default sorting, OR we need to verify sorting)
+                                                        // attempts are validly sorted DESC by startedAt. 
+                                                        // So attempts[currentIndex + 1] is the PREVIOUS attempt.
+                                                        const prevAttempt = attempts[currentIndex + 1];
+
+                                                        if (prevAttempt && prevAttempt.status === 'submitted' && prevAttempt.score !== null && attempt.score !== null) {
+                                                            const prevPercentage = (prevAttempt.score / prevAttempt.totalMarks) * 100;
+                                                            const currentPercentage = (attempt.score / attempt.totalMarks) * 100;
+                                                            const diff = currentPercentage - prevPercentage;
+                                                            const diffAbs = Math.abs(diff).toFixed(1);
+
+                                                            if (diff > 0) {
+                                                                return (
+                                                                    <span className="text-xs font-bold text-green-600 flex items-center gap-0.5 mt-0.5">
+                                                                        ▲ {diffAbs}%
+                                                                    </span>
+                                                                );
+                                                            } else if (diff < 0) {
+                                                                return (
+                                                                    <span className="text-xs font-bold text-red-600 flex items-center gap-0.5 mt-0.5">
+                                                                        ▼ {diffAbs}%
+                                                                    </span>
+                                                                );
+                                                            } else {
+                                                                return (
+                                                                    <span className="text-xs font-medium text-gray-400 flex items-center gap-0.5 mt-0.5">
+                                                                        - 0%
+                                                                    </span>
+                                                                );
+                                                            }
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                             )}
                                         </div>
@@ -232,6 +271,7 @@ export default function ExamHistoryPage() {
                                             </button>
                                         )}
                                     </div>
+
 
                                     {/* Mobile View Analysis Button */}
                                     {attempt.status === 'submitted' && (

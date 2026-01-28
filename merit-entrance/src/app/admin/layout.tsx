@@ -148,6 +148,11 @@ export default function AdminLayout({
                             <LogOut className="w-4 h-4" />
                             Log Out
                         </button>
+                        <div className="mt-4 text-center">
+                            <p className="text-xs text-gray-400 font-mono">
+                                v{process.env.NEXT_PUBLIC_COMMIT_HASH || 'dev'}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </aside>

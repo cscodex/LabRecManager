@@ -125,7 +125,7 @@ export async function GET(
 
         // Get exam details
         const exams = await sql`
-      SELECT id, title, instructions, duration, total_marks, negative_marking
+      SELECT id, title, instructions, duration, total_marks, negative_marking, security_mode
       FROM exams WHERE id = ${examId}
     `;
         const exam = exams[0];
@@ -189,6 +189,7 @@ export async function GET(
                 duration: exam.duration,
                 totalMarks: exam.total_marks,
                 negativeMarking: exam.negative_marking,
+                securityMode: exam.security_mode,
             },
             sections: sections.map(s => ({
                 id: s.id,

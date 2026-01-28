@@ -42,6 +42,7 @@ interface ExamData {
     instructions: Record<string, string> | null;
     duration: number;
     totalMarks: number;
+    securityMode?: boolean;
 }
 
 export default function ExamAttemptPage() {
@@ -134,6 +135,9 @@ export default function ExamAttemptPage() {
 
         // Handle visibility change (tab switch)
         const handleVisibilityChange = () => {
+            // Only enforce if security is enabled
+            if (!examData?.securityMode) return;
+
             if (document.hidden && !submitting && !showSubmitConfirm) {
                 // Student switched away - start warning countdown
                 setViolationCount(prev => prev + 1);
@@ -182,18 +186,20 @@ export default function ExamAttemptPage() {
             if (countdownRef.current) clearInterval(countdownRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [submitting, showSubmitConfirm]);
+    }, [submitting, showSubmitConfirm, examData?.securityMode]);
 
     // Security: Block context menu, keyboard shortcuts, and detect window blur
     useEffect(() => {
         // Block right-click context menu
         const handleContextMenu = (e: MouseEvent) => {
+            if (!examData?.securityMode) return;
             e.preventDefault();
             toast.error('Right-click is disabled during exam');
         };
 
         // Block keyboard shortcuts
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (!examData?.securityMode) return;
             // Block: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A, Ctrl+S, Ctrl+P, F12, Ctrl+Shift+I/J/C
             const blockedCombos = [
                 e.ctrlKey && e.key === 'c', // Copy
@@ -217,6 +223,8 @@ export default function ExamAttemptPage() {
 
         // Detect window blur (switching windows/apps)
         const handleWindowBlur = () => {
+            if (!examData?.securityMode) return;
+
             if (!submitting && !showSubmitConfirm) {
                 setViolationCount(prev => prev + 1);
                 setShowTabWarning(true);
@@ -262,7 +270,7 @@ export default function ExamAttemptPage() {
             window.removeEventListener('focus', handleWindowFocus);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [submitting, showSubmitConfirm]);
+    }, [submitting, showSubmitConfirm, examData?.securityMode]);
 
     const loadExamData = async () => {
         try {
