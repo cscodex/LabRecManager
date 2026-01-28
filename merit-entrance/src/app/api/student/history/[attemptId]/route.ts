@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
             SELECT 
                 ea.id, 
                 ea.exam_id, 
-                ea.score, 
+                ea.total_score as score, 
                 ea.status,
                 ea.started_at,
                 ea.submitted_at,
@@ -52,7 +52,8 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
                 q.options,
                 q.correct_answer,
                 q.explanation,
-                qr.response as student_response,
+                q.explanation,
+                qr.answer as student_response,
                 qr.is_correct,
                 qr.marks_awarded,
                 s.title as section_title,

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
                 ea.started_at,
                 ea.submitted_at,
                 ea.status,
-                ea.score,
+                ea.total_score as score,
                 e.title,
                 e.total_marks,
                 (
