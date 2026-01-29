@@ -26,7 +26,7 @@ interface AppSettings {
 export default function AdminSettingsPage() {
     const router = useRouter();
     const { user, isAuthenticated, _hasHydrated } = useAuthStore();
-    const [activeTab, setActiveTab] = useState<'general' | 'backups' | 'activity'>('general');
+    const [activeTab, setActiveTab] = useState<'general'>('general');
 
     const [settings, setSettings] = useState<AppSettings>({
         siteName: 'Merit Entrance',
@@ -95,8 +95,8 @@ export default function AdminSettingsPage() {
         <button
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
         >
             <Icon className="w-4 h-4" />
@@ -134,8 +134,6 @@ export default function AdminSettingsPage() {
                     {/* Tabs */}
                     <div className="flex gap-2">
                         <TabButton id="general" label="General" icon={Settings} />
-                        <TabButton id="backups" label="Backups & Data" icon={Server} />
-                        <TabButton id="activity" label="Activity Logs" icon={Activity} />
                     </div>
                 </div>
             </header>
@@ -292,17 +290,6 @@ export default function AdminSettingsPage() {
                         </div>
                     </div>
                 )}
-
-                {/* BACKUPS TAB */}
-                {activeTab === 'backups' && (
-                    <BackupSettings />
-                )}
-
-                {/* ACTIVITY LOG TAB */}
-                {activeTab === 'activity' && (
-                    <ActivityLogViewer />
-                )}
-
             </main>
         </div>
     );

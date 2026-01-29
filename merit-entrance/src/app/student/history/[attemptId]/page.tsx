@@ -12,10 +12,10 @@ interface DetailedQuestion {
     text: Record<string, string>;
     type: 'mcq' | 'true_false' | 'short_answer';
     marks: number;
-    options: string[];
-    correctAnswer: string;
+    options: any[];
+    correctAnswer: any;
     explanation: Record<string, string> | null;
-    studentResponse: string | null;
+    studentResponse: any;
     isCorrect: boolean | null;
     marksAwarded: number;
     sectionTitle: Record<string, string>;
@@ -240,9 +240,27 @@ export default function DetailedResultPage({ params }: { params: { attemptId: st
                                             {/* Options */}
                                             <div className="space-y-2">
                                                 {q.options && q.options.length > 0 ? (
-                                                    q.options.map((opt, i) => {
-                                                        const isSelected = q.studentResponse === opt;
-                                                        const isAnswer = q.correctAnswer === opt;
+                                                    q.options.map((opt: any, i) => {
+                                                        const isObject = typeof opt === 'object' && opt !== null;
+                                                        const optId = isObject ? opt.id : opt;
+                                                        const optText = isObject ? getText(opt.text, language) : opt;
+
+                                                        // Student response is usually an array of IDs ["a", "b"] or a single ID "a"
+                                                        // Check if response contains this option ID
+                                                        let isSelected = false;
+                                                        if (Array.isArray(q.studentResponse)) {
+                                                            isSelected = q.studentResponse.includes(optId);
+                                                        } else if (typeof q.studentResponse === 'string') {
+                                                            isSelected = q.studentResponse === optId;
+                                                        }
+
+                                                        // Correct answer is stored as ["a"] or "a"
+                                                        let isAnswer = false;
+                                                        if (Array.isArray(q.correctAnswer)) {
+                                                            isAnswer = q.correctAnswer.includes(optId);
+                                                        } else if (typeof q.correctAnswer === 'string') {
+                                                            isAnswer = q.correctAnswer === optId;
+                                                        }
 
                                                         let optionClass = "p-3 rounded-lg border flex items-center gap-3 text-sm ";
                                                         if (isAnswer) optionClass += "bg-green-50 border-green-200 text-green-800 ring-1 ring-green-200";
@@ -256,7 +274,10 @@ export default function DetailedResultPage({ params }: { params: { attemptId: st
                                                                         isAnswer ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />
                                                                     )}
                                                                 </div>
-                                                                <span className="flex-1">{opt}</span>
+                                                                <span className="flex-1">
+                                                                    {isObject && <span className="font-semibold mr-2">{optId.toUpperCase()}.</span>}
+                                                                    {optText}
+                                                                </span>
                                                                 {isAnswer && <span className="ml-auto text-[10px] font-bold text-green-600 uppercase tracking-wider">Correct</span>}
                                                                 {isSelected && !isAnswer && <span className="ml-auto text-[10px] font-bold text-red-600 uppercase tracking-wider">You</span>}
                                                             </div>

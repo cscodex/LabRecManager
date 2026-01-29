@@ -56,8 +56,14 @@ export async function GET(request: NextRequest) {
             };
         });
 
-        // Get recent attempts
+        // Get recent attempts including paused/in-progress
         const recentAttempts = await sql`
+            WITH AttemptCounts AS (
+                SELECT 
+                    id,
+                    ROW_NUMBER() OVER (PARTITION BY student_id, exam_id ORDER BY started_at ASC) as attempt_number
+                FROM exam_attempts
+            )
             SELECT 
                 ea.id,
                 ea.student_id,
@@ -69,12 +75,15 @@ export async function GET(request: NextRequest) {
                 e.passing_marks,
                 ea.total_score,
                 ea.submitted_at,
-                ea.started_at
+                ea.started_at,
+                ea.status,
+                ea.paused_at,
+                ac.attempt_number
             FROM exam_attempts ea
             JOIN students s ON ea.student_id = s.id
             JOIN exams e ON ea.exam_id = e.id
-            WHERE ea.status = 'submitted'
-            ORDER BY ea.submitted_at DESC
+            JOIN AttemptCounts ac ON ea.id = ac.id
+            ORDER BY ea.submitted_at DESC NULLS FIRST, ea.started_at DESC
             LIMIT 100
         `;
 
@@ -85,9 +94,17 @@ export async function GET(request: NextRequest) {
             const percentage = Math.round((score / totalMarks) * 100);
 
             // Calculate time taken
-            const startedAt = new Date(attempt.started_at);
-            const submittedAt = new Date(attempt.submitted_at);
-            const timeTaken = Math.round((submittedAt.getTime() - startedAt.getTime()) / 60000);
+            let timeTaken = 0;
+            if (attempt.started_at && attempt.submitted_at) {
+                const start = new Date(attempt.started_at);
+                const end = new Date(attempt.submitted_at);
+                timeTaken = Math.round((end.getTime() - start.getTime()) / 60000);
+            } else if (attempt.status === 'in_progress' && attempt.started_at) {
+                // For in-progress, maybe show duration so far?
+                const start = new Date(attempt.started_at);
+                const now = new Date();
+                timeTaken = Math.round((now.getTime() - start.getTime()) / 60000);
+            }
 
             return {
                 id: attempt.id,
@@ -99,9 +116,12 @@ export async function GET(request: NextRequest) {
                 score: score,
                 totalMarks: totalMarks,
                 percentage: percentage,
-                passed: passingMarks ? score >= passingMarks : null,
+                passed: attempt.status === 'submitted' ? (passingMarks ? score >= passingMarks : null) : null,
                 submittedAt: attempt.submitted_at,
+                startedAt: attempt.started_at,
                 timeTaken: timeTaken > 0 ? timeTaken : 1,
+                status: attempt.status,
+                attemptNumber: parseInt(attempt.attempt_number) || 1,
             };
         });
 

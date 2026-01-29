@@ -32,6 +32,7 @@ interface Exam {
     passing_marks: number | null;
     negative_marking: number | null;
     shuffle_questions: boolean;
+    security_mode?: boolean;
     status: string;
     sections: Section[];
     schedules: { id: string; start_time: string; end_time: string }[];
@@ -65,6 +66,7 @@ export default function EditExamPage() {
         passingMarks: 40,
         negativeMarking: 0,
         shuffleQuestions: false,
+        securityMode: false,
         status: 'draft',
     });
 
@@ -98,6 +100,7 @@ export default function EditExamPage() {
                     passingMarks: e.passing_marks || 0,
                     negativeMarking: e.negative_marking || 0,
                     shuffleQuestions: e.shuffle_questions,
+                    securityMode: e.security_mode || false,
                     status: e.status,
                 });
             }
@@ -156,6 +159,7 @@ export default function EditExamPage() {
                         passingMarks: formData.passingMarks,
                         negativeMarking: formData.negativeMarking || null,
                         shuffleQuestions: formData.shuffleQuestions,
+                        securityMode: formData.securityMode,
                         status: formData.status,
                     }),
                 });
@@ -220,8 +224,9 @@ export default function EditExamPage() {
                     passingMarks: formData.passingMarks,
                     negativeMarking: formData.negativeMarking || null,
                     shuffleQuestions: formData.shuffleQuestions,
+                    securityMode: formData.securityMode,
                     status: formData.status,
-                }),
+                }), // Added securityMode to manual save payload too
             });
 
             if (response.ok) {
@@ -644,201 +649,218 @@ export default function EditExamPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="shuffle"
-                                checked={formData.shuffleQuestions}
-                                onChange={(e) => setFormData({ ...formData, shuffleQuestions: e.target.checked })}
-                                className="w-4 h-4 text-blue-600 rounded"
-                            />
-                            <label htmlFor="shuffle" className="text-sm text-gray-700">Shuffle questions</label>
-                        </div>
-                    </div>
-                ) : activeTab === 'instructions' ? (
-                    <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
-                        <div className="border-b pb-4">
-                            <h2 className="text-lg font-semibold text-gray-900">Exam Instructions</h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                These instructions are displayed to students before the exam starts. The timer begins only after they click &quot;Start Exam&quot;.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (English)</label>
-                                <RichTextEditor
-                                    value={formData.instructionsEn}
-                                    onChange={(value) => setFormData({ ...formData, instructionsEn: value })}
-                                    placeholder="Enter exam instructions in English..."
+                        <div className="flex items-center gap-6 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="shuffle"
+                                    checked={formData.shuffleQuestions}
+                                    onChange={(e) => setFormData({ ...formData, shuffleQuestions: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded"
                                 />
+                                <label htmlFor="shuffle" className="text-sm text-gray-700">Shuffle questions</label>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (Punjabi)</label>
-                                <RichTextEditor
-                                    value={formData.instructionsPa}
-                                    onChange={(value) => setFormData({ ...formData, instructionsPa: value })}
-                                    placeholder="ਪੰਜਾਬੀ ਵਿੱਚ ਪ੍ਰੀਖਿਆ ਦੀਆਂ ਹਦਾਇਤਾਂ ਦਰਜ ਕਰੋ..."
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="securityMode"
+                                    checked={formData.securityMode}
+                                    onChange={(e) => setFormData({ ...formData, securityMode: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded"
                                 />
+                                <label htmlFor="securityMode" className="text-sm text-gray-700 flex items-center gap-1">
+                                    Controlled Environment
+                                    <span className="text-xs text-gray-400 font-normal">(Strict mode)</span>
+                                </label>
                             </div>
                         </div>
-
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <h4 className="text-sm font-medium text-blue-800 mb-2">💡 Tips for Instructions</h4>
-                            <ul className="text-sm text-blue-700 space-y-1">
-                                <li>• Use bullet points for clarity</li>
-                                <li>• Mention exam duration and total marks</li>
-                                <li>• Explain the marking scheme (negative marking if any)</li>
-                                <li>• Add rules about navigation and submission</li>
-                            </ul>
-                        </div>
                     </div>
-                ) : (
-                    <div className="space-y-4">
-                        {/* Sections List */}
-                        {sortedSections.map((section, index) => (
-                            <div key={section.id} className="bg-white rounded-xl shadow-sm p-4">
-                                {editingSection?.id === section.id ? (
-                                    <div className="space-y-3">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <input
-                                                type="text"
-                                                value={editSectionData.nameEn}
-                                                onChange={(e) => setEditSectionData({ ...editSectionData, nameEn: e.target.value })}
-                                                placeholder="Section name (English)"
-                                                className="px-3 py-2 border rounded-lg"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={editSectionData.namePa}
-                                                onChange={(e) => setEditSectionData({ ...editSectionData, namePa: e.target.value })}
-                                                placeholder="Section name (Punjabi)"
-                                                className="px-3 py-2 border rounded-lg"
-                                            />
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="w-4 h-4 text-gray-400" />
-                                                <input
-                                                    type="number"
-                                                    value={editSectionData.duration}
-                                                    onChange={(e) => setEditSectionData({ ...editSectionData, duration: e.target.value })}
-                                                    placeholder="Duration (min)"
-                                                    className="flex-1 px-3 py-2 border rounded-lg"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setEditingSection(null)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
-                                                Cancel
-                                            </button>
-                                            <button onClick={saveEditSection} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                                                Save
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex flex-col gap-0.5">
-                                                <button
-                                                    onClick={() => handleMoveSection(section.id, 'up')}
-                                                    disabled={index === 0}
-                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
-                                                >
-                                                    <ChevronUp className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleMoveSection(section.id, 'down')}
-                                                    disabled={index === sortedSections.length - 1}
-                                                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
-                                                >
-                                                    <ChevronDown className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <div>
-                                                <h3 className="font-semibold text-gray-900">{getText(section.name, language)}</h3>
-                                                <p className="text-sm text-gray-500">
-                                                    {section.question_count} questions
-                                                    {section.duration && ` • ${section.duration} min`}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => startEditSection(section)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <Link
-                                                href={`/admin/exams/${examId}/sections/${section.id}/questions`}
-                                                className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                                            >
-                                                Questions
-                                            </Link>
-                                            <Link
-                                                href={`/admin/exams/${examId}/sections/${section.id}/import`}
-                                                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
-                                            >
-                                                <Upload className="w-3 h-3" />
-                                                Import
-                                            </Link>
-                                            <button onClick={() => handleDeleteSection(section.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-
-                        {/* Add Section */}
-                        {showAddSection ? (
-                            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-4">
-                                <h4 className="font-medium text-gray-900">Add New Section</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <input
-                                        type="text"
-                                        value={newSection.nameEn}
-                                        onChange={(e) => setNewSection({ ...newSection, nameEn: e.target.value })}
-                                        placeholder="Section name (English) *"
-                                        className="px-4 py-2 border rounded-lg bg-white"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={newSection.namePa}
-                                        onChange={(e) => setNewSection({ ...newSection, namePa: e.target.value })}
-                                        placeholder="Section name (Punjabi)"
-                                        className="px-4 py-2 border rounded-lg bg-white"
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-gray-400" />
-                                        <input
-                                            type="number"
-                                            value={newSection.duration}
-                                            onChange={(e) => setNewSection({ ...newSection, duration: e.target.value })}
-                                            placeholder="Duration (optional)"
-                                            className="flex-1 px-4 py-2 border rounded-lg bg-white"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setShowAddSection(false)} className="px-4 py-2 border rounded-lg hover:bg-white">
-                                        Cancel
-                                    </button>
-                                    <button onClick={handleAddSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                                        Add Section
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setShowAddSection(true)}
-                                className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-600 flex items-center justify-center gap-2"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Add Section
-                            </button>
-                        )}
                     </div>
-                )}
-            </main>
+    ) : activeTab === 'instructions' ? (
+        <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
+            <div className="border-b pb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Exam Instructions</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                    These instructions are displayed to students before the exam starts. The timer begins only after they click &quot;Start Exam&quot;.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (English)</label>
+                    <RichTextEditor
+                        value={formData.instructionsEn}
+                        onChange={(value) => setFormData({ ...formData, instructionsEn: value })}
+                        placeholder="Enter exam instructions in English..."
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Instructions (Punjabi)</label>
+                    <RichTextEditor
+                        value={formData.instructionsPa}
+                        onChange={(value) => setFormData({ ...formData, instructionsPa: value })}
+                        placeholder="ਪੰਜਾਬੀ ਵਿੱਚ ਪ੍ਰੀਖਿਆ ਦੀਆਂ ਹਦਾਇਤਾਂ ਦਰਜ ਕਰੋ..."
+                    />
+                </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">💡 Tips for Instructions</h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Use bullet points for clarity</li>
+                    <li>• Mention exam duration and total marks</li>
+                    <li>• Explain the marking scheme (negative marking if any)</li>
+                    <li>• Add rules about navigation and submission</li>
+                </ul>
+            </div>
         </div>
+    ) : (
+        <div className="space-y-4">
+            {/* Sections List */}
+            {sortedSections.map((section, index) => (
+                <div key={section.id} className="bg-white rounded-xl shadow-sm p-4">
+                    {editingSection?.id === section.id ? (
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <input
+                                    type="text"
+                                    value={editSectionData.nameEn}
+                                    onChange={(e) => setEditSectionData({ ...editSectionData, nameEn: e.target.value })}
+                                    placeholder="Section name (English)"
+                                    className="px-3 py-2 border rounded-lg"
+                                />
+                                <input
+                                    type="text"
+                                    value={editSectionData.namePa}
+                                    onChange={(e) => setEditSectionData({ ...editSectionData, namePa: e.target.value })}
+                                    placeholder="Section name (Punjabi)"
+                                    className="px-3 py-2 border rounded-lg"
+                                />
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-gray-400" />
+                                    <input
+                                        type="number"
+                                        value={editSectionData.duration}
+                                        onChange={(e) => setEditSectionData({ ...editSectionData, duration: e.target.value })}
+                                        placeholder="Duration (min)"
+                                        className="flex-1 px-3 py-2 border rounded-lg"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setEditingSection(null)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                                <button onClick={saveEditSection} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="flex flex-col gap-0.5">
+                                    <button
+                                        onClick={() => handleMoveSection(section.id, 'up')}
+                                        disabled={index === 0}
+                                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
+                                    >
+                                        <ChevronUp className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleMoveSection(section.id, 'down')}
+                                        disabled={index === sortedSections.length - 1}
+                                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30"
+                                    >
+                                        <ChevronDown className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900">{getText(section.name, language)}</h3>
+                                    <p className="text-sm text-gray-500">
+                                        {section.question_count} questions
+                                        {section.duration && ` • ${section.duration} min`}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => startEditSection(section)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                                    <Edit2 className="w-4 h-4" />
+                                </button>
+                                <Link
+                                    href={`/admin/exams/${examId}/sections/${section.id}/questions`}
+                                    className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                                >
+                                    Questions
+                                </Link>
+                                <Link
+                                    href={`/admin/exams/${examId}/sections/${section.id}/import`}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                                >
+                                    <Upload className="w-3 h-3" />
+                                    Import
+                                </Link>
+                                <button onClick={() => handleDeleteSection(section.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ))}
+
+            {/* Add Section */}
+            {showAddSection ? (
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-4">
+                    <h4 className="font-medium text-gray-900">Add New Section</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input
+                            type="text"
+                            value={newSection.nameEn}
+                            onChange={(e) => setNewSection({ ...newSection, nameEn: e.target.value })}
+                            placeholder="Section name (English) *"
+                            className="px-4 py-2 border rounded-lg bg-white"
+                        />
+                        <input
+                            type="text"
+                            value={newSection.namePa}
+                            onChange={(e) => setNewSection({ ...newSection, namePa: e.target.value })}
+                            placeholder="Section name (Punjabi)"
+                            className="px-4 py-2 border rounded-lg bg-white"
+                        />
+                        <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <input
+                                type="number"
+                                value={newSection.duration}
+                                onChange={(e) => setNewSection({ ...newSection, duration: e.target.value })}
+                                placeholder="Duration (optional)"
+                                className="flex-1 px-4 py-2 border rounded-lg bg-white"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowAddSection(false)} className="px-4 py-2 border rounded-lg hover:bg-white">
+                            Cancel
+                        </button>
+                        <button onClick={handleAddSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Add Section
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <button
+                    onClick={() => setShowAddSection(true)}
+                    className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-600 flex items-center justify-center gap-2"
+                >
+                    <Plus className="w-5 h-5" />
+                    Add Section
+                </button>
+            )}
+        </div>
+    )
+}
+            </main >
+        </div >
     );
 }

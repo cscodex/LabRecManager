@@ -35,8 +35,11 @@ interface StudentAttempt {
     totalMarks: number;
     percentage: number;
     passed: boolean | null;
-    submittedAt: string;
+    submittedAt: string | null;
+    startedAt: string;
     timeTaken: number; // in minutes
+    status: 'in_progress' | 'submitted';
+    attemptNumber: number;
 }
 
 export default function AdminResultsPage() {
@@ -84,7 +87,10 @@ export default function AdminResultsPage() {
             a.rollNumber.toLowerCase().includes(searchQuery.toLowerCase())
         )
         .sort((a, b) => {
-            if (sortBy === 'date') return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+            const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : new Date(a.startedAt).getTime();
+            const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : new Date(b.startedAt).getTime();
+
+            if (sortBy === 'date') return dateB - dateA;
             if (sortBy === 'score') return b.percentage - a.percentage;
             if (sortBy === 'name') return a.studentName.localeCompare(b.studentName);
             return 0;
@@ -319,10 +325,11 @@ export default function AdminResultsPage() {
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exam</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attempt</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
@@ -335,15 +342,27 @@ export default function AdminResultsPage() {
                                             <td className="px-4 py-3 text-gray-600">
                                                 {getText(attempt.examTitle, language)}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`font-semibold ${attempt.percentage >= 60 ? 'text-green-600' :
-                                                        attempt.percentage >= 40 ? 'text-yellow-600' : 'text-red-600'
-                                                    }`}>
-                                                    {attempt.score}/{attempt.totalMarks} ({attempt.percentage}%)
-                                                </span>
+                                            <td className="px-4 py-3 text-gray-600 font-medium">
+                                                #{attempt.attemptNumber}
                                             </td>
                                             <td className="px-4 py-3">
-                                                {attempt.passed === true ? (
+                                                {attempt.status === 'submitted' ? (
+                                                    <span className={`font-semibold ${attempt.percentage >= 60 ? 'text-green-600' :
+                                                        attempt.percentage >= 40 ? 'text-yellow-600' : 'text-red-600'
+                                                        }`}>
+                                                        {attempt.score}/{attempt.totalMarks} ({attempt.percentage}%)
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {attempt.status === 'in_progress' ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                                                        <Clock className="w-3 h-3" />
+                                                        In Progress
+                                                    </span>
+                                                ) : attempt.passed === true ? (
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                                                         <CheckCircle className="w-3 h-3" />
                                                         Passed
@@ -366,7 +385,10 @@ export default function AdminResultsPage() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-500">
-                                                {formatDateTimeIST(attempt.submittedAt)}
+                                                {attempt.submittedAt
+                                                    ? formatDateTimeIST(attempt.submittedAt)
+                                                    : <span className="text-yellow-600">Active since {formatDateTimeIST(attempt.startedAt)}</span>
+                                                }
                                             </td>
                                         </tr>
                                     ))}

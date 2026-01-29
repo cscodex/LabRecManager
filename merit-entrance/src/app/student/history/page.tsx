@@ -89,12 +89,14 @@ export default function ExamHistoryPage() {
     const chartData = [...attempts]
         .filter(a => a.status === 'submitted' && a.score !== null)
         .reverse()
-        .map(a => ({
-            name: getText(a.title, language).substring(0, 15) + '...',
+        .map((a, index) => ({
+            name: `${getText(a.title, language).substring(0, 15)}... (${index + 1})`,
+            fullName: getText(a.title, language),
             score: a.score,
             total: a.totalMarks,
             percentage: a.score ? Math.round((a.score / a.totalMarks) * 100) : 0,
-            date: new Date(a.submittedAt!).toLocaleDateString()
+            date: new Date(a.submittedAt!).toLocaleDateString(),
+            uniqueKey: `${a.id}-${index}`
         }));
 
     if (!_hasHydrated || loading) {
@@ -138,7 +140,13 @@ export default function ExamHistoryPage() {
                                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                     <XAxis
-                                        dataKey="name"
+                                        dataKey="uniqueKey"
+                                        tickFormatter={(value, index) => {
+                                            // Custom formatter to show name from payload matching uniqueKey
+                                            // Since we can't easily access payload here without index matching
+                                            // We will rely on index matching chartData
+                                            return chartData[index]?.name || '';
+                                        }}
                                         tick={{ fontSize: 12, fill: '#6B7280' }}
                                         axisLine={false}
                                         tickLine={false}
@@ -149,6 +157,13 @@ export default function ExamHistoryPage() {
                                         tickLine={false}
                                     />
                                     <Tooltip
+                                        labelFormatter={(value, payload) => {
+                                            if (payload && payload.length > 0) {
+                                                const data = payload[0].payload;
+                                                return `${data.fullName} - ${data.date}`;
+                                            }
+                                            return '';
+                                        }}
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         cursor={{ fill: '#F3F4F6' }}
                                     />

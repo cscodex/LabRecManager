@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logActivity } from '@/lib/logger';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
 
@@ -85,7 +86,7 @@ export async function PUT(
 
         const { id } = await params;
         const body = await request.json();
-        const { title, description, instructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, status } = body;
+        const { title, description, instructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status } = body;
 
         console.log('Updating exam:', { id, title, description: !!description, instructions: !!instructions });
 
@@ -100,10 +101,13 @@ export async function PUT(
         passing_marks = ${passingMarks || null},
         negative_marking = ${negativeMarking || null},
         shuffle_questions = ${shuffleQuestions || false},
+        security_mode = ${securityMode || false},
         status = ${status || 'draft'},
         updated_at = ${now}
       WHERE id = ${id}
     `;
+
+        await logActivity('update_exam', `Updated exam: ${title.en || 'Unknown'}`, { examId: id, status, securityMode });
 
         return NextResponse.json({ success: true });
     } catch (error) {
