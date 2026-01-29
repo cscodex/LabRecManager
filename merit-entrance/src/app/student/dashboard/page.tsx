@@ -23,6 +23,7 @@ interface Exam {
     attemptCount: number;
     canAttempt: boolean;
     hasAttempted: boolean;
+    lastAttemptStatus?: string;
 }
 
 export default function StudentDashboard() {
@@ -167,7 +168,7 @@ export default function StudentDashboard() {
                                                     onClick={() => handleStartExam(exam.id, exam.assignmentId)}
                                                     className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
                                                 >
-                                                    {exam.attemptCount > 0 ? 'Retake Exam' : 'Start Exam'}
+                                                    {exam.lastAttemptStatus === 'in_progress' ? 'Continue Exam' : (exam.attemptCount > 0 ? 'Retake Exam' : 'Start Exam')}
                                                     <ChevronRight className="w-4 h-4" />
                                                 </button>
                                             )}

@@ -72,6 +72,7 @@ export default function ExamAttemptPage() {
     const [showTabWarning, setShowTabWarning] = useState(false);
     const [tabSwitchCountdown, setTabSwitchCountdown] = useState(10);
     const [violationCount, setViolationCount] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
 
     const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -223,14 +224,15 @@ export default function ExamAttemptPage() {
 
         // Detect window blur (switching windows/apps)
         const handleWindowBlur = () => {
-            if (!examData?.securityMode) return;
+            if (submitting || showSubmitConfirm) return;
 
-            if (!submitting && !showSubmitConfirm) {
+            // Strict Mode (Controlled Environment)
+            if (examData?.securityMode) {
                 setViolationCount(prev => prev + 1);
                 setShowTabWarning(true);
                 setTabSwitchCountdown(10);
 
-                // Start auto-submit countdown
+                // Start auto-submit countdown for security violation
                 if (!countdownRef.current) {
                     countdownRef.current = setInterval(() => {
                         setTabSwitchCountdown(prev => {
@@ -244,17 +246,29 @@ export default function ExamAttemptPage() {
                         });
                     }, 1000);
                 }
+                return;
             }
+
+            // Normal Mode: Pause the exam
+            // We only pause if not already paused/submitting
+            pauseExam();
         };
 
         const handleWindowFocus = () => {
-            // Cancel countdown when window gains focus
-            if (countdownRef.current) {
-                clearInterval(countdownRef.current);
-                countdownRef.current = null;
+            // Strict Mode
+            if (examData?.securityMode) {
+                // Cancel countdown when window gains focus
+                if (countdownRef.current) {
+                    clearInterval(countdownRef.current);
+                    countdownRef.current = null;
+                }
+                setShowTabWarning(false);
+                setTabSwitchCountdown(10);
+                return;
             }
-            setShowTabWarning(false);
-            setTabSwitchCountdown(10);
+
+            // Normal Mode: Resume exam
+            resumeExam();
         };
 
         // Add event listeners
@@ -271,6 +285,28 @@ export default function ExamAttemptPage() {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [submitting, showSubmitConfirm, examData?.securityMode]);
+
+    const pauseExam = async () => {
+        try {
+            // Stop local timer
+            if (timerRef.current) clearInterval(timerRef.current);
+            setIsPaused(true);
+
+            await fetch(`/api/student/exam/${examId}/pause`, {
+                method: 'POST',
+            });
+        } catch (error) {
+            console.error('Failed to pause:', error);
+        }
+    };
+
+    const resumeExam = async () => {
+        if (!isPaused) return;
+
+        // Reload data to sync timer from server (which adjusts startedAt)
+        await loadExamData();
+        setIsPaused(false);
+    };
 
     const loadExamData = async () => {
         try {
@@ -531,7 +567,29 @@ export default function ExamAttemptPage() {
     const notAnsweredCount = visitedQuestions.size - answeredCount;
 
     return (
-        <div className="min-h-screen bg-gray-100 flex flex-col">
+        <div className="min-h-screen bg-gray-100 flex flex-col relative">
+            {/* Paused Overlay */}
+            {isPaused && (
+                <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-xl p-8 max-w-md w-full text-center shadow-2xl">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Clock className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Exam Paused</h2>
+                        <p className="text-gray-600 mb-6">
+                            You have left the exam window. The timer has been paused.
+                            Click the button below to resume.
+                        </p>
+                        <button
+                            onClick={resumeExam}
+                            className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                        >
+                            Resume Exam
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Top Header */}
             <header className="bg-blue-900 text-white px-4 py-2 flex items-center justify-between">
                 <div className="flex items-center gap-4">

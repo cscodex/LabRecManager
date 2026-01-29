@@ -55,7 +55,8 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
                 qr.answer as student_response,
                 qr.is_correct,
                 qr.marks_awarded,
-                s.title as section_title,
+                qr.marks_awarded,
+                s.name as section_title,
                 p.content as passage_content,
                 p.text as passage_title,
                 p.id as passage_id

@@ -15,6 +15,23 @@ export async function GET(request: NextRequest) {
 
         const studentId = session.id;
 
+        // Cleanup: Auto-submit "in_progress" exams that have exceeded duration + 5 mins buffer
+        // Only if they are NOT paused (paused_at is NULL).
+        // Using NOW() as submitted_at for these cases.
+        await sql`
+            UPDATE exam_attempts ea
+            SET 
+                status = 'submitted',
+                submitted_at = NOW(),
+                auto_submit = true
+            FROM exams e
+            WHERE ea.exam_id = e.id
+            AND ea.student_id = ${studentId}
+            AND ea.status = 'in_progress'
+            AND ea.paused_at IS NULL
+            AND (ea.started_at + (e.duration * interval '1 minute') + interval '5 minutes') < NOW()
+        `;
+
         // Get exams assigned to this student - each assignment is a separate entry
         const assignments = await sql`
             SELECT 
@@ -77,6 +94,7 @@ export async function GET(request: NextRequest) {
                     endTime: a.end_time,
                 },
                 hasAttempted: a.last_attempt_status === 'submitted',
+                lastAttemptStatus: a.last_attempt_status,
                 canAttempt: (parseInt(a.attempt_count) || 0) < a.max_attempts,
             }));
 
