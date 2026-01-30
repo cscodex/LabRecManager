@@ -37,7 +37,13 @@ export async function GET(
                 e.total_marks,
                 ea.status,
                 ea.submitted_at,
-                ea.started_at
+                ea.started_at,
+                (
+                    SELECT AVG(q.difficulty)
+                    FROM questions q
+                    JOIN sections s ON q.section_id = s.id
+                    WHERE s.exam_id = e.id
+                ) as avg_difficulty
             FROM exam_attempts ea
             JOIN exams e ON ea.exam_id = e.id
             WHERE ea.student_id = ${id}
@@ -69,6 +75,10 @@ export async function GET(
                 score: a.total_score,
                 totalMarks: a.total_marks,
                 percentage: a.total_score ? Math.round((a.total_score / a.total_marks) * 100) : 0,
+                avgDifficulty: a.avg_difficulty ? parseFloat(a.avg_difficulty).toFixed(1) : '1.0',
+                performanceRating: (a.total_score && a.avg_difficulty)
+                    ? ((a.total_score / a.total_marks) * a.avg_difficulty).toFixed(2)
+                    : '0.00',
                 status: a.status,
                 date: a.submitted_at || a.started_at
             }))

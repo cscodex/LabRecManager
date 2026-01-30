@@ -50,7 +50,7 @@ export async function POST(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
 
         // For paragraph type, paragraph_text is required; for sub-questions, parent_id is required
         if (type === 'paragraph') {
@@ -75,7 +75,7 @@ export async function POST(
         }
 
         const result = await sql`
-      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, negative_marks, image_url, "order", parent_id, paragraph_id)
+      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id)
       VALUES (
         ${params.sectionId},
         ${type || 'mcq_single'},
@@ -84,6 +84,7 @@ export async function POST(
         ${correctAnswer ? JSON.stringify(correctAnswer) : '[]'}::jsonb,
         ${explanation ? JSON.stringify(explanation) : null}::jsonb,
         ${marks || 1},
+        ${difficulty || 1},
         ${negativeMarks || null},
         ${imageUrl || null},
         ${order || 1},

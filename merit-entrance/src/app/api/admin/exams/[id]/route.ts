@@ -21,7 +21,13 @@ export async function GET(
         const exams = await sql`
       SELECT 
         e.*,
-        a.name as created_by_name
+        a.name as created_by_name,
+        (
+            SELECT COALESCE(AVG(q.difficulty), 1.0)
+            FROM questions q
+            JOIN sections s ON q.section_id = s.id
+            WHERE s.exam_id = e.id
+        ) as avg_difficulty
       FROM exams e
       LEFT JOIN admins a ON e.created_by = a.id
       WHERE e.id = ${id}

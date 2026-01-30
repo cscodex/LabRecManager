@@ -36,6 +36,7 @@ interface Exam {
     status: string;
     sections: Section[];
     schedules: { id: string; start_time: string; end_time: string }[];
+    avg_difficulty?: number;
 }
 
 export default function EditExamPage() {
@@ -457,8 +458,21 @@ export default function EditExamPage() {
                                 <h1 className="text-xl font-bold text-gray-900">
                                     {getText(exam.title, language)}
                                 </h1>
-                                <p className="text-sm text-gray-500">
-                                    {sections.length} sections • {totalQuestions} questions
+                                <p className="text-sm text-gray-500 flex items-center gap-2">
+                                    <span>{sections.length} sections</span>
+                                    <span>•</span>
+                                    <span>{totalQuestions} questions</span>
+                                    {exam.avg_difficulty && (
+                                        <>
+                                            <span>•</span>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${Number(exam.avg_difficulty) >= 3.5 ? 'bg-red-50 text-red-600' :
+                                                    Number(exam.avg_difficulty) >= 2.5 ? 'bg-yellow-50 text-yellow-600' :
+                                                        'bg-green-50 text-green-600'
+                                                }`}>
+                                                Avg Difficulty: {Number(exam.avg_difficulty).toFixed(1)}
+                                            </span>
+                                        </>
+                                    )}
                                 </p>
                             </div>
                         </div>

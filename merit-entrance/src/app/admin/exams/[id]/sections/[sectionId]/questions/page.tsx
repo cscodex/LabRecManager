@@ -33,6 +33,7 @@ interface Question {
     correct_answer: string[];
     explanation: Record<string, string> | null;
     marks: number;
+    difficulty: number;
     negative_marks: number | null;
     order: number;
     image_url?: string;
@@ -84,6 +85,7 @@ export default function ManageQuestionsPage() {
         explanationPa: string;
         marks: number;
         negativeMarks: number;
+        difficulty: number;
     };
     const [paraSubQuestions, setParaSubQuestions] = useState<SubQuestionForm[]>([]);
 
@@ -120,6 +122,7 @@ export default function ManageQuestionsPage() {
         explanationEn: '',
         explanationPa: '',
         marks: 1,
+        difficulty: 1,
         negativeMarks: 0,
         fillBlankAnswers: '', // Comma-separated for multiple blanks
         imageUrl: '',
@@ -184,6 +187,7 @@ export default function ManageQuestionsPage() {
             explanationPa: '',
             marks: 2,
             negativeMarks: 0.5,
+            difficulty: 1,
         }]);
     };
 
@@ -271,6 +275,7 @@ export default function ManageQuestionsPage() {
                 explanation: sq.explanationEn ? { en: sq.explanationEn, pa: sq.explanationPa || sq.explanationEn } : null,
                 marks: sq.marks,
                 negativeMarks: sq.negativeMarks,
+                difficulty: sq.difficulty || 1,
             }))
         };
 
@@ -671,7 +676,8 @@ export default function ManageQuestionsPage() {
                 explanationEn: lq.explanation?.en || '',
                 explanationPa: lq.explanation?.pa || '',
                 marks: lq.marks,
-                negativeMarks: lq.negative_marks || 0
+                negativeMarks: lq.negative_marks || 0,
+                difficulty: lq.difficulty || 1
             })));
 
             setFormData({
@@ -683,6 +689,7 @@ export default function ManageQuestionsPage() {
                 explanationEn: '',
                 explanationPa: '',
                 marks: 0,
+                difficulty: 1,
                 negativeMarks: 0,
                 fillBlankAnswers: '',
                 imageUrl: question.image_url || '',
@@ -715,6 +722,7 @@ export default function ManageQuestionsPage() {
             explanationEn: question.explanation?.en || '',
             explanationPa: question.explanation?.pa || '',
             marks: question.marks,
+            difficulty: question.difficulty || 1,
             negativeMarks: question.negative_marks || 0,
             fillBlankAnswers: question.type === 'fill_blank' ? (question.correct_answer?.join(', ') || '') : '',
             imageUrl: question.image_url || '',
@@ -1089,7 +1097,7 @@ export default function ManageQuestionsPage() {
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-4 gap-4">
                                                 <div>
                                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Type</label>
                                                     <select
@@ -1120,6 +1128,20 @@ export default function ManageQuestionsPage() {
                                                         step={0.25}
                                                         className="w-full px-3 py-2 border rounded-xl"
                                                     />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Difficulty</label>
+                                                    <select
+                                                        value={sq.difficulty || 1}
+                                                        onChange={(e) => updateParaSubQuestion(qIdx, { difficulty: parseInt(e.target.value) || 1 })}
+                                                        className="w-full px-3 py-2 border rounded-xl bg-white"
+                                                    >
+                                                        <option value="1">1</option>
+                                                        <option value="2">2</option>
+                                                        <option value="3">3</option>
+                                                        <option value="4">4</option>
+                                                        <option value="5">5</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
@@ -1243,9 +1265,8 @@ export default function ManageQuestionsPage() {
                     </button>
                 </div>
 
-                {/* Question Type */}
-                <div className="grid grid-cols-3 gap-4">
-                    <div>
+                <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                         <select
                             value={formData.type}
@@ -1276,6 +1297,20 @@ export default function ManageQuestionsPage() {
                             step={0.25}
                             className="w-full px-3 py-2 border rounded-lg"
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty (1-5)</label>
+                        <select
+                            value={formData.difficulty}
+                            onChange={(e) => setFormData({ ...formData, difficulty: parseInt(e.target.value) || 1 })}
+                            className="w-full px-3 py-2 border rounded-lg bg-white"
+                        >
+                            <option value="1">1 - Easy</option>
+                            <option value="2">2 - Medium</option>
+                            <option value="3">3 - Moderate</option>
+                            <option value="4">4 - Hard</option>
+                            <option value="5">5 - Expert</option>
+                        </select>
                     </div>
                 </div>
 
@@ -1744,6 +1779,12 @@ export default function ManageQuestionsPage() {
                                             <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                                                 <span>Marks: {q.marks}</span>
                                                 {q.negative_marks !== null && q.negative_marks > 0 && <span>-ve: {q.negative_marks}</span>}
+                                                <span className={`px-2 py-0.5 rounded font-medium ${(q.difficulty || 1) <= 2 ? 'bg-green-100 text-green-700' :
+                                                    (q.difficulty || 1) === 3 ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
+                                                    }`}>
+                                                    Lvl {q.difficulty || 1}
+                                                </span>
                                                 <span className="capitalize px-2 py-0.5 bg-gray-100 rounded">{q.type.replace('_', ' ')}</span>
                                             </div>
 

@@ -15,7 +15,7 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
 
         // 1. Handle Paragraph Content Update
         const [existingQ] = await sql`SELECT paragraph_id FROM questions WHERE id = ${params.questionId}`;
@@ -38,6 +38,7 @@ export async function PUT(
         correct_answer = ${correctAnswer ? JSON.stringify(correctAnswer) : '[]'}::jsonb,
         explanation = ${explanation ? JSON.stringify(explanation) : null}::jsonb,
         marks = ${marks || 1},
+        difficulty = ${difficulty || 1},
         negative_marks = ${negativeMarks || null},
         image_url = ${imageUrl || null},
         "order" = ${order || 1},

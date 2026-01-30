@@ -46,6 +46,8 @@ interface StudentReport {
         percentage: number;
         status: string;
         date: string;
+        avgDifficulty?: string;
+        performanceRating?: string;
     }[];
 }
 
@@ -345,6 +347,8 @@ export default function StudentAnalyticsPage() {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Percentage</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Diff.</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Perf. Rating</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
@@ -373,6 +377,19 @@ export default function StudentAnalyticsPage() {
                                                             {attempt.percentage}%
                                                         </span>
                                                     ) : '-'}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    {attempt.avgDifficulty ? (
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${parseFloat(attempt.avgDifficulty) >= 3.5 ? 'bg-red-50 text-red-600' :
+                                                                parseFloat(attempt.avgDifficulty) >= 2.5 ? 'bg-yellow-50 text-yellow-600' :
+                                                                    'bg-green-50 text-green-600'
+                                                            }`}>
+                                                            Lvl {Math.round(parseFloat(attempt.avgDifficulty) * 10) / 10}
+                                                        </span>
+                                                    ) : '-'}
+                                                </td>
+                                                <td className="px-6 py-4 font-mono text-sm text-blue-600 font-bold">
+                                                    {attempt.performanceRating || '-'}
                                                 </td>
                                             </tr>
                                         ))}

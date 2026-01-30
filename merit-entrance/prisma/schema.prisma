@@ -91,6 +91,7 @@ model Question {
   correctAnswer Json     @map("correct_answer") // ["a"] or ["a","c"] or "42"
   explanation   Json?    // { "en": "...", "pa": "..." }
   marks         Int      @default(1)
+  difficulty    Int      @default(1) // 1-5 scale
   negativeMarks Decimal? @map("negative_marks") @db.Decimal(3,2)
   imageUrl      String?  @map("image_url")
   paragraphText Json?    @map("paragraph_text")
