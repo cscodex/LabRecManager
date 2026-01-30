@@ -90,7 +90,38 @@ export async function GET(
             correctRate: q.total_responses > 0
                 ? Math.round((q.correct_responses / q.total_responses) * 100)
                 : 0
-        })).sort((a: any, b: any) => a.correctRate - b.correctRate); // Sort by difficulty (hardest first)
+        })).sort((a: any, b: any) => a.correctRate - b.correctRate);
+
+        // Section Analysis
+        const sectionStats = await sql`
+            SELECT 
+                s.id,
+                s.name,
+                COALESCE(SUM(qr.marks_awarded), 0) as total_marks_obtained,
+                COALESCE(SUM(q.marks), 0) as total_max_marks,
+                COUNT(DISTINCT ea.id) as attempt_count
+            FROM sections s
+            JOIN questions q ON s.id = q.section_id
+            LEFT JOIN question_responses qr ON q.id = qr.question_id
+            LEFT JOIN exam_attempts ea ON qr.attempt_id = ea.id
+            WHERE s.exam_id = ${id} 
+            AND (ea.status = 'submitted' OR ea.status IS NULL) -- Filter for submitted if joined
+            GROUP BY s.id
+            ORDER BY s."order"
+        `;
+
+        const formattedSections = sectionStats.map((s: any) => {
+            const attempts = parseInt(s.attempt_count) || 0;
+            const totalObtained = parseFloat(s.total_marks_obtained) || 0;
+            const avgSectionScore = attempts > 0 ? (totalObtained / attempts) : 0;
+
+            return {
+                id: s.id,
+                name: typeof s.name === 'string' ? JSON.parse(s.name) : s.name,
+                avgScore: Math.round(avgSectionScore * 10) / 10,
+                attempts: attempts
+            };
+        });
 
         const report = {
             exam: {
@@ -106,12 +137,14 @@ export async function GET(
                 stdDev: Math.round(stdDev * 10) / 10
             },
             distribution,
-            questions: formattedQuestions
+            questions: formattedQuestions,
+            sections: formattedSections
         };
+    };
 
-        return NextResponse.json({ success: true, report });
-    } catch (error) {
-        console.error('Error fetching exam report:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+    return NextResponse.json({ success: true, report });
+} catch (error) {
+    console.error('Error fetching exam report:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+}
 }

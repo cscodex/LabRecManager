@@ -55,6 +55,12 @@ export async function GET(request: NextRequest) {
         const totalAttempts = parseInt(attemptStats[0].total_attempts) || 0;
         const passedCount = parseInt(attemptStats[0].passed_count) || 0;
 
+        console.log('DEBUG [Stats API]:', {
+            studentsRaw: studentCount[0],
+            examsRaw: examCount[0],
+            attemptsRaw: attemptStats[0]
+        });
+
         const stats = {
             totalStudents: parseInt(studentCount[0].count) || 0,
             totalExams: parseInt(examCount[0].count) || 0,

@@ -44,6 +44,12 @@ interface ExamReport {
         type: string;
         correctRate: number;
     }[];
+    sections?: {
+        id: string;
+        name: any;
+        avgScore: number;
+        attempts: number;
+    }[];
 }
 
 export default function ExamAnalyticsPage() {
@@ -216,8 +222,8 @@ export default function ExamAnalyticsPage() {
                                                         {q.text.replace(/<[^>]*>/g, '')}
                                                     </p>
                                                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${q.correctRate < 40 ? 'bg-red-100 text-red-700' :
-                                                            q.correctRate > 80 ? 'bg-green-100 text-green-700' :
-                                                                'bg-yellow-100 text-yellow-700'
+                                                        q.correctRate > 80 ? 'bg-green-100 text-green-700' :
+                                                            'bg-yellow-100 text-yellow-700'
                                                         }`}>
                                                         {q.correctRate}%
                                                     </span>
@@ -230,10 +236,54 @@ export default function ExamAnalyticsPage() {
                                 </div>
                             </div>
                         </div>
-
                     </div>
-                ) : null}
-            </main>
+
+                        {/* Section Analysis Chart */}
+                {report.sections && report.sections.length > 0 && (
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-900 mb-6">Subject / Section Performance (Avg Score)</h3>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={report.sections} layout="vertical" margin={{ left: 40, right: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={150}
+                                        tickFormatter={(val) => getText(val, language)}
+                                        tick={{ fontSize: 13, fontWeight: 500 }}
+                                    />
+                                    <RechartsTooltip
+                                        cursor={{ fill: '#f9fafb' }}
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="bg-white p-3 border shadow-sm rounded-lg">
+                                                        <p className="font-bold mb-1">{getText(data.name, language)}</p>
+                                                        <p className="text-sm text-gray-600">Avg Score: <span className="font-bold text-blue-600">{data.avgScore}</span></p>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Bar dataKey="avgScore" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={30}>
+                                        {report.sections.map((_, index) => (
+                                            <Cell key={`cell-${index}`} fill="#8b5cf6" />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
+
         </div>
+    ) : null
+}
+            </main >
+        </div >
     );
 }
