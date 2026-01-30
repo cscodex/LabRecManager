@@ -20,6 +20,7 @@ interface Section {
     order: number;
     duration: number | null;
     question_count: number;
+    avg_difficulty?: number;
 }
 
 interface Exam {
@@ -466,8 +467,8 @@ export default function EditExamPage() {
                                         <>
                                             <span>•</span>
                                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${Number(exam.avg_difficulty) >= 3.5 ? 'bg-red-50 text-red-600' :
-                                                    Number(exam.avg_difficulty) >= 2.5 ? 'bg-yellow-50 text-yellow-600' :
-                                                        'bg-green-50 text-green-600'
+                                                Number(exam.avg_difficulty) >= 2.5 ? 'bg-yellow-50 text-yellow-600' :
+                                                    'bg-green-50 text-green-600'
                                                 }`}>
                                                 Avg Difficulty: {Number(exam.avg_difficulty).toFixed(1)}
                                             </span>
@@ -793,6 +794,17 @@ export default function EditExamPage() {
                                                 <p className="text-sm text-gray-500">
                                                     {section.question_count} questions
                                                     {section.duration && ` • ${section.duration} min`}
+                                                    {section.avg_difficulty && (
+                                                        <>
+                                                            <span> • </span>
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${Number(section.avg_difficulty) >= 3.5 ? 'bg-red-100 text-red-800' :
+                                                                Number(section.avg_difficulty) >= 2.5 ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-green-100 text-green-800'
+                                                                }`}>
+                                                                Diff: {Number(section.avg_difficulty).toFixed(1)}
+                                                            </span>
+                                                        </>
+                                                    )}
                                                 </p>
                                             </div>
                                         </div>

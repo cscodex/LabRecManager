@@ -44,7 +44,12 @@ export async function GET(
         s.name,
         s."order",
         s.duration,
-        (SELECT COUNT(*) FROM questions WHERE section_id = s.id) as question_count
+        (SELECT COUNT(*) FROM questions WHERE section_id = s.id) as question_count,
+        (
+            SELECT COALESCE(AVG(difficulty), 1.0) 
+            FROM questions 
+            WHERE section_id = s.id
+        ) as avg_difficulty
       FROM sections s
       WHERE s.exam_id = ${id}
       ORDER BY s."order"
