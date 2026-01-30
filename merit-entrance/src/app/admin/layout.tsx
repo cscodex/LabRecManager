@@ -45,6 +45,7 @@ export default function AdminLayout({
         { href: '/admin/exams', label: 'Exams', icon: FileText },
         { href: '/admin/students', label: 'Students', icon: Users },
         { href: '/admin/results', label: 'Results', icon: BarChart3 },
+        { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
     ];
 
     const systemItems = [

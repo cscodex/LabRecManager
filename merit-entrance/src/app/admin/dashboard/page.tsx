@@ -70,6 +70,7 @@ export default function AdminDashboard() {
         { label: 'Create Exam', icon: PlusCircle, href: '/admin/exams/create', color: 'bg-blue-500' },
         { label: 'Add Students', icon: Users, href: '/admin/students', color: 'bg-green-500' },
         { label: 'View Results', icon: BarChart3, href: '/admin/results', color: 'bg-purple-500' },
+        { label: 'Analytics', icon: BarChart3, href: '/admin/reports', color: 'bg-indigo-500' },
         { label: 'Settings', icon: Settings, href: '/admin/settings', color: 'bg-gray-500' },
     ];
 
