@@ -301,7 +301,7 @@ export default function StudentAnalyticsPage() {
                                             />
                                             <RechartsTooltip
                                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                                formatter={(value: number) => [`${value}%`, 'Score']}
+                                                formatter={(value: any) => [`${value}%`, 'Score']}
                                                 labelFormatter={(label, payload) => {
                                                     if (payload && payload.length > 0) {
                                                         const data = payload[0].payload;
@@ -368,7 +368,7 @@ export default function StudentAnalyticsPage() {
                                                 <td className="px-6 py-4">
                                                     {attempt.status === 'submitted' && attempt.score !== null ? (
                                                         <span className={`font-semibold ${attempt.percentage >= 60 ? 'text-green-600' :
-                                                                attempt.percentage >= 40 ? 'text-yellow-600' : 'text-red-600'
+                                                            attempt.percentage >= 40 ? 'text-yellow-600' : 'text-red-600'
                                                             }`}>
                                                             {attempt.percentage}%
                                                         </span>
