@@ -1898,6 +1898,7 @@ export default function ManageQuestionsPage() {
                                             explanationPa: '',
                                             marks: 2,
                                             negativeMarks: 0.5,
+                                            difficulty: 1,
                                         }]);
                                         setShowAddForm(true);
                                     }}
