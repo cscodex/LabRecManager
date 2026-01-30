@@ -46,6 +46,12 @@ export async function GET(request: NextRequest) {
             `
         ]);
 
+        console.log('DEBUG: Stats Query Results:', {
+            studentCount,
+            examCount,
+            attemptStats,
+        });
+
         const totalAttempts = parseInt(attemptStats[0].total_attempts) || 0;
         const passedCount = parseInt(attemptStats[0].passed_count) || 0;
 
