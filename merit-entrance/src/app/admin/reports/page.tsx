@@ -114,7 +114,7 @@ export default function ReportsDashboard() {
                 </div>
 
                 {/* Quick Actions / Navigation */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Link href="/admin/reports/student" className="block group">
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition h-full">
                             <div className="flex items-start justify-between">
@@ -128,6 +128,23 @@ export default function ReportsDashboard() {
                             <h3 className="text-lg font-bold text-gray-900 mt-4 group-hover:text-indigo-600 transition">Student Analytics</h3>
                             <p className="text-gray-500 mt-2 text-sm">
                                 Deep dive into individual student performance. View progress trends, attempt history, and export reports.
+                            </p>
+                        </div>
+                    </Link>
+
+                    <Link href="/admin/reports/attempts" className="block group">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition h-full">
+                            <div className="flex items-start justify-between">
+                                <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition">
+                                    <Clock className="w-8 h-8 text-blue-600" />
+                                </div>
+                                <div className="p-2 bg-gray-50 rounded-full group-hover:bg-gray-100 transition">
+                                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                                </div>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mt-4 group-hover:text-blue-600 transition">All Attempts</h3>
+                            <p className="text-gray-500 mt-2 text-sm">
+                                Complete history of all exam attempts with scores, difficulty, and performance tracking.
                             </p>
                         </div>
                     </Link>

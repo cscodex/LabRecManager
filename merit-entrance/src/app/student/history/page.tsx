@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, getText } from '@/lib/utils';
-import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, Calendar, FileText, BarChart2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, Calendar, FileText, BarChart2, Gauge } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
     BarChart,
@@ -26,15 +26,26 @@ interface ExamAttempt {
     status: 'in_progress' | 'submitted';
     score: number | null;
     totalMarks: number;
+    attemptNumber: number;
+    examDifficulty: number;
     attemptedQuestions: number;
     totalQuestions: number;
+    percentage: number | null;
 }
+
+const getDifficultyBadge = (difficulty: number) => {
+    if (difficulty <= 1.5) return { label: 'Easy', color: 'bg-green-100 text-green-700' };
+    if (difficulty <= 2.5) return { label: 'Medium', color: 'bg-yellow-100 text-yellow-700' };
+    if (difficulty <= 3.5) return { label: 'Moderate', color: 'bg-orange-100 text-orange-700' };
+    return { label: 'Hard', color: 'bg-red-100 text-red-700' };
+};
 
 export default function ExamHistoryPage() {
     const router = useRouter();
     const { user, language, isAuthenticated, _hasHydrated } = useAuthStore();
     const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
     const [loading, setLoading] = useState(true);
+    const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -45,17 +56,27 @@ export default function ExamHistoryPage() {
         loadHistory();
     }, [_hasHydrated, isAuthenticated, user, router]);
 
-    const loadHistory = async () => {
+    const loadHistory = async (page = 1) => {
+        setLoading(true);
         try {
-            const response = await fetch('/api/student/history');
+            const response = await fetch(`/api/student/history?page=${page}&limit=20`);
             const data = await response.json();
             if (data.success) {
                 setAttempts(data.attempts);
+                if (data.pagination) {
+                    setPagination(data.pagination);
+                }
             }
         } catch (error) {
             toast.error('Failed to load history');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= pagination.totalPages) {
+            loadHistory(newPage);
         }
     };
 
@@ -209,9 +230,20 @@ export default function ExamHistoryPage() {
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex-1">
                                         <div className="flex items-start justify-between sm:justify-start gap-3">
+                                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-sm">
+                                                {attempt.attemptNumber}
+                                            </span>
                                             <h3 className="text-lg font-bold text-gray-900 hover:text-blue-600 transition">
                                                 {getText(attempt.title, language)}
                                             </h3>
+                                            {attempt.examDifficulty && (() => {
+                                                const diffBadge = getDifficultyBadge(attempt.examDifficulty);
+                                                return (
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${diffBadge.color}`}>
+                                                        {diffBadge.label}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
 
                                         <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-sm text-gray-500">
@@ -300,6 +332,34 @@ export default function ExamHistoryPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* Pagination Controls */}
+                {pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <div className="text-sm text-gray-500">
+                            Page {pagination.page} of {pagination.totalPages}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => handlePageChange(pagination.page - 1)}
+                                disabled={pagination.page === 1}
+                                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="px-3 py-1 bg-blue-600 text-white rounded-lg font-medium">
+                                {pagination.page}
+                            </span>
+                            <button
+                                onClick={() => handlePageChange(pagination.page + 1)}
+                                disabled={pagination.page === pagination.totalPages}
+                                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                 )}
             </main>
