@@ -2,8 +2,8 @@
 
 'use client';
 
-import { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { ChevronLeft, Calendar, Award, Clock, FileText, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
@@ -16,8 +16,9 @@ const getText = (text: any, lang: 'en' | 'pa') => {
     return text[lang] || text['en'] || '';
 };
 
-export default function StudentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params);
+export default function StudentDetailsPage() {
+    const params = useParams();
+    const id = params.id as string;
     const router = useRouter();
     const { user, isAuthenticated, language, _hasHydrated } = useAuthStore();
     const [studentData, setStudentData] = useState<any>(null);
@@ -29,7 +30,7 @@ export default function StudentDetailsPage({ params }: { params: Promise<{ id: s
             router.push('/');
             return;
         }
-        loadStudentDetails();
+        if (id) loadStudentDetails();
     }, [_hasHydrated, isAuthenticated, user, router, id]);
 
     const loadStudentDetails = async () => {
@@ -148,7 +149,7 @@ export default function StudentDetailsPage({ params }: { params: Promise<{ id: s
                                                         <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                                             <div
                                                                 className={`h-full rounded-full ${percent >= 70 ? 'bg-green-500' :
-                                                                        percent >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                    percent >= 40 ? 'bg-yellow-500' : 'bg-red-500'
                                                                     }`}
                                                                 style={{ width: `${percent}%` }}
                                                             ></div>
