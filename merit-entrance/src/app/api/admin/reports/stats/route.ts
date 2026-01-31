@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
             // Recent Activity
             sql`
-                SELECT action_type, description, created_at
+                SELECT action as action_type, message as description, created_at
                 FROM activity_logs
                 ORDER BY created_at DESC
                 LIMIT 5

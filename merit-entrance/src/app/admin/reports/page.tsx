@@ -42,9 +42,16 @@ export default function ReportsDashboard() {
     const loadStats = async () => {
         try {
             const response = await fetch('/api/admin/reports/stats');
+            if (response.status === 401) {
+                toast.error('Session expired. Please login again.');
+                router.push('/');
+                return;
+            }
             const data = await response.json();
             if (data.success) {
                 setStats(data.stats);
+            } else {
+                console.error('Reports Stats API error:', data.error);
             }
         } catch (error) {
             toast.error('Failed to load stats');

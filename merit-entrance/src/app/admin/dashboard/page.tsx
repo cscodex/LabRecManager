@@ -41,12 +41,20 @@ export default function AdminDashboard() {
     const loadStats = async () => {
         try {
             const response = await fetch('/api/admin/stats');
+            if (response.status === 401) {
+                toast.error('Session expired. Please login again.');
+                router.push('/');
+                return;
+            }
             const data = await response.json();
             if (data.success) {
                 setStats(data.stats);
+            } else {
+                console.error('Stats API error:', data.error);
             }
         } catch (error) {
-            console.error('Failed to load stats');
+            console.error('Failed to load stats:', error);
+            toast.error('Failed to load dashboard stats');
         } finally {
             setLoading(false);
         }

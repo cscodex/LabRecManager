@@ -3,6 +3,7 @@ import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {

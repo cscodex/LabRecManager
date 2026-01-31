@@ -96,7 +96,7 @@ export async function POST(
                     await sql`
                         INSERT INTO questions (
                             id, section_id, type, text, paragraph_id, options, correct_answer, 
-                            marks, negative_marks, "order"
+                            marks, difficulty, negative_marks, "order"
                         ) VALUES (
                             ${questionId},
                             ${sectionId},
@@ -106,6 +106,7 @@ export async function POST(
                             ${null}::jsonb,
                             ${JSON.stringify([])}::jsonb,
                             ${0},
+                            ${1},
                             ${0},
                             ${currentOrder}
                         )
@@ -212,7 +213,7 @@ export async function POST(
                 await sql`
                     INSERT INTO questions (
                         id, section_id, type, text, options, correct_answer, 
-                        explanation, marks, negative_marks, "order", parent_id
+                        explanation, marks, difficulty, negative_marks, "order", parent_id
                     ) VALUES (
                         ${questionId},
                         ${sectionId},
@@ -222,6 +223,7 @@ export async function POST(
                         ${correctAnswerJson}::jsonb,
                         ${explanationJson}::jsonb,
                         ${q.marks || 4},
+                        ${1},
                         ${q.negativeMarks || 0},
                         ${currentOrder},
                         ${parentId}

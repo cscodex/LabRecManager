@@ -37,10 +37,10 @@ export async function POST(
         // Create the "Paragraph Question" placeholder linked to the paragraph
         const [paragraphQ] = await sql`
             INSERT INTO questions (
-                type, text, paragraph_id, image_url, "order", section_id, marks, negative_marks, correct_answer
+                type, text, paragraph_id, image_url, "order", section_id, marks, difficulty, negative_marks, correct_answer
             ) VALUES (
                 'paragraph', ${JSON.stringify(paragraph.text)}, ${paragraphEntry.id}, 
-                ${paragraph.imageUrl}, ${nextOrder}, ${sectionId}, 0, 0, '[]'
+                ${paragraph.imageUrl}, ${nextOrder}, ${sectionId}, 0, 1, 0, '[]'
             ) RETURNING id
         `;
 
@@ -51,11 +51,11 @@ export async function POST(
             const correctAnswerJson = JSON.stringify(sq.correctAnswer || []);
             const [createdSq] = await sql`
                 INSERT INTO questions (
-                    type, text, options, correct_answer, explanation, marks, negative_marks, "order", section_id, parent_id
+                    type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, "order", section_id, parent_id
                 ) VALUES (
                     ${sq.type}, ${JSON.stringify(sq.text)}, ${JSON.stringify(sq.options)}, 
                     ${correctAnswerJson}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
-                    ${sq.negativeMarks}, ${nextOrder + i + 1}, ${sectionId}, ${paragraphQ.id}
+                    ${sq.difficulty || 1}, ${sq.negativeMarks}, ${nextOrder + i + 1}, ${sectionId}, ${paragraphQ.id}
                 ) RETURNING id
             `;
             createdSubQuestions.push(createdSq);

@@ -36,18 +36,16 @@ export async function logActivity(
 
         await sql`
             INSERT INTO activity_logs (
-                user_id,
-                action_type,
-                description,
+                admin_id,
+                action,
+                message,
                 metadata,
-                ip_address,
                 created_at
             ) VALUES (
                 ${actorId},
                 ${action},
                 ${description},
                 ${JSON.stringify(metadata)}::jsonb,
-                null,
                 NOW()
             )
         `;

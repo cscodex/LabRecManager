@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
+import { logActivity } from '@/lib/logger';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
       )
       RETURNING id
     `;
+
+        await logActivity('create_exam', `Created exam: ${title.en}`, { examId: result[0].id });
 
         return NextResponse.json({
             success: true,

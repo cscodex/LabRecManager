@@ -144,6 +144,8 @@ export async function DELETE(
         // Cascading delete will handle sections, questions, etc.
         await sql`DELETE FROM exams WHERE id = ${id}`;
 
+        await logActivity('delete_exam', `Deleted exam with ID: ${id}`, { examId: id });
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error deleting exam:', error);
