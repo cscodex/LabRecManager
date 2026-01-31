@@ -140,11 +140,10 @@ export async function GET(
             questions: formattedQuestions,
             sections: formattedSections
         };
-    };
 
-    return NextResponse.json({ success: true, report });
-} catch (error) {
-    console.error('Error fetching exam report:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-}
+        return NextResponse.json({ success: true, report });
+    } catch (error) {
+        console.error('Error fetching exam report:', error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 }
