@@ -41,7 +41,9 @@ export default function StudentDashboard() {
         const checkAuth = async () => {
             if (!isAuthenticated || !user) {
                 try {
-                    const response = await fetch('/api/auth/me');
+                    const response = await fetch('/api/auth/me', {
+                        credentials: 'include'
+                    });
                     const data = await response.json();
                     if (data.user && data.user.role === 'student') {
                         setUser(data.user);
@@ -70,7 +72,9 @@ export default function StudentDashboard() {
 
     const loadExams = async () => {
         try {
-            const response = await fetch('/api/student/exams');
+            const response = await fetch('/api/student/exams', {
+                credentials: 'include'
+            });
             const data = await response.json();
             if (data.success) {
                 setExams(data.exams);
