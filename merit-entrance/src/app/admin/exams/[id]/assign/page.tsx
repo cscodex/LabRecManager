@@ -58,6 +58,11 @@ export default function ExamAssignPage() {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
 
+    // Auto-assign settings
+    const [autoAssign, setAutoAssign] = useState(false);
+    const [autoAssignAttempts, setAutoAssignAttempts] = useState(3);
+    const [savingAutoAssign, setSavingAutoAssign] = useState(false);
+
     // Derived Statistics
     const assignedCount = assignments.length;
 
@@ -94,10 +99,47 @@ export default function ExamAssignPage() {
         }
     }, [examId]);
 
+    const loadAutoAssignSettings = useCallback(async () => {
+        try {
+            const res = await fetch(`/api/admin/exams/${examId}/auto-assign`);
+            const data = await res.json();
+            if (data.success) {
+                setAutoAssign(data.autoAssign);
+                setAutoAssignAttempts(data.attempts);
+            }
+        } catch (error) {
+            console.error('Failed to load auto-assign settings:', error);
+        }
+    }, [examId]);
+
+    const saveAutoAssignSettings = async () => {
+        setSavingAutoAssign(true);
+        try {
+            const res = await fetch(`/api/admin/exams/${examId}/auto-assign`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ autoAssign, attempts: autoAssignAttempts }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success(data.message);
+            } else {
+                toast.error(data.error || 'Failed to save');
+            }
+        } catch (error) {
+            toast.error('Failed to save auto-assign settings');
+        } finally {
+            setSavingAutoAssign(false);
+        }
+    };
+
     useEffect(() => {
-        if (activeTab === 'assign') loadData();
+        if (activeTab === 'assign') {
+            loadData();
+            loadAutoAssignSettings();
+        }
         if (activeTab === 'history') loadHistory();
-    }, [activeTab, loadData, loadHistory]);
+    }, [activeTab, loadData, loadHistory, loadAutoAssignSettings]);
 
     const toggleStudent = (studentId: string) => {
         const newSelected = new Set(selectedIds);
@@ -301,6 +343,50 @@ export default function ExamAssignPage() {
                                     </div>
                                 </div>
                             )}
+                        </div>
+
+                        {/* Auto-Assign for New Students */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold text-gray-900">Auto-Assign</h3>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={autoAssign}
+                                        onChange={(e) => setAutoAssign(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            <p className="text-xs text-gray-500">
+                                When enabled, new students will automatically be assigned to this exam on registration.
+                            </p>
+
+                            {autoAssign && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Default Attempts
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        value={autoAssignAttempts}
+                                        onChange={(e) => setAutoAssignAttempts(parseInt(e.target.value) || 3)}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    />
+                                </div>
+                            )}
+
+                            <button
+                                onClick={saveAutoAssignSettings}
+                                disabled={savingAutoAssign}
+                                className="w-full px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {savingAutoAssign ? 'Saving...' : 'Save Auto-Assign Settings'}
+                            </button>
                         </div>
                     </div>
 
