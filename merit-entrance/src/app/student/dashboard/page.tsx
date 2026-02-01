@@ -28,19 +28,45 @@ interface Exam {
 
 export default function StudentDashboard() {
     const router = useRouter();
-    const { user, language, isAuthenticated, logout, _hasHydrated } = useAuthStore();
+    const { user, language, isAuthenticated, logout, _hasHydrated, setUser } = useAuthStore();
     const [exams, setExams] = useState<Exam[]>([]);
     const [loading, setLoading] = useState(true);
     const [showMenu, setShowMenu] = useState(false);
+    const [authChecked, setAuthChecked] = useState(false);
 
     useEffect(() => {
         if (!_hasHydrated) return;
-        if (!isAuthenticated || user?.role !== 'student') {
-            router.push('/');
-            return;
-        }
-        loadExams();
-    }, [_hasHydrated, isAuthenticated, user, router]);
+
+        // If not authenticated in Zustand, try checking server session
+        const checkAuth = async () => {
+            if (!isAuthenticated || !user) {
+                try {
+                    const response = await fetch('/api/auth/me');
+                    const data = await response.json();
+                    if (data.user && data.user.role === 'student') {
+                        setUser(data.user);
+                        setAuthChecked(true);
+                        loadExams();
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Auth check failed:', error);
+                }
+                router.push('/');
+                return;
+            }
+
+            if (user?.role !== 'student') {
+                router.push('/');
+                return;
+            }
+
+            setAuthChecked(true);
+            loadExams();
+        };
+
+        checkAuth();
+    }, [_hasHydrated, isAuthenticated, user, router, setUser]);
 
     const loadExams = async () => {
         try {
