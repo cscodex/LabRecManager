@@ -8,10 +8,15 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email, phone, class: studentClass, school, googleId } = await request.json();
+        const { name, email, phone, class: studentClass, school, password, googleId } = await request.json();
 
         if (!name || !email) {
             return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
+        }
+
+        // Password is required for non-Google registrations
+        if (!googleId && !password) {
+            return NextResponse.json({ error: 'Password is required' }, { status: 400 });
         }
 
         // Check if email already exists
@@ -24,8 +29,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate roll number and verification token
-        const rollNumber = `GOOGLE${Date.now().toString().slice(-8)}`;
-        const tempPassword = await bcrypt.hash(Math.random().toString(36), 10);
+        const rollNumber = googleId ? `GOOGLE${Date.now().toString().slice(-8)}` : `STU${Date.now().toString().slice(-8)}`;
+        // Hash user-provided password, or generate temp for Google users
+        const passwordHash = password
+            ? await bcrypt.hash(password, 10)
+            : await bcrypt.hash(Math.random().toString(36), 10);
         const verificationToken = generateVerificationToken();
         const verificationExpires = getVerificationExpiry();
 
@@ -52,7 +60,7 @@ export async function POST(request: NextRequest) {
                 ${phone || null},
                 ${studentClass || null},
                 ${school || null},
-                ${tempPassword}, 
+                ${passwordHash}, 
                 true,
                 false,
                 ${verificationToken},

@@ -158,6 +158,17 @@ function LoginContent() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              {/* Forgot Password Link - Only for students */}
+              {loginType === 'student' && (
+                <div className="mt-2 text-right">
+                  <Link
+                    href="/student/forgot-password"
+                    className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Submit Button */}

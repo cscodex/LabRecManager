@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/useTranslation';
-import { BookOpen, AlertCircle, Mail, User, Phone, School, GraduationCap } from 'lucide-react';
+import { BookOpen, AlertCircle, Mail, User, Phone, School, GraduationCap, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { signIn } from 'next-auth/react';
+
+// Password strength validation rules
+const passwordRules = [
+    { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+    { label: 'One uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+    { label: 'One lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+    { label: 'One number', test: (p: string) => /\d/.test(p) },
+    { label: 'One special character (!@#$%^&*)', test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
+];
 
 function RegistrationContent() {
     const router = useRouter();
@@ -21,12 +30,16 @@ function RegistrationContent() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState<'choice' | 'form'>(needsRegistration ? 'form' : 'choice');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [formData, setFormData] = useState({
         name: googleName || '',
         email: googleEmail || '',
         phone: '',
         class: '',
         school: '',
+        password: '',
+        confirmPassword: '',
         googleId: googleId || '',
     });
 
@@ -35,6 +48,34 @@ function RegistrationContent() {
             setStep('form');
         }
     }, [needsRegistration, googleEmail]);
+
+    // Password strength calculation
+    const passwordStrength = useMemo(() => {
+        const passedRules = passwordRules.filter(rule => rule.test(formData.password));
+        return {
+            score: passedRules.length,
+            total: passwordRules.length,
+            percentage: (passedRules.length / passwordRules.length) * 100,
+            rules: passwordRules.map(rule => ({
+                ...rule,
+                passed: rule.test(formData.password)
+            }))
+        };
+    }, [formData.password]);
+
+    const getStrengthColor = (percentage: number) => {
+        if (percentage < 40) return 'bg-red-500';
+        if (percentage < 60) return 'bg-orange-500';
+        if (percentage < 80) return 'bg-yellow-500';
+        return 'bg-green-500';
+    };
+
+    const getStrengthLabel = (percentage: number) => {
+        if (percentage < 40) return 'Weak';
+        if (percentage < 60) return 'Fair';
+        if (percentage < 80) return 'Good';
+        return 'Strong';
+    };
 
     const handleGoogleSignUp = () => {
         setIsLoading(true);
@@ -49,12 +90,33 @@ function RegistrationContent() {
             return;
         }
 
+        // Validate password (only if not from Google OAuth)
+        if (!googleId) {
+            if (!formData.password) {
+                toast.error('Password is required');
+                return;
+            }
+
+            if (passwordStrength.score < passwordRules.length) {
+                toast.error('Password does not meet all requirements');
+                return;
+            }
+
+            if (formData.password !== formData.confirmPassword) {
+                toast.error('Passwords do not match');
+                return;
+            }
+        }
+
         setIsLoading(true);
         try {
             const response = await fetch('/api/auth/register-google', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    password: formData.password || undefined, // Don't send empty password
+                }),
             });
 
             const data = await response.json();
@@ -91,7 +153,7 @@ function RegistrationContent() {
                             <div className="mb-6 text-center">
                                 <h2 className="text-xl font-bold text-gray-900">Student Registration</h2>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Sign up with your Google account to get started.
+                                    Sign up with your Google account or create an account.
                                 </p>
                             </div>
 
@@ -115,6 +177,23 @@ function RegistrationContent() {
                                     Sign up with Google
                                 </button>
 
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-gray-200" />
+                                    </div>
+                                    <div className="relative flex justify-center text-sm">
+                                        <span className="px-3 bg-white text-gray-500">or</span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setStep('form')}
+                                    className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all"
+                                >
+                                    Register with Email
+                                </button>
+
                                 <div className="bg-blue-50 rounded-lg p-4 flex gap-3 items-start">
                                     <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                     <p className="text-sm text-blue-700">
@@ -128,11 +207,13 @@ function RegistrationContent() {
                     {step === 'form' && (
                         <>
                             <div className="mb-6 text-center">
-                                <h2 className="text-xl font-bold text-gray-900">Complete Your Profile</h2>
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    {needsRegistration ? 'Complete Your Profile' : 'Create Account'}
+                                </h2>
                                 <p className="text-sm text-gray-500 mt-1">
                                     {needsRegistration
                                         ? 'This email is not registered. Please complete your profile.'
-                                        : 'Fill in your details to complete registration'}
+                                        : 'Fill in your details to create an account'}
                                 </p>
                             </div>
 
@@ -162,13 +243,110 @@ function RegistrationContent() {
                                             type="email"
                                             value={formData.email}
                                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                                            className={`w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${googleEmail ? 'bg-gray-50' : ''}`}
                                             placeholder="Enter your email"
                                             required
                                             readOnly={!!googleEmail}
                                         />
                                     </div>
                                 </div>
+
+                                {/* Password - Only show if not from Google OAuth */}
+                                {!googleId && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                                            <div className="relative">
+                                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    value={formData.password}
+                                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="Create a strong password"
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                                </button>
+                                            </div>
+
+                                            {/* Password Strength Indicator */}
+                                            {formData.password && (
+                                                <div className="mt-2 space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                                            <div
+                                                                className={`h-2 rounded-full transition-all ${getStrengthColor(passwordStrength.percentage)}`}
+                                                                style={{ width: `${passwordStrength.percentage}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className={`text-xs font-medium ${passwordStrength.percentage < 40 ? 'text-red-600' :
+                                                                passwordStrength.percentage < 60 ? 'text-orange-600' :
+                                                                    passwordStrength.percentage < 80 ? 'text-yellow-600' : 'text-green-600'
+                                                            }`}>
+                                                            {getStrengthLabel(passwordStrength.percentage)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-1">
+                                                        {passwordStrength.rules.map((rule, index) => (
+                                                            <div key={index} className="flex items-center gap-2 text-xs">
+                                                                {rule.passed ? (
+                                                                    <Check className="w-3 h-3 text-green-500" />
+                                                                ) : (
+                                                                    <X className="w-3 h-3 text-gray-300" />
+                                                                )}
+                                                                <span className={rule.passed ? 'text-green-600' : 'text-gray-500'}>
+                                                                    {rule.label}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Confirm Password */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                                            <div className="relative">
+                                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                                <input
+                                                    type={showConfirmPassword ? 'text' : 'password'}
+                                                    value={formData.confirmPassword}
+                                                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                                    className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formData.confirmPassword && formData.password !== formData.confirmPassword
+                                                            ? 'border-red-300 bg-red-50'
+                                                            : formData.confirmPassword && formData.password === formData.confirmPassword
+                                                                ? 'border-green-300 bg-green-50'
+                                                                : 'border-gray-300'
+                                                        }`}
+                                                    placeholder="Confirm your password"
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                                </button>
+                                            </div>
+                                            {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                                                <p className="text-xs text-red-600 mt-1">Passwords do not match</p>
+                                            )}
+                                            {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                                                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                                    <Check className="w-3 h-3" /> Passwords match
+                                                </p>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
 
                                 {/* Phone */}
                                 <div>
@@ -226,7 +404,7 @@ function RegistrationContent() {
                                 {/* Submit Button */}
                                 <button
                                     type="submit"
-                                    disabled={isLoading}
+                                    disabled={isLoading || (!googleId && (passwordStrength.score < passwordRules.length || formData.password !== formData.confirmPassword))}
                                     className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {isLoading ? (
@@ -238,6 +416,17 @@ function RegistrationContent() {
                                         'Create Account'
                                     )}
                                 </button>
+
+                                {/* Back Button */}
+                                {!needsRegistration && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep('choice')}
+                                        className="w-full py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-all"
+                                    >
+                                        Back
+                                    </button>
+                                )}
                             </form>
                         </>
                     )}
