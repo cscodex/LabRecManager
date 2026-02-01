@@ -55,11 +55,11 @@ export async function POST(request: NextRequest) {
                 user,
             });
         } else {
-            // Student login with roll number
+            // Student login with roll number OR email
             const students = await sql`
-                SELECT id, roll_number, password_hash, name, is_active, photo_url
+                SELECT id, roll_number, password_hash, name, is_active, photo_url, email_verified
                 FROM students 
-                WHERE roll_number = ${identifier}
+                WHERE roll_number = ${identifier} OR email = ${identifier}
                 LIMIT 1
             `;
 
@@ -75,6 +75,17 @@ export async function POST(request: NextRequest) {
             if (!student.is_active) {
                 return NextResponse.json(
                     { error: 'Account is disabled. Contact admin.' },
+                    { status: 403 }
+                );
+            }
+
+            // Check if email is verified
+            if (student.email_verified === false) {
+                return NextResponse.json(
+                    {
+                        error: 'Please verify your email before logging in.',
+                        needsVerification: true
+                    },
                     { status: 403 }
                 );
             }
