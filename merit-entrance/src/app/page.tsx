@@ -63,7 +63,10 @@ function LoginContent() {
       if (response.ok) {
         setUser(data.user);
         toast.success(t('auth.loginSuccess'));
-        router.push(loginType === 'admin' ? '/admin/dashboard' : '/student/dashboard');
+        // Small delay to allow Zustand to persist state before navigation
+        setTimeout(() => {
+          router.replace(loginType === 'admin' ? '/admin/dashboard' : '/student/dashboard');
+        }, 100);
       } else {
         toast.error(data.error || t('auth.loginFailed'));
       }
