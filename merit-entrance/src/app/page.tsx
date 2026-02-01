@@ -1,26 +1,47 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/useTranslation';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { BookOpen, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { signIn } from 'next-auth/react';
 
-export default function HomePage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
-  const { t, isLoading: isLoadingTranslations } = useTranslation();
+  const { t } = useTranslation();
   const [loginType, setLoginType] = useState<'student' | 'admin'>('student');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // URL parameters for verification status
+  const verified = searchParams.get('verified') === 'true';
+  const error = searchParams.get('error');
 
   const [formData, setFormData] = useState({
     identifier: '', // rollNumber for student, email for admin
     password: '',
   });
+
+  useEffect(() => {
+    if (verified) {
+      toast.success('Email verified successfully! You can now log in.');
+    }
+    if (error === 'InvalidToken') {
+      toast.error('Invalid or expired verification link.');
+    }
+    if (error === 'VerificationFailed') {
+      toast.error('Email verification failed. Please try again.');
+    }
+    if (error === 'Configuration') {
+      toast.error('Sign-in configuration error. Please try again.');
+    }
+  }, [verified, error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,8 +200,8 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    // NextAuth v5 uses this URL format for direct provider sign-in
-                    window.location.href = '/api/auth/signin/google?callbackUrl=/student/dashboard';
+                    // Use next-auth/react signIn for proper OAuth flow
+                    signIn('google', { callbackUrl: '/student/dashboard' });
                   }}
                   className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all flex items-center justify-center gap-3"
                 >
@@ -212,5 +233,17 @@ export default function HomePage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

@@ -22,20 +22,26 @@ model Admin {
 
 
 model Student {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rollNumber   String       @unique @map("roll_number")
-  name         String
-  nameRegional String?      @map("name_regional")
-  email        String?
-  phone        String?
-  passwordHash String       @map("password_hash")
-  photoUrl     String?      @map("photo_url")
-  class        String?
-  school       String?
-  isActive     Boolean      @default(true) @map("is_active")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  attempts     ExamAttempt[]
-  assignments  ExamAssignment[]
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rollNumber          String       @unique @map("roll_number")
+  name                String
+  nameRegional        String?      @map("name_regional")
+  email               String?
+  phone               String?
+  passwordHash        String       @map("password_hash")
+  photoUrl            String?      @map("photo_url")
+  class               String?
+  school              String?
+  isActive            Boolean      @default(true) @map("is_active")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  // Email verification fields
+  emailVerified       Boolean      @default(false) @map("email_verified")
+  verificationToken   String?      @map("verification_token")
+  verificationExpires DateTime?    @map("verification_expires")
+  googleId            String?      @map("google_id")
+  
+  attempts       ExamAttempt[]
+  assignments    ExamAssignment[]
   assignmentLogs ExamAssignmentLog[]
   
   @@map("students")
