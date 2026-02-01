@@ -207,7 +207,7 @@ export default function HomePage() {
 
         {/* Bottom Info */}
         <p className="text-center text-blue-200 text-sm mt-6">
-          © 2026 {t('common.appName')}
+          © 2026 {t('common.appName')} <span className="text-blue-300/70">• Build v443</span>
         </p>
       </div>
     </div>
