@@ -156,30 +156,41 @@ export default function ExamAnalyticsPage() {
                 ) : report ? (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-                        {/* Stats Overview */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                                <p className="text-sm text-gray-500 font-medium">Avg Score</p>
-                                <p className="text-2xl font-bold text-gray-900 mt-1">{report.stats.avgScore}</p>
-                                <p className="text-xs text-gray-400 mt-1">out of {report.exam.total_marks}</p>
+                        {/* No Data State - when no submitted attempts */}
+                        {!report.stats && (
+                            <div className="bg-white rounded-xl p-12 text-center border border-dashed border-gray-300">
+                                <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                <h3 className="text-lg font-medium text-gray-900">No Submissions Yet</h3>
+                                <p className="text-gray-500 mt-1">This exam has no submitted attempts to analyze.</p>
                             </div>
-                            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                                <p className="text-sm text-gray-500 font-medium">Std Deviation</p>
-                                <p className="text-2xl font-bold text-gray-900 mt-1">{report.stats.stdDev}</p>
-                                <p className="text-xs text-gray-400 mt-1">Consistency Metric</p>
+                        )}
+
+                        {/* Stats Overview - only show when stats exist */}
+                        {report.stats && (
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                    <p className="text-sm text-gray-500 font-medium">Avg Score</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{report.stats.avgScore}</p>
+                                    <p className="text-xs text-gray-400 mt-1">out of {report.exam.total_marks}</p>
+                                </div>
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                    <p className="text-sm text-gray-500 font-medium">Std Deviation</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{report.stats.stdDev}</p>
+                                    <p className="text-xs text-gray-400 mt-1">Consistency Metric</p>
+                                </div>
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                    <p className="text-sm text-gray-500 font-medium">Highest / Lowest</p>
+                                    <p className="text-2xl font-bold text-green-600 mt-1">
+                                        {report.stats.maxScore} <span className="text-gray-300 text-lg">/</span> <span className="text-red-500">{report.stats.minScore}</span>
+                                    </p>
+                                </div>
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                    <p className="text-sm text-gray-500 font-medium">Total Attempts</p>
+                                    <p className="text-2xl font-bold text-blue-600 mt-1">{report.stats.totalAttempts}</p>
+                                    <p className="text-xs text-gray-400 mt-1">Submitted exams</p>
+                                </div>
                             </div>
-                            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                                <p className="text-sm text-gray-500 font-medium">Highest / Lowest</p>
-                                <p className="text-2xl font-bold text-green-600 mt-1">
-                                    {report.stats.maxScore} <span className="text-gray-300 text-lg">/</span> <span className="text-red-500">{report.stats.minScore}</span>
-                                </p>
-                            </div>
-                            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                                <p className="text-sm text-gray-500 font-medium">Total Attempts</p>
-                                <p className="text-2xl font-bold text-blue-600 mt-1">{report.stats.totalAttempts}</p>
-                                <p className="text-xs text-gray-400 mt-1">Submitted exams</p>
-                            </div>
-                        </div>
+                        )}
 
                         {/* Top: Score Distribution */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

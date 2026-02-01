@@ -18,33 +18,13 @@ export async function GET(request: NextRequest) {
         const examId = searchParams.get('examId');
         const studentId = searchParams.get('studentId');
         const status = searchParams.get('status'); // 'submitted' | 'in_progress' | 'all'
+        const attemptNumber = searchParams.get('attemptNumber'); // '1', '2', '3+'
         const dateFrom = searchParams.get('dateFrom');
         const dateTo = searchParams.get('dateTo');
 
-        const offset = (page - 1) * limit;
-
-        // Build dynamic query conditions
-        let whereConditions = [];
-        if (examId) whereConditions.push(`ea.exam_id = '${examId}'`);
-        if (studentId) whereConditions.push(`ea.student_id = '${studentId}'`);
-        if (status && status !== 'all') whereConditions.push(`ea.status = '${status}'`);
-        if (dateFrom) whereConditions.push(`ea.started_at >= '${dateFrom}'::timestamptz`);
-        if (dateTo) whereConditions.push(`ea.started_at <= '${dateTo}'::timestamptz`);
-
-        const whereClause = whereConditions.length > 0
-            ? `WHERE ${whereConditions.join(' AND ')}`
-            : '';
-
-        // Get total count for pagination
-        const countResult = await sql`
-            SELECT COUNT(*) as total 
-            FROM exam_attempts ea
-            ${sql.unsafe(whereClause)}
-        `;
-        const totalCount = parseInt(countResult[0]?.total || '0');
-
-        // Get attempts with all required data
-        const attempts = await sql`
+        // Fetch all attempts with computed attempt_number
+        // We'll handle pagination and attempt filtering after the fetch
+        const allAttempts = await sql`
             SELECT 
                 ea.id,
                 ea.exam_id,
@@ -75,13 +55,36 @@ export async function GET(request: NextRequest) {
             FROM exam_attempts ea
             JOIN exams e ON ea.exam_id = e.id
             JOIN students s ON ea.student_id = s.id
-            ${sql.unsafe(whereClause)}
             ORDER BY ea.started_at DESC
-            LIMIT ${limit} OFFSET ${offset}
         `;
 
+        // Apply filters in memory
+        let filteredAttempts = allAttempts.filter(a => {
+            // Status filter
+            if (status && status !== 'all' && a.status !== status) return false;
+            // Exam filter
+            if (examId && a.exam_id !== examId) return false;
+            // Student filter
+            if (studentId && a.student_id !== studentId) return false;
+            // Date filters
+            if (dateFrom && new Date(a.started_at) < new Date(dateFrom)) return false;
+            if (dateTo && new Date(a.started_at) > new Date(dateTo)) return false;
+            // Attempt number filter
+            const attemptNum = parseInt(a.attempt_number) || 1;
+            if (attemptNumber === '1' && attemptNum !== 1) return false;
+            if (attemptNumber === '2' && attemptNum !== 2) return false;
+            if (attemptNumber === '3+' && attemptNum < 3) return false;
+            return true;
+        });
+
+        const totalCount = filteredAttempts.length;
+
+        // Apply pagination
+        const offset = (page - 1) * limit;
+        const paginatedAttempts = filteredAttempts.slice(offset, offset + limit);
+
         // Format response
-        const formattedAttempts = attempts.map(a => {
+        const formattedAttempts = paginatedAttempts.map(a => {
             const percentage = a.total_marks > 0 && a.total_score !== null
                 ? Math.round((parseFloat(a.total_score) / a.total_marks) * 100)
                 : null;

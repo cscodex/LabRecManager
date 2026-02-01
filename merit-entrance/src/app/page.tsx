@@ -179,7 +179,8 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.href = '/api/auth/signin/google';
+                    // NextAuth v5 uses this URL format for direct provider sign-in
+                    window.location.href = '/api/auth/signin/google?callbackUrl=/student/dashboard';
                   }}
                   className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all flex items-center justify-center gap-3"
                 >

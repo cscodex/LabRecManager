@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
+import { getDifficultyColor } from '@/lib/performance';
 import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye
@@ -466,10 +467,7 @@ export default function EditExamPage() {
                                     {exam.avg_difficulty && (
                                         <>
                                             <span>•</span>
-                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${Number(exam.avg_difficulty) >= 3.5 ? 'bg-red-50 text-red-600' :
-                                                Number(exam.avg_difficulty) >= 2.5 ? 'bg-yellow-50 text-yellow-600' :
-                                                    'bg-green-50 text-green-600'
-                                                }`}>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${getDifficultyColor(Number(exam.avg_difficulty))}`}>
                                                 Avg Difficulty: {Number(exam.avg_difficulty).toFixed(1)}
                                             </span>
                                         </>
@@ -797,10 +795,7 @@ export default function EditExamPage() {
                                                     {section.avg_difficulty && (
                                                         <>
                                                             <span> • </span>
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${Number(section.avg_difficulty) >= 3.5 ? 'bg-red-100 text-red-800' :
-                                                                Number(section.avg_difficulty) >= 2.5 ? 'bg-yellow-100 text-yellow-800' :
-                                                                    'bg-green-100 text-green-800'
-                                                                }`}>
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getDifficultyColor(Number(section.avg_difficulty))}`}>
                                                                 Diff: {Number(section.avg_difficulty).toFixed(1)}
                                                             </span>
                                                         </>

@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, getText } from '@/lib/utils';
-import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, Calendar, FileText, BarChart2, Gauge } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar, FileText, BarChart2, CheckCircle, XCircle, AlertCircle, Gauge } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getDifficultyBadge } from '@/lib/performance';
 import {
     BarChart,
     Bar,
@@ -32,13 +33,6 @@ interface ExamAttempt {
     totalQuestions: number;
     percentage: number | null;
 }
-
-const getDifficultyBadge = (difficulty: number) => {
-    if (difficulty <= 1.5) return { label: 'Easy', color: 'bg-green-100 text-green-700' };
-    if (difficulty <= 2.5) return { label: 'Medium', color: 'bg-yellow-100 text-yellow-700' };
-    if (difficulty <= 3.5) return { label: 'Moderate', color: 'bg-orange-100 text-orange-700' };
-    return { label: 'Hard', color: 'bg-red-100 text-red-700' };
-};
 
 export default function ExamHistoryPage() {
     const router = useRouter();
