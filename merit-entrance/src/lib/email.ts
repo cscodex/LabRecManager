@@ -86,7 +86,6 @@ export function generateVerificationToken(): string {
 }
 
 export function getVerificationExpiry(): Date {
-    const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 24); // 24 hours from now
-    return expiry;
+    // Use milliseconds to add 24 hours - more reliable than setHours
+    return new Date(Date.now() + 24 * 60 * 60 * 1000);
 }

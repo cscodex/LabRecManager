@@ -114,8 +114,14 @@ export async function POST(request: NextRequest) {
 
         // Generate reset token (expires in 1 hour)
         const resetToken = generateVerificationToken();
-        const resetExpires = new Date();
-        resetExpires.setHours(resetExpires.getHours() + 1);
+        // Use milliseconds to add 1 hour - more reliable than setHours
+        const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
+
+        console.log('=== PASSWORD RESET DEBUG ===');
+        console.log('Current Date.now():', Date.now());
+        console.log('Current time:', new Date().toISOString());
+        console.log('Reset expires:', resetExpires.toISOString());
+        console.log('===========================');
 
         // Update student with reset token
         await sql`
