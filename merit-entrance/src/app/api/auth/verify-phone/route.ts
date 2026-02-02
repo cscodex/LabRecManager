@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
     try {
         const session = await getSession();
-        if (!session || !session.user?.id) {
+        if (!session || !session.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No phone number in token' }, { status: 400 });
         }
 
-        console.log(`Verifying phone for student ${session.user.id}: ${phoneNumber}`);
+        console.log(`Verifying phone for student ${session.id}: ${phoneNumber}`);
 
         // Update student record
         // Trust the phone number from Firebase and update it in our DB
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
             SET phone = ${phoneNumber}, 
                 phone_verified = true, 
                 firebase_uid = ${uid}
-            WHERE id = ${session.user.id}
+            WHERE id = ${session.id}
         `;
 
         return NextResponse.json({
