@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
         // Generate reset token (expires in 1 hour)
         const resetToken = generateVerificationToken();
         // Use milliseconds to add 1 hour - more reliable than setHours
-        const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
+        // 24 hours expiry
+        const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         console.log('=== PASSWORD RESET DEBUG ===');
         console.log('Current Date.now():', Date.now());

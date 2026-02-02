@@ -35,8 +35,24 @@ export async function POST(request: NextRequest) {
         const student = students[0];
 
         // Check if token has expired
-        if (student.verification_expires && new Date(student.verification_expires) < new Date()) {
-            return NextResponse.json({ error: 'Reset link has expired. Please request a new one.' }, { status: 400 });
+        if (student.verification_expires) {
+            const expiryDate = new Date(student.verification_expires);
+            // 24 hours expiry to account for any timezone drifts
+            const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const now = new Date();
+
+            console.log('Password Reset Check:', {
+                expiry: expiryDate.toISOString(),
+                now: now.toISOString(),
+                isExpired: expiryDate < now,
+                diffMinutes: (expiryDate.getTime() - now.getTime()) / 1000 / 60
+            });
+
+            if (expiryDate < now) {
+                return NextResponse.json({
+                    error: `Reset link has expired. (Expires: ${expiryDate.toLocaleString()}, Now: ${now.toLocaleString()})`
+                }, { status: 400 });
+            }
         }
 
         // Hash new password
