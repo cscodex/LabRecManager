@@ -30,6 +30,13 @@ export async function GET() {
             ORDER BY ea.submitted_at DESC
         `;
 
+        // Get student details (phone info)
+        const studentInfo = await sql`
+            SELECT phone, phone_verified 
+            FROM students 
+            WHERE id = ${studentId}
+        `;
+
         const examResults = results.map(r => ({
             id: r.exam_id,
             title: typeof r.title === 'string' ? JSON.parse(r.title) : r.title,
@@ -40,7 +47,8 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            examResults
+            examResults,
+            student: studentInfo[0] || {}
         });
     } catch (error) {
         console.error('Profile API error:', error);
