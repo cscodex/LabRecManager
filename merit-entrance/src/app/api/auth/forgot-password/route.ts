@@ -1,55 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { generateVerificationToken, getVerificationExpiry } from '@/lib/email';
-import nodemailer from 'nodemailer';
+import { resend } from '@/lib/resend';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 export const dynamic = 'force-dynamic';
 
-const transporter = nodemailer.createTransport({
-    // Use explicit host and port 465 (SSL) - often more reliable on Render for Gmail
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // true for 465
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-    },
-    // Add timeouts and force IPv4 to prevent hanging
-    connectionTimeout: 20000,
-    socketTimeout: 20000,
-    family: 4, // Force IPv4
-    debug: true, // Show basic debug info
-    logger: true, // Log SMTP traffic to console
-    tls: {
-        rejectUnauthorized: false, // Bypass certificate validation (fixes some handshake hangs)
-    },
-} as any);
-
-// Verify connection configuration
-transporter.verify(function (error, success) {
-    if (error) {
-        console.error('SMTP Connection Error (Startup):', error);
-        console.log('SMTP Configuration Check:', {
-            host: 'smtp.gmail.com',
-            port: 465,
-            secure: true,
-            ipv4Forced: true,
-            userConfigured: !!process.env.GMAIL_USER,
-        });
-    } else {
-        console.log('SMTP Server is ready to take our messages');
-    }
-});
+// Helper to determine the sender address
+const SENDER_EMAIL = process.env.RESEND_VERIFIED_DOMAIN_EMAIL || 'onboarding@resend.dev';
+const SENDER_NAME = 'Merit Entrance';
 
 async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
     const resetUrl = `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/student/reset-password?token=${token}`;
 
-    const mailOptions = {
-        from: `"Merit Entrance" <${process.env.GMAIL_USER}>`,
-        to: email,
-        subject: 'Reset your Merit Entrance password',
-        html: `
+    try {
+        console.log(`Sending password reset email via Resend to: ${email}`);
+
+        const { data, error } = await resend.emails.send({
+            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+            to: email,
+            subject: 'Reset your Merit Entrance password',
+            html: `
             <!DOCTYPE html>
             <html>
             <head>
@@ -99,11 +70,16 @@ async function sendPasswordResetEmail(email: string, name: string, token: string
             </body>
             </html>
         `,
-    };
+        });
 
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log(`Password reset email sent to ${email}`);
+        if (error) {
+            console.error('Error sending password reset email via Resend:', error);
+            // Log full error object for debugging
+            console.error(JSON.stringify(error, null, 2));
+            return false;
+        }
+
+        console.log(`Password reset email sent to ${email} (ID: ${data?.id})`);
         return true;
     } catch (error) {
         console.error('Error sending password reset email:', error);
