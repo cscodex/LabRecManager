@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
         `;
 
         if (students.length === 0) {
+            console.log(`Password Reset Failed: Token not found in DB. Received: ${token.substring(0, 10)}...`);
             return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 });
         }
 
