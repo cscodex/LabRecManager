@@ -10,6 +10,9 @@ const transporter = nodemailer.createTransport({
         pass: process.env.GMAIL_APP_PASSWORD,
     },
     family: 4, // Force IPv4
+    tls: {
+        rejectUnauthorized: false,
+    },
 } as any);
 
 export async function sendVerificationEmail(

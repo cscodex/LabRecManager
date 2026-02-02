@@ -21,6 +21,9 @@ const transporter = nodemailer.createTransport({
     family: 4, // Force IPv4
     debug: true, // Show basic debug info
     logger: true, // Log SMTP traffic to console
+    tls: {
+        rejectUnauthorized: false, // Bypass certificate validation (fixes some handshake hangs)
+    },
 } as any);
 
 // Verify connection configuration
