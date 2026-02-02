@@ -7,14 +7,17 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 export const dynamic = 'force-dynamic';
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    // Use explicit host and port 587 (STARTTLS) to avoid timeouts on Render
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // true for 465, false for other ports
     auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
     },
     // Add timeouts to prevent hanging
-    connectionTimeout: 10000, // 10 seconds
-    socketTimeout: 10000, // 10 seconds
+    connectionTimeout: 10000,
+    socketTimeout: 10000,
 });
 
 // Verify connection configuration
