@@ -110,7 +110,9 @@ async function sendPasswordResetEmail(email: string, name: string, token: string
 
 export async function POST(request: NextRequest) {
     try {
+        console.log('--- Forgot Password Request Started ---');
         const { identifier } = await request.json();
+        console.log('Identifier received:', identifier);
 
         if (!identifier) {
             return NextResponse.json({ error: 'Email or roll number is required' }, { status: 400 });
@@ -124,14 +126,20 @@ export async function POST(request: NextRequest) {
         `;
 
         if (students.length === 0) {
+            console.log('Student not found for identifier:', identifier);
             return NextResponse.json({ error: 'No account found with this email or roll number' }, { status: 404 });
         }
 
         const student = students[0];
+        console.log('Student found:', { id: student.id, hasEmail: !!student.email });
 
         if (!student.email) {
             return NextResponse.json({ error: 'No email associated with this account' }, { status: 400 });
         }
+
+        // Clean email
+        const targetEmail = student.email.trim();
+        console.log(`Preparing to email: '${targetEmail}' (Length: ${targetEmail.length})`);
 
         // Generate reset token (expires in 1 hour)
         const resetToken = generateVerificationToken();
@@ -152,9 +160,10 @@ export async function POST(request: NextRequest) {
                 verification_expires = ${resetExpires.toISOString()}
             WHERE id = ${student.id}
         `;
+        console.log('Database updated with token.');
 
         // Send password reset email
-        const emailSent = await sendPasswordResetEmail(student.email, student.name, resetToken);
+        const emailSent = await sendPasswordResetEmail(targetEmail, student.name, resetToken);
 
         if (!emailSent) {
             return NextResponse.json({
