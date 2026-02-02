@@ -19,6 +19,7 @@ import {
     ChevronDown,
     ChevronRight
 } from 'lucide-react';
+import Clock from '@/components/Clock';
 
 export default function AdminLayout({
     children,
@@ -149,6 +150,9 @@ export default function AdminLayout({
                             <LogOut className="w-4 h-4" />
                             Log Out
                         </button>
+                        <div className="mt-4 px-2">
+                            <Clock />
+                        </div>
                         <div className="mt-4 text-center">
                             <p className="text-xs text-gray-400 font-mono">
                                 v{process.env.NEXT_PUBLIC_COMMIT_HASH || 'dev'}
