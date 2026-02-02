@@ -15,15 +15,23 @@ const transporter = nodemailer.createTransport({
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
     },
-    // Add timeouts to prevent hanging
+    // Add timeouts and force IPv4 to prevent hanging
     connectionTimeout: 10000,
     socketTimeout: 10000,
-});
+    family: 4, // Force IPv4
+} as any);
 
 // Verify connection configuration
 transporter.verify(function (error, success) {
     if (error) {
-        console.error('SMTP Connection Error:', error);
+        console.error('SMTP Connection Error (Startup):', error);
+        console.log('SMTP Configuration Check:', {
+            host: 'smtp.gmail.com',
+            port: 587,
+            secure: false,
+            ipv4Forced: true,
+            userConfigured: !!process.env.GMAIL_USER,
+        });
     } else {
         console.log('SMTP Server is ready to take our messages');
     }

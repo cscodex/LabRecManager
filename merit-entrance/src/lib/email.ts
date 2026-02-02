@@ -9,7 +9,8 @@ const transporter = nodemailer.createTransport({
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
     },
-});
+    family: 4, // Force IPv4
+} as any);
 
 export async function sendVerificationEmail(
     email: string,
