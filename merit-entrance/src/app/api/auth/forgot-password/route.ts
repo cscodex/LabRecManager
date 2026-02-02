@@ -7,17 +7,17 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 export const dynamic = 'force-dynamic';
 
 const transporter = nodemailer.createTransport({
-    // Use explicit host and port 587 (STARTTLS) to avoid timeouts on Render
+    // Use explicit host and port 465 (SSL) - often more reliable on Render for Gmail
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // true for 465, false for other ports
+    port: 465,
+    secure: true, // true for 465
     auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
     },
     // Add timeouts and force IPv4 to prevent hanging
-    connectionTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 20000,
+    socketTimeout: 20000,
     family: 4, // Force IPv4
     debug: true, // Show basic debug info
     logger: true, // Log SMTP traffic to console
@@ -29,8 +29,8 @@ transporter.verify(function (error, success) {
         console.error('SMTP Connection Error (Startup):', error);
         console.log('SMTP Configuration Check:', {
             host: 'smtp.gmail.com',
-            port: 587,
-            secure: false,
+            port: 465,
+            secure: true,
             ipv4Forced: true,
             userConfigured: !!process.env.GMAIL_USER,
         });
