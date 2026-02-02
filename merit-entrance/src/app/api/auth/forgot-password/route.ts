@@ -19,6 +19,8 @@ const transporter = nodemailer.createTransport({
     connectionTimeout: 10000,
     socketTimeout: 10000,
     family: 4, // Force IPv4
+    debug: true, // Show basic debug info
+    logger: true, // Log SMTP traffic to console
 } as any);
 
 // Verify connection configuration
