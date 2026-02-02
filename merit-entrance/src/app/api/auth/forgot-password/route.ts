@@ -12,6 +12,18 @@ const transporter = nodemailer.createTransport({
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
     },
+    // Add timeouts to prevent hanging
+    connectionTimeout: 10000, // 10 seconds
+    socketTimeout: 10000, // 10 seconds
+});
+
+// Verify connection configuration
+transporter.verify(function (error, success) {
+    if (error) {
+        console.error('SMTP Connection Error:', error);
+    } else {
+        console.log('SMTP Server is ready to take our messages');
+    }
 });
 
 async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
