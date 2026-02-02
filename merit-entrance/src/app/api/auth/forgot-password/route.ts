@@ -111,11 +111,7 @@ export async function POST(request: NextRequest) {
         `;
 
         if (students.length === 0) {
-            // Don't reveal if user exists - security best practice
-            return NextResponse.json({
-                success: true,
-                message: 'If an account exists with this email/roll number, a password reset link has been sent.'
-            });
+            return NextResponse.json({ error: 'No account found with this email or roll number' }, { status: 404 });
         }
 
         const student = students[0];
