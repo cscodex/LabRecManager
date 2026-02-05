@@ -272,82 +272,105 @@ export default function ExamAssignPage() {
             {activeTab === 'assign' ? (
                 <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 flex gap-6 items-start">
                     {/* Left Sidebar: Configuration */}
-                    <div className="w-80 flex-shrink-0 space-y-4">
-                        {/* Mode Selection */}
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                            <h3 className="font-semibold text-gray-900 mb-3">Assignment Mode</h3>
-                            <div className="flex flex-col gap-2">
-                                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${mode === 'append' ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-500' : 'hover:bg-gray-50'}`}>
-                                    <input type="radio" name="mode" checked={mode === 'append'} onChange={() => setMode('append')} className="mt-1" />
-                                    <div>
-                                        <span className="font-medium text-gray-900 block">Add / Update</span>
-                                        <span className="text-xs text-gray-500">Adds selected students or updates their settings. Keeps others.</span>
+                    <div className="w-80 flex-shrink-0 space-y-6">
+
+                        {/* 1. Exam Schedule (Most Important) */}
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-blue-100 ring-1 ring-blue-50">
+                            <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="p-1 bg-blue-100 rounded text-blue-600"><History className="w-4 h-4" /></span>
+                                Exam Schedule
+                            </h3>
+
+                            <div className="space-y-4">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <div className="relative inline-flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={scheduleType === 'new'}
+                                            onChange={(e) => setScheduleType(e.target.checked ? 'new' : 'none')}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </div>
+                                    <span className="text-sm font-medium text-gray-700">
+                                        {scheduleType === 'new' ? 'Scheduled Access' : 'Always Open'}
+                                    </span>
                                 </label>
-                                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${mode === 'replace' ? 'bg-red-50 border-red-200 ring-1 ring-red-500' : 'hover:bg-gray-50'}`}>
-                                    <input type="radio" name="mode" checked={mode === 'replace'} onChange={() => setMode('replace')} className="mt-1" />
-                                    <div>
-                                        <span className="font-medium text-red-900 block">Replace All</span>
-                                        <span className="text-xs text-red-700">Removes ALL current assignments and sets only selected students.</span>
+
+                                {scheduleType === 'new' && (
+                                    <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-2">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Start Date & Time</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={startTime}
+                                                onChange={(e) => setStartTime(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">End Date & Time</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={endTime}
+                                                onChange={(e) => setEndTime(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-500 italic">
+                                            Students can only access the exam between these times.
+                                        </p>
                                     </div>
-                                </label>
+                                )}
+                                {scheduleType === 'none' && (
+                                    <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                                        Students can start the exam at any time after assignment.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
-                        {/* Settings */}
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
-                            <h3 className="font-semibold text-gray-900">Settings</h3>
-
+                        {/* 2. Assignment Mode & Limits */}
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Max Attempts</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={maxAttempts}
-                                    onChange={(e) => setMaxAttempts(parseInt(e.target.value))}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
-                                <select
-                                    value={scheduleType}
-                                    onChange={(e) => setScheduleType(e.target.value as any)}
-                                    className="w-full px-3 py-2 border rounded-lg"
-                                >
-                                    <option value="none">No Specific Schedule (Always Open)</option>
-                                    <option value="new">Create New Schedule</option>
-                                </select>
-                            </div>
-
-                            {scheduleType === 'new' && (
-                                <div className="space-y-3 pt-2 border-t">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Start Time</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={startTime}
-                                            onChange={(e) => setStartTime(e.target.value)}
-                                            className="w-full px-3 py-1.5 border rounded text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">End Time</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={endTime}
-                                            onChange={(e) => setEndTime(e.target.value)}
-                                            className="w-full px-3 py-1.5 border rounded text-sm"
-                                        />
-                                    </div>
+                                <h3 className="font-semibold text-gray-900 mb-3">Assignment Mode</h3>
+                                <div className="space-y-2">
+                                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${mode === 'append' ? 'bg-gray-50 border-gray-300 ring-1 ring-gray-200' : 'hover:bg-gray-50 border-gray-200'}`}>
+                                        <input type="radio" name="mode" checked={mode === 'append'} onChange={() => setMode('append')} className="mt-1" />
+                                        <div>
+                                            <span className="font-medium text-gray-900 text-sm block">Add to Existing</span>
+                                            <span className="text-xs text-gray-500">Adds selected students. Does not affect others.</span>
+                                        </div>
+                                    </label>
+                                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${mode === 'replace' ? 'bg-red-50 border-red-200 ring-1 ring-red-200' : 'hover:bg-gray-50 border-gray-200'}`}>
+                                        <input type="radio" name="mode" checked={mode === 'replace'} onChange={() => setMode('replace')} className="mt-1" />
+                                        <div>
+                                            <span className="font-medium text-red-900 text-sm block">Replace All</span>
+                                            <span className="text-xs text-red-700">Removes EVERYONE else. Only selected will remain.</span>
+                                        </div>
+                                    </label>
                                 </div>
-                            )}
+                            </div>
+
+                            <div className="pt-4 border-t">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Max Attempts Allowed</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        value={maxAttempts}
+                                        onChange={(e) => setMaxAttempts(parseInt(e.target.value))}
+                                        className="w-20 px-3 py-2 border rounded-lg text-center"
+                                    />
+                                    <span className="text-sm text-gray-500">attempts per student</span>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Auto-Assign for New Students */}
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
-                            <div className="flex items-center justify-between">
+                        {/* 3. Auto-Assign */}
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                            <div className="flex items-center justify-between mb-2">
                                 <h3 className="font-semibold text-gray-900">Auto-Assign</h3>
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input
@@ -356,37 +379,34 @@ export default function ExamAssignPage() {
                                         onChange={(e) => setAutoAssign(e.target.checked)}
                                         className="sr-only peer"
                                     />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
                                 </label>
                             </div>
-
-                            <p className="text-xs text-gray-500">
-                                When enabled, new students will automatically be assigned to this exam on registration.
+                            <p className="text-xs text-gray-500 mb-4">
+                                Automatically assign this exam to new students when they register.
                             </p>
 
                             {autoAssign && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Default Attempts
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="10"
-                                        value={autoAssignAttempts}
-                                        onChange={(e) => setAutoAssignAttempts(parseInt(e.target.value) || 3)}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    />
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Default Attempts</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={autoAssignAttempts}
+                                            onChange={(e) => setAutoAssignAttempts(parseInt(e.target.value) || 3)}
+                                            className="w-full px-3 py-2 border rounded-lg text-sm"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={saveAutoAssignSettings}
+                                        disabled={savingAutoAssign}
+                                        className="w-full px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-medium hover:bg-green-100 disabled:opacity-50"
+                                    >
+                                        {savingAutoAssign ? 'Saving...' : 'Save Settings'}
+                                    </button>
                                 </div>
                             )}
-
-                            <button
-                                onClick={saveAutoAssignSettings}
-                                disabled={savingAutoAssign}
-                                className="w-full px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {savingAutoAssign ? 'Saving...' : 'Save Auto-Assign Settings'}
-                            </button>
                         </div>
                     </div>
 

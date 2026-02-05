@@ -196,16 +196,10 @@ export default function AdminExamsPage() {
                                     <span>Created: {formatDateTimeIST(exam.created_at)}</span>
                                     <div className="flex gap-2">
                                         <Link
-                                            href={`/admin/exams/${exam.id}/schedule`}
-                                            className="text-blue-600 hover:underline"
-                                        >
-                                            Schedule
-                                        </Link>
-                                        <Link
                                             href={`/admin/exams/${exam.id}/assign`}
                                             className="text-blue-600 hover:underline"
                                         >
-                                            Assign Students
+                                            Assign & Schedule
                                         </Link>
                                     </div>
                                 </div>
