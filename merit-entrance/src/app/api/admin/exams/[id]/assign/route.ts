@@ -86,13 +86,69 @@ export async function POST(
             return NextResponse.json({ error: 'Student IDs are required' }, { status: 400 });
         }
 
-        // 1. Handle Schedule
+        // 1. Resolve New Schedule details for validation
+        let newScheduleStart: Date | null = null;
+        let newScheduleEnd: Date | null = null;
         let finalScheduleId: string | null = null;
 
-        if (scheduleType === 'existing' && providedScheduleId) {
+        if (scheduleType === 'new' && startTime && endTime) {
+            newScheduleStart = new Date(startTime);
+            newScheduleEnd = new Date(endTime);
+            // Create schedule LATER after validation passed
+        } else if (scheduleType === 'existing' && providedScheduleId) {
             finalScheduleId = providedScheduleId;
-        } else if (scheduleType === 'new' && startTime && endTime) {
-            // Create new schedule
+            const existingParams = await sql`SELECT start_time, end_time FROM exam_schedules WHERE id = ${providedScheduleId}`;
+            if (existingParams.length > 0) {
+                newScheduleStart = new Date(existingParams[0].start_time);
+                newScheduleEnd = new Date(existingParams[0].end_time);
+            }
+        }
+        // If scheduleType is 'none', both are null (Always Open)
+
+        // 2. Validation for 'append' mode
+        if (mode === 'append') {
+            const existingAssignments = await sql`
+                SELECT ea.student_id, ea.schedule_id, es.start_time, es.end_time, s.name, s.roll_number
+                FROM exam_assignments ea
+                JOIN students s ON ea.student_id = s.id
+                LEFT JOIN exam_schedules es ON ea.schedule_id = es.id
+                WHERE ea.exam_id = ${params.id}
+                AND ea.student_id = ANY(${studentIds}::uuid[])
+            `;
+
+            for (const studentId of studentIds) {
+                const assigned = existingAssignments.filter(a => a.student_id === studentId);
+
+                for (const exist of assigned) {
+                    // Conflict Type 1: Always Open clash
+                    // If NEW is Always Open OR EXISITING is Always Open -> Conflict
+                    const newIsAlwaysOpen = !newScheduleStart && !newScheduleEnd;
+                    const existIsAlwaysOpen = !exist.schedule_id; // If schedule_id is null, it's always open.
+
+                    if (newIsAlwaysOpen || existIsAlwaysOpen) {
+                        return NextResponse.json({
+                            error: `Schedule Conflict: Student ${exist.name} (${exist.roll_number}) already has an assignment. "Always Open" exams cannot strictly overlap with other schedules.`
+                        }, { status: 409 });
+                    }
+
+                    // Conflict Type 2: Time Overlap
+                    // (StartA < EndB) and (EndA > StartB)
+                    if (newScheduleStart && newScheduleEnd && exist.start_time && exist.end_time) {
+                        const existStart = new Date(exist.start_time);
+                        const existEnd = new Date(exist.end_time);
+
+                        if (newScheduleStart < existEnd && newScheduleEnd > existStart) {
+                            return NextResponse.json({
+                                error: `Schedule Overlap: Student ${exist.name} (${exist.roll_number}) has a conflicting schedule (${existStart.toLocaleString()} - ${existEnd.toLocaleString()}).`
+                            }, { status: 409 });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Create Schedule if needed (Post-Validation)
+        if (scheduleType === 'new' && !finalScheduleId && newScheduleStart && newScheduleEnd) {
             const [newSchedule] = await sql`
                 INSERT INTO exam_schedules (exam_id, start_time, end_time)
                 VALUES (${params.id}, ${startTime}, ${endTime})
@@ -101,70 +157,23 @@ export async function POST(
             finalScheduleId = newSchedule.id;
         }
 
-        // 2. Handle Assignments based on Mode
+        // 4. Handle Assignments
         if (mode === 'replace') {
-            // Delete ALL existing assignments for this exam
             await sql`DELETE FROM exam_assignments WHERE exam_id = ${params.id}`;
         }
 
         let addedCount = 0;
-        let updatedCount = 0;
 
-        // 3. Process each student
         for (const studentId of studentIds) {
             try {
-                // Upsert logic
-                // If mode is 'replace', we already wiped, so it's fresh insert.
-                // If mode is 'append', we want to insert if not exists, OR update keys if exists?
-                // The user said "Add to existing" (Append).
-                // Usually append means "Add new ones, leave old ones alone" OR "Update conflicting ones"?
-                // Let's assume we Update configuration (attempts/schedule) for selected students regardless.
-
-                const result = await sql`
-                    INSERT INTO exam_assignments (exam_id, student_id, max_attempts, schedule_id)
-                    VALUES (${params.id}, ${studentId}, ${maxAttempts}, ${finalScheduleId})
-                    ON CONFLICT (exam_id, student_id, schedule_id) 
-                    DO UPDATE SET 
-                        max_attempts = ${maxAttempts},
-                        schedule_id = ${finalScheduleId}
-                    RETURNING id
-                `;
-                // Note: The constraint is typically unique([exam_id, student_id]).
-                // The schema says: @@unique([examId, studentId, scheduleId]) -> This is weird if a student can be assigned multiple schedules for same exam?
-                // Let's check schema...
-                // Schema: @@unique([examId, studentId, scheduleId])
-                // Wait, if the constraint includes scheduleId, a student can have MULTIPLE assignments for same exam if schedules differ.
-                // Re-reading Schema: 
-                // model ExamAssignment { ... @@unique([examId, studentId, scheduleId]) }
-                // This implies a student can be assigned multiple times to the same exam under DIFFERENT schedules.
-                // BUT usually we want one assignment per exam per student.
-                // Let's check if there's a simpler constraint.
-                // If the user wants to "Assign Exam" usually it means "Assign this student to this exam".
-                // If the constraint allows multiple, 'ON CONFLICT' might fail to trigger if we interpret "same student, same exam" as conflict 
-                // but the DB sees "same student, same exam, DIFFERENT schedule" as unique.
-
-                // CRITICAL: We should check if we want to update ANY assignment for this student/exam or insert new.
-                // For simplicity in this upgrade, let's try to maintain one active assignment or update existing.
-                // However, without changing schema constraint, we might create duplicates.
-                // Let's check if we can wipe previous assignments for this specific student if we are in 'append' mode to ensure 'latest' config applies?
-                // OR we just use the Insert.
-
-                // Let's assume for this specific exam/student, we delete old and insert new to enforce "current config".
-                // This avoids the complex unique key issue.
-
-                if (mode === 'append') {
-                    // Check if already assigned?
-                    // Ideally we want to UPDATE the existing assignment to the new settings.
-                    // But if unique key includes scheduleId, we can't easily "target" the row without knowing the old scheduleId.
-                    // So, safer approach for 'Append' (Update Selected):
-                    // 1. Delete any existing assignment for this student/exam
-                    // 2. Insert new
-                    await sql`DELETE FROM exam_assignments WHERE exam_id = ${params.id} AND student_id = ${studentId}`;
-                }
+                // For 'append', we now allow inserting multiple (Validation ensured non-overlap)
+                // We rely on the DB unique constraint (examId, studentId, scheduleId) to prevent EXACT duplicate of same schedule
 
                 await sql`
                     INSERT INTO exam_assignments (exam_id, student_id, max_attempts, schedule_id)
                     VALUES (${params.id}, ${studentId}, ${maxAttempts}, ${finalScheduleId})
+                    ON CONFLICT (exam_id, student_id, schedule_id) 
+                    DO UPDATE SET max_attempts = ${maxAttempts}
                 `;
 
                 // Log Assignment
