@@ -34,16 +34,25 @@ export async function POST(
         const max_attempts = assignments[0].max_attempts ? parseInt(String(assignments[0].max_attempts)) : 1;
 
         // Check if exam is active
-        const schedules = await sql`
-      SELECT id FROM exam_schedules
-      WHERE exam_id = ${examId}
-        AND start_time <= NOW()
-        AND end_time >= NOW()
-    `;
+        // First check if this exam has ANY schedules at all
+        const allSchedules = await sql`
+            SELECT id FROM exam_schedules WHERE exam_id = ${examId}
+        `;
 
-        if (schedules.length === 0) {
-            return NextResponse.json({ error: 'Exam is not currently active' }, { status: 400 });
+        // If exam has schedules, check for an active one
+        if (allSchedules.length > 0) {
+            const activeSchedules = await sql`
+                SELECT id FROM exam_schedules
+                WHERE exam_id = ${examId}
+                    AND start_time <= NOW()
+                    AND end_time >= NOW()
+            `;
+
+            if (activeSchedules.length === 0) {
+                return NextResponse.json({ error: 'Exam is not currently active' }, { status: 400 });
+            }
         }
+        // If exam has NO schedules, it's "always open" - allow starting
 
         // Check for existing attempts
         const attempts = await sql`
