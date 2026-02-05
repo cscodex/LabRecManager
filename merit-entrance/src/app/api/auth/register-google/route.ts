@@ -53,7 +53,7 @@ async function autoAssignExamsToStudent(studentId: string) {
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email, phone, class: studentClass, school, password, googleId } = await request.json();
+        const { name, email, phone, class: studentClass, school, state, district, password, googleId } = await request.json();
 
         if (!name || !email) {
             return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
@@ -91,6 +91,8 @@ export async function POST(request: NextRequest) {
                 phone,
                 class,
                 school,
+                state,
+                district,
                 password_hash, 
                 is_active,
                 email_verified,
@@ -105,6 +107,8 @@ export async function POST(request: NextRequest) {
                 ${phone || null},
                 ${studentClass || null},
                 ${school || null},
+                ${state || null},
+                ${district || null},
                 ${passwordHash}, 
                 true,
                 false,

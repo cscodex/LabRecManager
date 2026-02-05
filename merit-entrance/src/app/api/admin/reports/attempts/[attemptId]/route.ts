@@ -154,6 +154,13 @@ export async function GET(
             ? sectionData.reduce((sum, s) => sum + s.avgDifficulty, 0) / sectionData.length
             : 1;
 
+        // Calculate time spent
+        const startTime = new Date(attempt.started_at).getTime();
+        const endTime = attempt.submitted_at ? new Date(attempt.submitted_at).getTime() : Date.now();
+        const timeSpentMs = endTime - startTime;
+        const timeSpentMinutes = Math.floor(timeSpentMs / 60000);
+        const timeSpentSeconds = Math.floor((timeSpentMs % 60000) / 1000);
+
         return NextResponse.json({
             success: true,
             attempt: {
@@ -169,6 +176,12 @@ export async function GET(
                 percentage: totalMarks > 0 ? Math.round((totalScore / totalMarks) * 100) : 0,
                 passed: attempt.passing_marks ? totalScore >= attempt.passing_marks : null,
                 overallPerformanceFactor: calculatePerformanceFactor(totalScore, totalMarks, overallDifficulty),
+                timeSpent: {
+                    minutes: timeSpentMinutes,
+                    seconds: timeSpentSeconds,
+                    formatted: `${timeSpentMinutes}m ${timeSpentSeconds}s`,
+                    totalSeconds: Math.floor(timeSpentMs / 1000)
+                },
                 student: {
                     id: attempt.student_id,
                     name: attempt.student_name,

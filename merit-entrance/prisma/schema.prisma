@@ -32,6 +32,8 @@ model Student {
   photoUrl            String?      @map("photo_url")
   class               String?
   school              String?
+  state               String?
+  district            String?
   isActive            Boolean      @default(true) @map("is_active")
   createdAt           DateTime     @default(now()) @map("created_at")
   // Email verification fields

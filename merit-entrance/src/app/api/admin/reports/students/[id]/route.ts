@@ -18,9 +18,9 @@ export async function GET(
 
         const { id } = await params;
 
-        // 1. Get Student Info
+        // 1. Get Student Info with all fields
         const students = await sql`
-            SELECT id, name, email, roll_number, photo_url, created_at
+            SELECT id, name, email, roll_number, phone, class, school, state, district, photo_url, created_at
             FROM students WHERE id = ${id}
         `;
         if (students.length === 0) {
@@ -45,12 +45,7 @@ export async function GET(
             ORDER BY ea.started_at DESC
         `;
 
-        // 3. For each attempt, calculate section-wise performance (if submitted)
-        // This might be expensive, so maybe we do it on demand? 
-        // Or just do a simple aggregation here.
-        // Let's do a simple aggregation for the "Analysis" tab.
-
-        // Fetch all section scores for this student
+        // 3. Fetch all section scores for this student
         const sectionPerformance = await sql`
             SELECT 
                 ea.id as attempt_id,
@@ -66,10 +61,47 @@ export async function GET(
             GROUP BY ea.id, s.id, s.name
         `;
 
+        // 4. Calculate summary statistics
+        const submittedAttempts = attempts.filter((a: any) => a.status === 'submitted');
+        const totalExams = submittedAttempts.length;
+        let avgScore = 0;
+        let bestExam = null;
+        let worstExam = null;
+
+        if (totalExams > 0) {
+            // Calculate average percentage
+            const percentages = submittedAttempts.map((a: any) => {
+                const pct = a.total_marks > 0 ? (a.total_score / a.total_marks) * 100 : 0;
+                return { ...a, percentage: pct };
+            });
+            avgScore = percentages.reduce((sum: number, a: any) => sum + a.percentage, 0) / totalExams;
+
+            // Find best and worst
+            const sorted = [...percentages].sort((a: any, b: any) => b.percentage - a.percentage);
+            bestExam = {
+                title: typeof sorted[0].title === 'string' ? JSON.parse(sorted[0].title) : sorted[0].title,
+                score: sorted[0].total_score,
+                totalMarks: sorted[0].total_marks,
+                percentage: sorted[0].percentage.toFixed(1)
+            };
+            worstExam = {
+                title: typeof sorted[sorted.length - 1].title === 'string' ? JSON.parse(sorted[sorted.length - 1].title) : sorted[sorted.length - 1].title,
+                score: sorted[sorted.length - 1].total_score,
+                totalMarks: sorted[sorted.length - 1].total_marks,
+                percentage: sorted[sorted.length - 1].percentage.toFixed(1)
+            };
+        }
+
         return NextResponse.json({
             success: true,
             student: {
                 ...student,
+                summary: {
+                    totalExams,
+                    avgScore: avgScore.toFixed(1),
+                    bestExam,
+                    worstExam
+                },
                 attempts: attempts.map(a => ({
                     ...a,
                     title: typeof a.title === 'string' ? JSON.parse(a.title) : a.title,
@@ -89,3 +121,4 @@ export async function GET(
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+

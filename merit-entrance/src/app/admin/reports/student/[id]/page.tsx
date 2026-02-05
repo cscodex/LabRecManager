@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { ChevronLeft, Calendar, Award, Clock, FileText, BarChart2 } from 'lucide-react';
+import { ChevronLeft, Calendar, Award, FileText, BarChart2, TrendingUp, TrendingDown, MapPin, BookOpen, User } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -72,11 +72,29 @@ export default function StudentDetailsPage() {
                     </Link>
                     <div className="flex items-start justify-between">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">{studentData.name}</h1>
-                            <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                <User className="w-6 h-6 text-indigo-600" />
+                                {studentData.name}
+                            </h1>
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mt-1">
                                 <span>{studentData.email}</span>
                                 <span>•</span>
                                 <span>Roll: {studentData.roll_number || 'N/A'}</span>
+                                {studentData.class && (
+                                    <>
+                                        <span>•</span>
+                                        <span>Class: {studentData.class}</span>
+                                    </>
+                                )}
+                                {(studentData.state || studentData.district) && (
+                                    <>
+                                        <span>•</span>
+                                        <span className="flex items-center gap-1">
+                                            <MapPin className="w-3.5 h-3.5" />
+                                            {studentData.district}{studentData.district && studentData.state && ', '}{studentData.state}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className="text-right">
@@ -90,6 +108,42 @@ export default function StudentDetailsPage() {
             </div>
 
             <main className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+                {/* Summary Cards */}
+                {studentData.summary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                            <p className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                                <BookOpen className="w-4 h-4" /> Total Exams
+                            </p>
+                            <p className="text-3xl font-bold text-gray-900 mt-1">{studentData.summary.totalExams}</p>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                            <p className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                                <Award className="w-4 h-4" /> Avg Score
+                            </p>
+                            <p className="text-3xl font-bold text-blue-600 mt-1">{studentData.summary.avgScore}%</p>
+                        </div>
+                        {studentData.summary.bestExam && (
+                            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <p className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                                    <TrendingUp className="w-4 h-4 text-green-500" /> Best Exam
+                                </p>
+                                <p className="text-lg font-bold text-green-600 mt-1">{studentData.summary.bestExam.percentage}%</p>
+                                <p className="text-xs text-gray-500 truncate">{getText(studentData.summary.bestExam.title, language)}</p>
+                            </div>
+                        )}
+                        {studentData.summary.worstExam && (
+                            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <p className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                                    <TrendingDown className="w-4 h-4 text-red-500" /> Worst Exam
+                                </p>
+                                <p className="text-lg font-bold text-red-500 mt-1">{studentData.summary.worstExam.percentage}%</p>
+                                <p className="text-xs text-gray-500 truncate">{getText(studentData.summary.worstExam.title, language)}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <FileText className="w-5 h-5 text-indigo-600" />
                     Exam History & Performance
@@ -126,6 +180,12 @@ export default function StudentDetailsPage() {
                                                 {attempt.total_score || 0} <span className="text-sm font-normal text-gray-400">/ {attempt.total_marks}</span>
                                             </div>
                                         </div>
+                                        <Link
+                                            href={`/admin/reports/attempts/${attempt.id}`}
+                                            className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
+                                        >
+                                            View Details
+                                        </Link>
                                     </div>
                                 </div>
 
@@ -168,3 +228,4 @@ export default function StudentDetailsPage() {
         </div>
     );
 }
+

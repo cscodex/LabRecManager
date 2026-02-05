@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { formatDateTimeIST, isExamActive, hasExamEnded, getText } from '@/lib/utils';
-import { BookOpen, Clock, Calendar, ChevronRight, LogOut, User, Menu, X } from 'lucide-react';
+import { formatDateTimeIST, getText } from '@/lib/utils';
+import { BookOpen, Clock, Calendar, ChevronRight, LogOut, User, Menu, X, Infinity } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Exam {
@@ -15,10 +15,11 @@ interface Exam {
     totalMarks: number;
     sectionCount: number;
     questionCount: number;
+    isAlwaysOpen: boolean;
     schedule: {
         startTime: string;
         endTime: string;
-    };
+    } | null;
     maxAttempts: number;
     attemptCount: number;
     canAttempt: boolean;
@@ -97,24 +98,37 @@ export default function StudentDashboard() {
     };
 
     const getExamStatus = (exam: Exam) => {
-        const now = new Date();
-        const start = new Date(exam.schedule.startTime);
-        const end = new Date(exam.schedule.endTime);
-
-        const isExpired = now > end;
-        const isActive = now >= start && now <= end;
         const attemptsExhausted = exam.attemptCount >= exam.maxAttempts;
 
         if (attemptsExhausted) {
             return { status: 'completed', label: 'Completed', color: 'bg-gray-100 text-gray-700 border border-gray-300' };
         }
-        if (isExpired) {
-            return { status: 'expired', label: 'Expired', color: 'bg-red-50 text-red-600 border border-red-200' };
+
+        // Always open exams - no time restrictions
+        if (exam.isAlwaysOpen) {
+            return { status: 'active', label: 'Available', color: 'bg-green-50 text-green-700 border border-green-200 ring-1 ring-green-100' };
         }
-        if (isActive) {
-            return { status: 'active', label: 'Active Now', color: 'bg-green-50 text-green-700 border border-green-200 ring-1 ring-green-100' };
+
+        // Scheduled exams - check time window
+        if (exam.schedule) {
+            const now = new Date();
+            const start = new Date(exam.schedule.startTime);
+            const end = new Date(exam.schedule.endTime);
+
+            const isExpired = now > end;
+            const isActive = now >= start && now <= end;
+
+            if (isExpired) {
+                return { status: 'expired', label: 'Expired', color: 'bg-red-50 text-red-600 border border-red-200' };
+            }
+            if (isActive) {
+                return { status: 'active', label: 'Active Now', color: 'bg-green-50 text-green-700 border border-green-200 ring-1 ring-green-100' };
+            }
+            return { status: 'upcoming', label: 'Upcoming', color: 'bg-blue-50 text-blue-700 border border-blue-200' };
         }
-        return { status: 'upcoming', label: 'Upcoming', color: 'bg-blue-50 text-blue-700 border border-blue-200' };
+
+        // Fallback - treat as available if no schedule info
+        return { status: 'active', label: 'Available', color: 'bg-green-50 text-green-700 border border-green-200' };
     };
 
     if (!_hasHydrated || loading) {
@@ -142,6 +156,8 @@ export default function StudentDashboard() {
                     <div className="grid gap-4 sm:gap-6">
                         {exams.map((exam) => {
                             const { status, label, color } = getExamStatus(exam);
+                            const canStart = status === 'active' && exam.canAttempt;
+
                             return (
                                 <div
                                     key={exam.assignmentId}
@@ -171,9 +187,18 @@ export default function StudentDashboard() {
                                                 </div>
                                                 <div className="flex items-center gap-1.5 col-span-2 sm:col-span-2">
                                                     <Calendar className="w-4 h-4 text-gray-400" />
-                                                    <span className="truncate">
-                                                        {formatDateTimeIST(exam.schedule.startTime)}
-                                                    </span>
+                                                    {exam.isAlwaysOpen ? (
+                                                        <span className="text-green-600 font-medium flex items-center gap-1">
+                                                            <Infinity className="w-4 h-4" />
+                                                            Always Open
+                                                        </span>
+                                                    ) : exam.schedule ? (
+                                                        <span className="truncate">
+                                                            {formatDateTimeIST(exam.schedule.startTime)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-green-600">Available Anytime</span>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -193,7 +218,7 @@ export default function StudentDashboard() {
 
                                         {/* Action Button */}
                                         <div className="flex flex-col gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                                            {status === 'active' && exam.canAttempt && (
+                                            {canStart && (
                                                 <button
                                                     onClick={() => handleStartExam(exam.id, exam.assignmentId)}
                                                     className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"

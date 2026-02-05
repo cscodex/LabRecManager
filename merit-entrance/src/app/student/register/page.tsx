@@ -4,9 +4,10 @@ import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/useTranslation';
-import { BookOpen, AlertCircle, Mail, User, Phone, School, GraduationCap, Lock, Eye, EyeOff, Check, X } from 'lucide-react';
+import { BookOpen, AlertCircle, Mail, User, Phone, School, GraduationCap, Lock, Eye, EyeOff, Check, X, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { signIn } from 'next-auth/react';
+import { indianStates, getDistrictsByStateName } from '@/lib/indianLocations';
 
 // Password strength validation rules
 const passwordRules = [
@@ -38,10 +39,18 @@ function RegistrationContent() {
         phone: '',
         class: '',
         school: '',
+        state: '',
+        district: '',
         password: '',
         confirmPassword: '',
         googleId: googleId || '',
     });
+
+    // Get filtered districts based on selected state
+    const availableDistricts = useMemo(() => {
+        if (!formData.state) return [];
+        return getDistrictsByStateName(formData.state);
+    }, [formData.state]);
 
     useEffect(() => {
         if (needsRegistration && googleEmail) {
@@ -286,8 +295,8 @@ function RegistrationContent() {
                                                             />
                                                         </div>
                                                         <span className={`text-xs font-medium ${passwordStrength.percentage < 40 ? 'text-red-600' :
-                                                                passwordStrength.percentage < 60 ? 'text-orange-600' :
-                                                                    passwordStrength.percentage < 80 ? 'text-yellow-600' : 'text-green-600'
+                                                            passwordStrength.percentage < 60 ? 'text-orange-600' :
+                                                                passwordStrength.percentage < 80 ? 'text-yellow-600' : 'text-green-600'
                                                             }`}>
                                                             {getStrengthLabel(passwordStrength.percentage)}
                                                         </span>
@@ -320,10 +329,10 @@ function RegistrationContent() {
                                                     value={formData.confirmPassword}
                                                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                                                     className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formData.confirmPassword && formData.password !== formData.confirmPassword
-                                                            ? 'border-red-300 bg-red-50'
-                                                            : formData.confirmPassword && formData.password === formData.confirmPassword
-                                                                ? 'border-green-300 bg-green-50'
-                                                                : 'border-gray-300'
+                                                        ? 'border-red-300 bg-red-50'
+                                                        : formData.confirmPassword && formData.password === formData.confirmPassword
+                                                            ? 'border-green-300 bg-green-50'
+                                                            : 'border-gray-300'
                                                         }`}
                                                     placeholder="Confirm your password"
                                                     required
@@ -398,6 +407,47 @@ function RegistrationContent() {
                                             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             placeholder="Enter your school name"
                                         />
+                                    </div>
+                                </div>
+
+                                {/* State */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                        <select
+                                            value={formData.state}
+                                            onChange={(e) => setFormData({ ...formData, state: e.target.value, district: '' })}
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                                        >
+                                            <option value="">Select your state</option>
+                                            {indianStates.map((state) => (
+                                                <option key={state.code} value={state.name}>
+                                                    {state.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* District */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+                                    <div className="relative">
+                                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                        <select
+                                            value={formData.district}
+                                            onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                                            disabled={!formData.state}
+                                        >
+                                            <option value="">{formData.state ? 'Select your district' : 'Select state first'}</option>
+                                            {availableDistricts.map((district) => (
+                                                <option key={district.code} value={district.name}>
+                                                    {district.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
 

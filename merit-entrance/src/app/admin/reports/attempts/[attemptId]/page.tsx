@@ -59,6 +59,12 @@ interface AttemptDetails {
     percentage: number;
     passed: boolean | null;
     overallPerformanceFactor: number;
+    timeSpent?: {
+        minutes: number;
+        seconds: number;
+        formatted: string;
+        totalSeconds: number;
+    };
     student: {
         id: string;
         name: string;
@@ -204,6 +210,14 @@ export default function AttemptDetailsPage() {
                         </p>
                         <p className="text-2xl font-bold text-gray-900 mt-1">{sections.length}</p>
                     </div>
+                    {attempt.timeSpent && (
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                            <p className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                                <Clock className="w-4 h-4" /> Time Spent
+                            </p>
+                            <p className="text-2xl font-bold text-purple-600 mt-1">{attempt.timeSpent.formatted}</p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Section Performance Summary */}
