@@ -83,7 +83,7 @@ export async function GET(
                 q.text,
                 q.type,
                 q.options,
-                q.correct_option,
+                q.correct_answer,
                 q.marks,
                 q.negative_marks,
                 q.difficulty,
@@ -108,12 +108,29 @@ export async function GET(
                     const marks = parseFloat(q.marks) || 1;
                     const marksAwarded = parseFloat(q.marks_awarded) || 0;
 
+                    const options = typeof q.options === 'string' ? JSON.parse(q.options) : (Array.isArray(q.options) ? q.options : []);
+                    let correctOptionIndex = -1;
+
+                    // Parse correct answer and find its index in options
+                    try {
+                        let correctIds = q.correct_answer;
+                        if (typeof correctIds === 'string') correctIds = JSON.parse(correctIds);
+                        // If it's an array, take the first one (assuming single correct for simplified view) or check if it's a single ID
+                        const correctId = Array.isArray(correctIds) ? correctIds[0] : correctIds;
+
+                        if (Array.isArray(options)) {
+                            correctOptionIndex = options.findIndex((opt: any) => opt.id === correctId);
+                        }
+                    } catch (e) {
+                        // Fallback or ignore
+                    }
+
                     return {
                         id: q.id,
                         text: typeof q.text === 'string' ? JSON.parse(q.text) : q.text,
                         type: q.type,
-                        options: typeof q.options === 'string' ? JSON.parse(q.options) : (Array.isArray(q.options) ? q.options : []),
-                        correctOption: q.correct_option,
+                        options: options,
+                        correctOption: correctOptionIndex,
                         marks: marks,
                         negativeMarks: parseFloat(q.negative_marks) || 0,
                         difficulty: difficulty,

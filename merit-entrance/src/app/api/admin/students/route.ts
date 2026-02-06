@@ -14,8 +14,7 @@ export async function GET() {
 
         const students = await sql`
       SELECT 
-        id, roll_number, name, name_regional, email, phone, class, school, is_active, email_verified, created_at,
-        (SELECT COUNT(*) FROM exam_attempts WHERE student_id = students.id) as attempt_count
+        id, roll_number, name, name_regional, email, phone, class, school, is_active, email_verified, created_at
       FROM students
       ORDER BY created_at DESC
     `;

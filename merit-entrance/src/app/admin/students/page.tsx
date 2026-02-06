@@ -336,7 +336,7 @@ export default function ManageStudentsPage() {
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Roll No</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/School</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attempts</th>
+
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -366,11 +366,7 @@ export default function ManageStudentsPage() {
                                                 <div className="text-gray-900">{student.class || '-'}</div>
                                                 <div className="text-gray-500 text-xs truncate max-w-[150px]" title={student.school || ''}>{student.school || '-'}</div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                                                    {student.attempt_count}
-                                                </span>
-                                            </td>
+
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${student.is_active ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                                                     {student.is_active ? 'Active' : 'Disabled'}
