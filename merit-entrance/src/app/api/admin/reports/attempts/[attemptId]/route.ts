@@ -112,7 +112,7 @@ export async function GET(
                         id: q.id,
                         text: typeof q.text === 'string' ? JSON.parse(q.text) : q.text,
                         type: q.type,
-                        options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+                        options: typeof q.options === 'string' ? JSON.parse(q.options) : (Array.isArray(q.options) ? q.options : []),
                         correctOption: q.correct_option,
                         marks: marks,
                         negativeMarks: parseFloat(q.negative_marks) || 0,

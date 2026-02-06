@@ -14,7 +14,7 @@ export async function GET() {
 
         const students = await sql`
       SELECT 
-        id, roll_number, name, name_regional, email, phone, class, school, is_active, created_at,
+        id, roll_number, name, name_regional, email, phone, class, school, is_active, email_verified, created_at,
         (SELECT COUNT(*) FROM exam_attempts WHERE student_id = students.id) as attempt_count
       FROM students
       ORDER BY created_at DESC
@@ -104,7 +104,8 @@ export async function PUT(request: NextRequest) {
                 phone = ${phone || null},
                 class = ${studentClass || null},
                 school = ${school || null},
-                is_active = ${isActive}
+                is_active = ${isActive},
+                email_verified = ${body.emailVerified !== undefined ? body.emailVerified : true}
                 ${passwordQuery}
             WHERE id = ${id}
         `;

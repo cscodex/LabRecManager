@@ -8,7 +8,7 @@ import { formatDateTimeIST } from '@/lib/utils';
 import {
     ChevronLeft, Plus, Users, Search,
     Trash2, Edit, CheckSquare, Square,
-    ChevronRight, X
+    ChevronRight, X, Ban, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,6 +22,7 @@ interface Student {
     class: string | null;
     school: string | null;
     is_active: boolean;
+    email_verified: boolean;
     created_at: string;
     attempt_count: number;
 }
@@ -135,6 +136,56 @@ export default function ManageStudentsPage() {
             }
         } catch (error) {
             toast.error('Error deleting students');
+        }
+    };
+
+    const handleToggleStatus = async (student: Student) => {
+        try {
+            const response = await fetch('/api/admin/students', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: student.id,
+                    rollNumber: student.roll_number,
+                    name: student.name,
+                    isActive: !student.is_active
+                }),
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(`Student ${student.is_active ? 'blocked' : 'activated'}`);
+                loadStudents();
+            } else {
+                toast.error(data.error);
+            }
+        } catch (error) {
+            toast.error('Failed to update status');
+        }
+    };
+
+    const handleVerify = async (student: Student) => {
+        if (!confirm('Mark this student as verified?')) return;
+        try {
+            const response = await fetch('/api/admin/students', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: student.id,
+                    rollNumber: student.roll_number,
+                    name: student.name,
+                    isActive: student.is_active,
+                    emailVerified: true
+                }),
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success('Student verified');
+                loadStudents();
+            } else {
+                toast.error(data.error);
+            }
+        } catch (error) {
+            toast.error('Failed to verify');
         }
     };
 
@@ -333,6 +384,24 @@ export default function ManageStudentsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    {!student.email_verified && (
+                                                        <button
+                                                            onClick={() => handleVerify(student)}
+                                                            className="p-1 hover:bg-green-100 rounded text-gray-500 hover:text-green-600 transition-colors"
+                                                            title="Manually Verify"
+                                                        >
+                                                            <CheckSquare className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleToggleStatus(student)}
+                                                        className={`p-1 rounded transition-colors ${student.is_active
+                                                            ? 'hover:bg-red-100 text-gray-500 hover:text-red-600'
+                                                            : 'hover:bg-green-100 text-red-500 hover:text-green-600'}`}
+                                                        title={student.is_active ? "Block Access" : "Allow Access"}
+                                                    >
+                                                        {student.is_active ? <Ban className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                                                    </button>
                                                     <button
                                                         onClick={() => openEditModal(student)}
                                                         className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-blue-600 transition-colors"
