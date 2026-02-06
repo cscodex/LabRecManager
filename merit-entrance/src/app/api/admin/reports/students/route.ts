@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
             WITH ranked_attempts AS (
                 SELECT 
                     ea.student_id,
-                    e.title as exam_title,
+                    e.title::text as exam_title,
                     ea.total_score,
                     e.total_marks,
                     CASE WHEN e.total_marks > 0 THEN (ea.total_score::float / e.total_marks * 100) ELSE 0 END as percentage,
