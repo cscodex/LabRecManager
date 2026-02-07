@@ -23,35 +23,44 @@ export async function POST(
 
         // Check if student is assigned to this exam
         const assignments = await sql`
-      SELECT id, max_attempts FROM exam_assignments 
-      WHERE exam_id = ${examId} AND student_id = ${studentId}
-    `;
+            SELECT id, max_attempts, schedule_id FROM exam_assignments 
+            WHERE exam_id = ${examId} AND student_id = ${studentId}
+        `;
 
         if (assignments.length === 0) {
             return NextResponse.json({ error: 'Not assigned to this exam' }, { status: 403 });
         }
+        const { max_attempts, schedule_id } = assignments[0];
+        const maxAttempts = max_attempts ? parseInt(String(max_attempts)) : 1;
 
-        const max_attempts = assignments[0].max_attempts ? parseInt(String(assignments[0].max_attempts)) : 1;
-
-        // Check if exam is active
-        // First check if this exam has ANY schedules at all
-        const allSchedules = await sql`
-            SELECT id FROM exam_schedules WHERE exam_id = ${examId}
-        `;
-
-        // If exam has schedules, check for an active one
-        if (allSchedules.length > 0) {
-            const activeSchedules = await sql`
-                SELECT id FROM exam_schedules
-                WHERE exam_id = ${examId}
-                    AND start_time <= NOW()
-                    AND end_time >= NOW()
+        // Check if exam is active based on ASSIGNED SCHEDULE
+        if (schedule_id) {
+            const scheduleResult = await sql`
+                SELECT start_time, end_time FROM exam_schedules WHERE id = ${schedule_id}
             `;
 
-            if (activeSchedules.length === 0) {
-                return NextResponse.json({ error: 'Exam is not currently active' }, { status: 400 });
+            if (scheduleResult.length > 0) {
+                const { start_time, end_time } = scheduleResult[0];
+                const now = new Date();
+                const start = new Date(start_time);
+                const end = new Date(end_time);
+
+                if (now < start) {
+                    return NextResponse.json({
+                        error: 'Exam has not started yet',
+                        details: `Starts at ${start.toLocaleString()}`
+                    }, { status: 400 });
+                }
+
+                if (now > end) {
+                    return NextResponse.json({
+                        error: 'Exam has ended',
+                        details: `Ended at ${end.toLocaleString()}`
+                    }, { status: 400 });
+                }
             }
         }
+        // If schedule_id is NULL, it is "Always Open" for this student -> Allow.
         // If exam has NO schedules, it's "always open" - allow starting
 
         // Check for existing attempts
