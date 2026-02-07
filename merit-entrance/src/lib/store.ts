@@ -47,29 +47,81 @@ interface ExamState {
     currentQuestionIndex: number;
     responses: Record<string, { answer: any; markedForReview: boolean }>;
     timeRemaining: number;
-    setCurrentQuestion: (index: number) => void;
+    responseTimes: Record<string, number>;
+    currentQuestionId: string | null;
+    questionStartTime: number;
+    setCurrentQuestion: (index: number, questionId?: string) => void;
     setResponse: (questionId: string, answer: any, markedForReview?: boolean) => void;
+    updateTimeSpent: (questionId: string, seconds: number) => void;
     setTimeRemaining: (time: number) => void;
     clearExamState: () => void;
 }
 
-export const useExamStore = create<ExamState>((set) => ({
-    currentQuestionIndex: 0,
-    responses: {},
-    timeRemaining: 0,
-    setCurrentQuestion: (index) => set({ currentQuestionIndex: index }),
-    setResponse: (questionId, answer, markedForReview = false) =>
-        set((state) => ({
-            responses: {
-                ...state.responses,
-                [questionId]: { answer, markedForReview },
-            },
-        })),
-    setTimeRemaining: (time) => set({ timeRemaining: time }),
-    clearExamState: () =>
-        set({
+export const useExamStore = create<ExamState>()(
+    persist(
+        (set) => ({
             currentQuestionIndex: 0,
             responses: {},
             timeRemaining: 0,
+            responseTimes: {},
+            currentQuestionId: null,
+            questionStartTime: Date.now(),
+
+            setCurrentQuestion: (index, questionId) =>
+                set((state) => {
+                    const now = Date.now();
+                    const elapsed = state.questionStartTime ? Math.floor((now - state.questionStartTime) / 1000) : 0;
+                    const prevId = state.currentQuestionId;
+
+                    // Update time for previous question if exists
+                    const newResponseTimes = { ...state.responseTimes };
+                    if (prevId) {
+                        newResponseTimes[prevId] = (newResponseTimes[prevId] || 0) + elapsed;
+                    }
+
+                    return {
+                        currentQuestionIndex: index,
+                        currentQuestionId: questionId || null,
+                        questionStartTime: now,
+                        responseTimes: newResponseTimes
+                    };
+                }),
+
+            setResponse: (questionId, answer, markedForReview = false) =>
+                set((state) => ({
+                    responses: {
+                        ...state.responses,
+                        [questionId]: { answer, markedForReview },
+                    },
+                })),
+
+            updateTimeSpent: (questionId, seconds) =>
+                set((state) => ({
+                    responseTimes: {
+                        ...state.responseTimes,
+                        [questionId]: (state.responseTimes[questionId] || 0) + seconds
+                    }
+                })),
+
+            setTimeRemaining: (time) => set({ timeRemaining: time }),
+            clearExamState: () =>
+                set({
+                    currentQuestionIndex: 0,
+                    responses: {},
+                    timeRemaining: 0,
+                    responseTimes: {},
+                    currentQuestionId: null,
+                    questionStartTime: Date.now(),
+                }),
         }),
-}));
+        {
+            name: 'merit-exam-storage',
+            partialize: (state) => ({
+                currentQuestionIndex: state.currentQuestionIndex,
+                responses: state.responses,
+                responseTimes: state.responseTimes,
+                currentQuestionId: state.currentQuestionId,
+            }),
+        }
+    )
+);

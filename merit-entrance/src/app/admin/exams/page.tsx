@@ -199,7 +199,14 @@ export default function AdminExamsPage() {
                                             href={`/admin/exams/${exam.id}/assign`}
                                             className="text-blue-600 hover:underline"
                                         >
-                                            Assign & Schedule
+                                            Assign Students
+                                        </Link>
+                                        <span className="text-gray-300">|</span>
+                                        <Link
+                                            href={`/admin/exams/${exam.id}/monitor`}
+                                            className="text-green-600 hover:underline"
+                                        >
+                                            Live Monitor
                                         </Link>
                                     </div>
                                 </div>

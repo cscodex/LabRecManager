@@ -11,17 +11,20 @@ interface TimerProps {
 export default function Timer({ initialSeconds, onTimeUp }: TimerProps) {
     const [seconds, setSeconds] = useState(initialSeconds);
 
+    // Call onTimeUp when timer reaches 0
     useEffect(() => {
         if (seconds <= 0) {
             onTimeUp();
-            return;
         }
+    }, [seconds, onTimeUp]);
+
+    // Timer countdown - runs only once on mount
+    useEffect(() => {
 
         const interval = setInterval(() => {
             setSeconds((prev) => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    onTimeUp();
                     return 0;
                 }
                 return prev - 1;
@@ -29,7 +32,8 @@ export default function Timer({ initialSeconds, onTimeUp }: TimerProps) {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [seconds, onTimeUp]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Color changes based on time remaining
     const getColorClass = () => {

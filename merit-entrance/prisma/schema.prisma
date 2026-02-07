@@ -185,6 +185,8 @@ model ExamAttempt {
   status      String    @default("in_progress") // in_progress, submitted, evaluated
   pausedAt    DateTime? @map("paused_at") @db.Timestamptz
   timeSpent   Int       @default(0) @map("time_spent")
+  currentQuestionId String? @map("current_question_id") @db.Uuid
+  
   
   exam      Exam      @relation(fields: [examId], references: [id])
   student   Student   @relation(fields: [studentId], references: [id])

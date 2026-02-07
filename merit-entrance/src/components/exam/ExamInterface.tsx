@@ -58,23 +58,30 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
     const currentQuestion = allQuestions[currentQuestionIndex];
     const currentSection = exam.sections.find((s) => s.id === currentSectionId);
 
-    // Auto-save responses periodically
+    // Immediate save on response change (debounced)
     useEffect(() => {
-        const saveInterval = setInterval(async () => {
+        const saveResponses = async () => {
             if (Object.keys(responses).length > 0) {
                 try {
+                    const { responseTimes, currentQuestionId } = useExamStore.getState();
                     await fetch(`/api/attempts/${attemptId}/save`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ responses }),
+                        body: JSON.stringify({
+                            responses,
+                            currentQuestionId,
+                            responseTimes
+                        }),
                     });
                 } catch (error) {
                     console.error('Auto-save failed:', error);
                 }
             }
-        }, 30000); // Save every 30 seconds
+        };
 
-        return () => clearInterval(saveInterval);
+        // Debounce: save 2 seconds after last change
+        const timeoutId = setTimeout(saveResponses, 2000);
+        return () => clearTimeout(timeoutId);
     }, [responses, attemptId]);
 
     // Update current section when question changes
@@ -91,18 +98,21 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
     }, []);
 
     const handleQuestionClick = (index: number) => {
-        setCurrentQuestion(index);
+        const question = allQuestions[index];
+        setCurrentQuestion(index, question?.id);
     };
 
     const handleNext = () => {
         if (currentQuestionIndex < allQuestions.length - 1) {
-            setCurrentQuestion(currentQuestionIndex + 1);
+            const nextIndex = currentQuestionIndex + 1;
+            setCurrentQuestion(nextIndex, allQuestions[nextIndex]?.id);
         }
     };
 
     const handlePrevious = () => {
         if (currentQuestionIndex > 0) {
-            setCurrentQuestion(currentQuestionIndex - 1);
+            const prevIndex = currentQuestionIndex - 1;
+            setCurrentQuestion(prevIndex, allQuestions[prevIndex]?.id);
         }
     };
 
@@ -145,7 +155,12 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
     };
 
     const getAnsweredCount = () => {
-        return Object.values(responses).filter((r) => r.answer !== null).length;
+        return Object.values(responses).filter((r) => {
+            if (r.answer === null || r.answer === undefined) return false;
+            if (Array.isArray(r.answer) && r.answer.length === 0) return false;
+            if (typeof r.answer === 'string' && r.answer.trim() === '') return false;
+            return true;
+        }).length;
     };
 
     const getMarkedCount = () => {
