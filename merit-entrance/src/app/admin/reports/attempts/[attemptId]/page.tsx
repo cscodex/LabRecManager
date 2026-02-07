@@ -18,6 +18,9 @@ const getText = (text: any, lang: 'en' | 'pa') => {
 interface Question {
     id: string;
     text: Record<string, string>;
+    paragraphText?: Record<string, string>;
+    paragraphTitle?: Record<string, string>;
+    imageUrl?: string;
     type: string;
     options: Record<string, string>[];
     correctOption: number;
@@ -298,13 +301,28 @@ export default function AttemptDetailsPage() {
                                                 'bg-gray-50 border-gray-200'
                                             }`}
                                     >
+                                        {q.paragraphText && (
+                                            <div className="mb-4 p-4 bg-white rounded border border-gray-100 shadow-sm">
+                                                {q.paragraphTitle && (
+                                                    <h4 className="text-md font-bold text-gray-800 mb-2">
+                                                        {getText(q.paragraphTitle, language)}
+                                                    </h4>
+                                                )}
+                                                <div className="text-gray-800 text-sm" dangerouslySetInnerHTML={{ __html: getText(q.paragraphText, language) }} />
+                                            </div>
+                                        )}
                                         <div className="flex items-start justify-between gap-4 mb-3">
                                             <div className="flex items-start gap-3">
                                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-white border flex items-center justify-center font-bold text-gray-700">
                                                     {idx + 1}
                                                 </span>
-                                                <div>
-                                                    <p className="text-gray-900 font-medium" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
+                                                <div className="w-full">
+                                                    <p className="text-gray-900 font-medium whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
+                                                    {q.imageUrl && (
+                                                        <div className="mt-3">
+                                                            <img src={q.imageUrl} alt="Question Image" className="max-w-full h-auto rounded border border-gray-200" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 flex-shrink-0">

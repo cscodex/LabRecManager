@@ -87,14 +87,18 @@ export async function GET(
                 q.marks,
                 q.negative_marks,
                 q.difficulty,
+                q.image_url,
+                p.content as paragraph_text,
+                p.text as paragraph_title,
                 q."order",
                 qr.id as response_id,
-                qr.selected_option,
+                qr.answer,
                 qr.is_correct,
                 qr.marks_awarded
             FROM questions q
             JOIN sections s ON q.section_id = s.id
             LEFT JOIN question_responses qr ON q.id = qr.question_id AND qr.attempt_id = ${attemptId}
+            LEFT JOIN paragraphs p ON q.paragraph_id = p.id
             WHERE s.exam_id = ${attempt.exam_id}
             ORDER BY s."order", q."order"
         `;
@@ -125,18 +129,26 @@ export async function GET(
                         // Fallback or ignore
                     }
 
+                    // Format options for frontend (extract text property)
+                    const formattedOptions = Array.isArray(options)
+                        ? options.map((opt: any) => opt.text || opt)
+                        : [];
+
                     return {
                         id: q.id,
                         text: typeof q.text === 'string' ? JSON.parse(q.text) : q.text,
+                        paragraphText: typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text,
+                        paragraphTitle: typeof q.paragraph_title === 'string' ? JSON.parse(q.paragraph_title) : q.paragraph_title,
+                        imageUrl: q.image_url,
                         type: q.type,
-                        options: options,
+                        options: formattedOptions,
                         correctOption: correctOptionIndex,
                         marks: marks,
                         negativeMarks: parseFloat(q.negative_marks) || 0,
                         difficulty: difficulty,
                         order: q.order,
                         // Response data
-                        selectedOption: q.selected_option,
+                        selectedOption: q.answer,
                         isCorrect: q.is_correct,
                         marksAwarded: marksAwarded,
                         isAttempted: q.response_id !== null,

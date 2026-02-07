@@ -102,7 +102,8 @@ model Question {
   difficulty    Int      @default(1) // 1-5 scale
   negativeMarks Decimal? @map("negative_marks") @db.Decimal(3,2)
   imageUrl      String?  @map("image_url")
-  paragraphText Json?    @map("paragraph_text")
+  paragraphId   String?  @map("paragraph_id") @db.Uuid
+  paragraph     Paragraph? @relation(fields: [paragraphId], references: [id])
   parentId      String?  @map("parent_id") @db.Uuid
   order         Int
   
@@ -112,6 +113,15 @@ model Question {
   responses QuestionResponse[]
   
   @@map("questions")
+}
+
+model Paragraph {
+    id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    text      Json     // Title: { "en": "...", "pa": "..." }
+    content   Json?    // Body: { "en": "...", "pa": "..." }
+    questions Question[]
+
+    @@map("paragraphs")
 }
 
 // ============ SCHEDULING ============

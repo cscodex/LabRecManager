@@ -22,10 +22,13 @@ export async function GET(
                 eal.created_at,
                 s.name as student_name,
                 s.roll_number,
-                a.name as admin_name
+                a.name as admin_name,
+                es.start_time,
+                es.end_time
             FROM exam_assignment_logs eal
             LEFT JOIN students s ON eal.student_id = s.id
             LEFT JOIN admins a ON eal.assigned_by = a.id
+            LEFT JOIN exam_schedules es ON eal.schedule_id = es.id
             WHERE eal.exam_id = ${params.id}
             ORDER BY eal.created_at DESC
             LIMIT 100
@@ -40,7 +43,9 @@ export async function GET(
                 createdAt: log.created_at,
                 studentName: log.student_name,
                 rollNumber: log.roll_number,
-                adminName: log.admin_name || 'System'
+                adminName: log.admin_name || 'System',
+                startTime: log.start_time,
+                endTime: log.end_time
             }))
         });
     } catch (error) {

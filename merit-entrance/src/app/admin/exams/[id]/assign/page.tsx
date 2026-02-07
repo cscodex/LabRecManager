@@ -28,6 +28,8 @@ interface AssignmentLog {
     studentName: string;
     rollNumber: string;
     adminName: string;
+    startTime?: string;
+    endTime?: string;
 }
 
 export default function ExamAssignPage() {
@@ -529,6 +531,7 @@ export default function ExamAssignPage() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" > Time </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" > Action </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" > Student </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" > Schedule </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" > Attempts </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" > Admin </th>
                                     </tr>
@@ -557,6 +560,17 @@ export default function ExamAssignPage() {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" >
                                                         {log.studentName} <span className="text-gray-500 font-normal" > ({log.rollNumber})</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {log.startTime && log.endTime ? (
+                                                            <div className="flex flex-col text-xs space-y-0.5">
+                                                                <span className="text-gray-900">{new Date(log.startTime).toLocaleString()}</span>
+                                                                <span className="text-gray-400 text-[10px] uppercase">to</span>
+                                                                <span className="text-gray-900">{new Date(log.endTime).toLocaleString()}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400 italic text-xs">Always Open</span>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" >
                                                         {log.maxAttempts}
