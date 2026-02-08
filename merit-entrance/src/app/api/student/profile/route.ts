@@ -14,28 +14,21 @@ export async function GET() {
 
         const studentId = session.id;
 
-        // Get exam results for this student
-        const results = await sql`
-            SELECT 
-                ea.id,
-                ea.exam_id,
-                ea.total_score as score,
-                ea.submitted_at,
-                e.title,
-                e.total_marks
-            FROM exam_attempts ea
-            JOIN exams e ON e.id = ea.exam_id
-            WHERE ea.student_id = ${studentId}
-            AND ea.submitted_at IS NOT NULL
-            ORDER BY ea.submitted_at DESC
-        `;
-
-        // Get student details (phone info, language preference)
+        // Get all student details from database
         const studentInfo = await sql`
-            SELECT phone, phone_verified, preferred_language 
+            SELECT 
+                id, roll_number, name, name_regional, email, phone, 
+                photo_url, class, school, is_active, created_at,
+                phone_verified, preferred_language
             FROM students 
             WHERE id = ${studentId}
         `;
+
+        if (studentInfo.length === 0) {
+            return NextResponse.json({ success: false, error: 'Student not found' }, { status: 404 });
+        }
+
+        const student = studentInfo[0];
 
         // Get section-wise performance across all exams
         const sectionPerformance = await sql`
@@ -59,13 +52,17 @@ export async function GET() {
                 END DESC
         `;
 
-        const examResults = results.map(r => ({
-            id: r.exam_id,
-            title: typeof r.title === 'string' ? JSON.parse(r.title) : r.title,
-            score: parseFloat(r.score) || 0,
-            totalMarks: r.total_marks,
-            submittedAt: r.submitted_at
-        }));
+        // Get exam stats (count only)
+        const examStats = await sql`
+            SELECT 
+                COUNT(*) as total_exams,
+                COALESCE(AVG(total_score::float / NULLIF(e.total_marks, 0) * 100), 0) as average_percentage,
+                COALESCE(MAX(total_score::float / NULLIF(e.total_marks, 0) * 100), 0) as best_percentage
+            FROM exam_attempts ea
+            JOIN exams e ON e.id = ea.exam_id
+            WHERE ea.student_id = ${studentId}
+              AND ea.status = 'submitted'
+        `;
 
         // Format section performance with percentage
         const formattedSectionPerformance = sectionPerformance.map((s: any) => ({
@@ -83,8 +80,26 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            examResults,
-            student: studentInfo[0] || {},
+            student: {
+                id: student.id,
+                rollNumber: student.roll_number,
+                name: student.name,
+                nameRegional: student.name_regional,
+                email: student.email,
+                phone: student.phone,
+                photoUrl: student.photo_url,
+                class: student.class,
+                school: student.school,
+                isActive: student.is_active,
+                createdAt: student.created_at,
+                phoneVerified: student.phone_verified,
+                preferredLanguage: student.preferred_language
+            },
+            examStats: {
+                totalExams: parseInt(examStats[0]?.total_exams) || 0,
+                averagePercentage: parseFloat(examStats[0]?.average_percentage) || 0,
+                bestPercentage: parseFloat(examStats[0]?.best_percentage) || 0
+            },
             sectionPerformance: formattedSectionPerformance
         });
     } catch (error) {

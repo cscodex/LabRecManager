@@ -3,16 +3,30 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { BookOpen, User, Mail, Phone, School, ArrowLeft, Award, Clock, Globe, TrendingUp, TrendingDown } from 'lucide-react';
+import { BookOpen, User, Mail, Phone, ArrowLeft, Award, Clock, Globe, TrendingUp, TrendingDown, School as SchoolIcon, Calendar, GraduationCap, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PhoneVerification from '@/components/auth/PhoneVerification';
 
-interface ExamResult {
+interface StudentData {
     id: string;
-    title: Record<string, string>;
-    score: number;
-    totalMarks: number;
-    submittedAt: string;
+    rollNumber: string;
+    name: string;
+    nameRegional?: string;
+    email?: string;
+    phone?: string;
+    photoUrl?: string;
+    class?: string;
+    school?: string;
+    isActive: boolean;
+    createdAt: string;
+    phoneVerified?: boolean;
+    preferredLanguage?: string;
+}
+
+interface ExamStats {
+    totalExams: number;
+    averagePercentage: number;
+    bestPercentage: number;
 }
 
 interface SectionPerformance {
@@ -27,9 +41,9 @@ interface SectionPerformance {
 export default function StudentProfile() {
     const router = useRouter();
     const { user, language, isAuthenticated, _hasHydrated, setLanguage } = useAuthStore();
-    const [examResults, setExamResults] = useState<ExamResult[]>([]);
+    const [studentData, setStudentData] = useState<StudentData | null>(null);
+    const [examStats, setExamStats] = useState<ExamStats>({ totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
     const [sectionPerformance, setSectionPerformance] = useState<SectionPerformance[]>([]);
-    const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -38,16 +52,16 @@ export default function StudentProfile() {
             router.push('/');
             return;
         }
-        loadResults();
+        loadProfile();
     }, [_hasHydrated, isAuthenticated, user, router]);
 
-    const loadResults = async () => {
+    const loadProfile = async () => {
         try {
             const response = await fetch('/api/student/profile');
             const data = await response.json();
             if (data.success) {
-                setExamResults(data.examResults || []);
-                setUserData(data.student);
+                setStudentData(data.student);
+                setExamStats(data.examStats || { totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
                 setSectionPerformance(data.sectionPerformance || []);
             }
         } catch (error) {
@@ -69,10 +83,6 @@ export default function StudentProfile() {
             </div>
         );
     }
-
-    const averageScore = examResults.length > 0
-        ? examResults.reduce((acc, r) => acc + (r.score / r.totalMarks) * 100, 0) / examResults.length
-        : 0;
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -97,24 +107,96 @@ export default function StudentProfile() {
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                     <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
                         {/* Avatar */}
-                        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
-                            <User className="w-10 h-10 text-blue-600" />
+                        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
+                            {studentData?.photoUrl ? (
+                                <img src={studentData.photoUrl} alt={studentData.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <User className="w-10 h-10 text-blue-600" />
+                            )}
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 text-center sm:text-left">
-                            <h2 className="text-xl font-bold text-gray-900">{user?.name}</h2>
-                            <p className="text-blue-600 font-medium">{user?.rollNumber}</p>
+                            <h2 className="text-xl font-bold text-gray-900">{studentData?.name}</h2>
+                            {studentData?.nameRegional && (
+                                <p className="text-gray-600 text-sm">{studentData.nameRegional}</p>
+                            )}
+                            <p className="text-blue-600 font-medium mt-1">Roll: {studentData?.rollNumber}</p>
 
-                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
-                                {user?.email && (
-                                    <div className="flex items-center gap-2 justify-center sm:justify-start">
-                                        <Mail className="w-4 h-4" />
-                                        <span>{user.email}</span>
-                                    </div>
-                                )}
-                            </div>
+                            {studentData?.isActive && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full mt-2">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Active
+                                </span>
+                            )}
                         </div>
+                    </div>
+                </div>
+
+                {/* Student Details */}
+                <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Student Details</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {studentData?.email && (
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <Mail className="w-5 h-5 text-gray-400" />
+                                <div>
+                                    <p className="text-xs text-gray-500">Email</p>
+                                    <p className="text-gray-900">{studentData.email}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {studentData?.phone && (
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <Phone className="w-5 h-5 text-gray-400" />
+                                <div>
+                                    <p className="text-xs text-gray-500">Phone</p>
+                                    <p className="text-gray-900">
+                                        {studentData.phone}
+                                        {studentData.phoneVerified && (
+                                            <CheckCircle className="w-4 h-4 text-green-500 inline ml-1" />
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {studentData?.class && (
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <GraduationCap className="w-5 h-5 text-gray-400" />
+                                <div>
+                                    <p className="text-xs text-gray-500">Class</p>
+                                    <p className="text-gray-900">{studentData.class}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {studentData?.school && (
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <SchoolIcon className="w-5 h-5 text-gray-400" />
+                                <div>
+                                    <p className="text-xs text-gray-500">School</p>
+                                    <p className="text-gray-900">{studentData.school}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {studentData?.createdAt && (
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <Calendar className="w-5 h-5 text-gray-400" />
+                                <div>
+                                    <p className="text-xs text-gray-500">Member Since</p>
+                                    <p className="text-gray-900">
+                                        {new Date(studentData.createdAt).toLocaleDateString('en-IN', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric'
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -122,11 +204,11 @@ export default function StudentProfile() {
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                     <h3 className="text-lg font-bold text-gray-900 mb-4">Phone Verification</h3>
                     <PhoneVerification
-                        currentPhone={userData?.phone || (user as any)?.phone || ''}
-                        isVerified={userData?.phone_verified}
+                        currentPhone={studentData?.phone || ''}
+                        isVerified={studentData?.phoneVerified}
                         onVerificationComplete={(phone) => {
-                            setUserData((prev: any) => ({ ...prev, phone, phone_verified: true }));
-                            toast.success('Profile updated');
+                            setStudentData(prev => prev ? { ...prev, phone, phoneVerified: true } : null);
+                            toast.success('Phone verified successfully');
                         }}
                     />
                 </div>
@@ -157,12 +239,6 @@ export default function StudentProfile() {
                             ਪੰਜਾਬੀ (Punjabi)
                         </button>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">
-                        Current: {language === 'en' ? 'English' : 'ਪੰਜਾਬੀ (Punjabi)'}
-                        {userData?.preferred_language && userData.preferred_language !== language && (
-                            <span className="ml-2 text-amber-600">(Saved: {userData.preferred_language})</span>
-                        )}
-                    </p>
                 </div>
 
                 {/* Section-wise Performance */}
@@ -220,76 +296,25 @@ export default function StudentProfile() {
                     </div>
                 )}
 
-                {/* Stats */}
+                {/* Exam Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                     <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                         <Award className="w-6 h-6 text-green-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-gray-900">{examResults.length}</p>
+                        <p className="text-2xl font-bold text-gray-900">{examStats.totalExams}</p>
                         <p className="text-sm text-gray-500">Exams Completed</p>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                         <Clock className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-gray-900">{averageScore.toFixed(1)}%</p>
+                        <p className="text-2xl font-bold text-gray-900">{examStats.averagePercentage.toFixed(1)}%</p>
                         <p className="text-sm text-gray-500">Average Score</p>
                     </div>
                     <div className="bg-white rounded-xl shadow-sm p-4 text-center col-span-2 sm:col-span-1">
                         <BookOpen className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-gray-900">
-                            {examResults.length > 0 ? Math.max(...examResults.map(r => (r.score / r.totalMarks) * 100)).toFixed(1) : 0}%
-                        </p>
+                        <p className="text-2xl font-bold text-gray-900">{examStats.bestPercentage.toFixed(1)}%</p>
                         <p className="text-sm text-gray-500">Best Score</p>
                     </div>
                 </div>
-
-                {/* Exam History */}
-                <div className="bg-white rounded-xl shadow-sm">
-                    <div className="p-4 border-b">
-                        <h3 className="font-semibold text-gray-900">Exam History</h3>
-                    </div>
-
-                    {examResults.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
-                            <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p>No exams completed yet</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y">
-                            {examResults.map((result) => (
-                                <div
-                                    key={result.id}
-                                    className="p-4 hover:bg-gray-50 cursor-pointer"
-                                    onClick={() => router.push(`/student/results/${result.id}`)}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h4 className="font-medium text-gray-900">
-                                                {getText(result.title, language)}
-                                            </h4>
-                                            <p className="text-sm text-gray-500">
-                                                {new Date(result.submittedAt).toLocaleDateString('en-IN', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    year: 'numeric'
-                                                })}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className={`text-lg font-bold ${(result.score / result.totalMarks) >= 0.6 ? 'text-green-600' :
-                                                (result.score / result.totalMarks) >= 0.4 ? 'text-yellow-600' : 'text-red-600'
-                                                }`}>
-                                                {result.score}/{result.totalMarks}
-                                            </p>
-                                            <p className="text-sm text-gray-500">
-                                                {((result.score / result.totalMarks) * 100).toFixed(1)}%
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </main >
-        </div >
+            </main>
+        </div>
     );
 }
