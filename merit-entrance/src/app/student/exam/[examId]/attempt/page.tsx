@@ -62,6 +62,7 @@ export default function ExamAttemptPage() {
     const [timeRemaining, setTimeRemaining] = useState(0);
 
     const [loading, setLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
     const [showMobileNav, setShowMobileNav] = useState(false);
@@ -321,8 +322,10 @@ export default function ExamAttemptPage() {
             const data = await response.json();
 
             if (!data.success) {
-                toast.error(data.error || 'Failed to load exam');
-                router.push('/student/dashboard');
+                const errMsg = data.error || 'Failed to load exam';
+                toast.error(errMsg);
+                setErrorMessage(errMsg + (data.details ? `: ${data.details}` : ''));
+                setLoading(false);
                 return;
             }
 
@@ -367,8 +370,9 @@ export default function ExamAttemptPage() {
             autoSaveRef.current = setInterval(saveAllResponses, 30000);
 
         } catch (error) {
-            toast.error('Failed to load exam');
-            router.push('/student/dashboard');
+            console.error('Error loading exam:', error);
+            toast.error('Failed to load exam - network error');
+            setErrorMessage('Failed to load exam - please check your connection');
         } finally {
             setLoading(false);
         }
@@ -600,7 +604,15 @@ export default function ExamAttemptPage() {
     if (!examData) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <p className="text-gray-500">Unable to load exam</p>
+                <div className="text-center">
+                    <p className="text-red-600 mb-4">{errorMessage || 'Unable to load exam'}</p>
+                    <button
+                        onClick={() => router.push('/student/dashboard')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
             </div>
         );
     }
