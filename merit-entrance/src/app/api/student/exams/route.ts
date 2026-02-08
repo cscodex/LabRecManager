@@ -16,21 +16,23 @@ export async function GET(request: NextRequest) {
         const studentId = session.id;
 
         // Cleanup: Auto-submit "in_progress" exams that have exceeded duration + 5 mins buffer
-        // Only if they are NOT paused (paused_at is NULL).
-        // Using NOW() as submitted_at for these cases.
-        await sql`
-            UPDATE exam_attempts ea
-            SET 
-                status = 'submitted',
-                submitted_at = NOW(),
-                auto_submit = true
-            FROM exams e
-            WHERE ea.exam_id = e.id
-            AND ea.student_id = ${studentId}
-            AND ea.status = 'in_progress'
-            AND ea.paused_at IS NULL
-            AND (ea.started_at + (e.duration * interval '1 minute') + interval '5 minutes') < NOW()
-        `;
+        // Note: pause functionality was removed, so we no longer check paused_at
+        try {
+            await sql`
+                UPDATE exam_attempts ea
+                SET 
+                    status = 'submitted',
+                    submitted_at = NOW(),
+                    auto_submit = true
+                FROM exams e
+                WHERE ea.exam_id = e.id
+                AND ea.student_id = ${studentId}
+                AND ea.status = 'in_progress'
+                AND (ea.started_at + (e.duration * interval '1 minute') + interval '5 minutes') < NOW()
+            `;
+        } catch (cleanupErr) {
+            console.warn('Cleanup query failed (non-critical):', cleanupErr);
+        }
 
         // Get exams assigned to this student - each assignment is a separate entry
         // If schedule_id is NULL, the exam is "always open" (no time restrictions)
