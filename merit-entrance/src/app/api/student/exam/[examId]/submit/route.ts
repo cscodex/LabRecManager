@@ -71,8 +71,10 @@ export async function POST(
             responseMap[r.question_id] = typeof r.answer === 'string' ? JSON.parse(r.answer) : r.answer;
         });
 
-        // Calculate score
+        // Calculate scores and collect updates
         let totalScore = 0;
+        const updatePromises: Promise<any>[] = [];
+
         for (const question of questions) {
             const studentAnswer = responseMap[question.id];
             const correctAnswer = typeof question.correct_answer === 'string'
@@ -99,26 +101,30 @@ export async function POST(
                 'Correct:', JSON.stringify(normalizedCorrect),
                 'isCorrect:', isCorrect);
 
-            // Update response with is_correct and marks
+            // Collect update for batch execution
             if (isCorrect) {
                 totalScore += parseFloat(question.marks);
-                await sql`
-          UPDATE question_responses SET is_correct = true, marks_awarded = ${question.marks}
-          WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
-        `;
+                updatePromises.push(sql`
+                    UPDATE question_responses SET is_correct = true, marks_awarded = ${question.marks}
+                    WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
+                `);
             } else if (question.negative_marks) {
                 totalScore -= parseFloat(question.negative_marks);
-                await sql`
-          UPDATE question_responses SET is_correct = false, marks_awarded = ${-question.negative_marks}
-          WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
-        `;
+                updatePromises.push(sql`
+                    UPDATE question_responses SET is_correct = false, marks_awarded = ${-question.negative_marks}
+                    WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
+                `);
             } else {
-                await sql`
-          UPDATE question_responses SET is_correct = false, marks_awarded = 0
-          WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
-        `;
+                updatePromises.push(sql`
+                    UPDATE question_responses SET is_correct = false, marks_awarded = 0
+                    WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
+                `);
             }
         }
+
+        // Execute all updates in parallel for faster submission
+        console.log('[Submit] Executing', updatePromises.length, 'response updates in parallel');
+        await Promise.all(updatePromises);
 
         // Update attempt
         const now = new Date().toISOString();

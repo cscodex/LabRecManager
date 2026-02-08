@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { BookOpen, User, Mail, Phone, School, ArrowLeft, Award, Clock } from 'lucide-react';
+import { BookOpen, User, Mail, Phone, School, ArrowLeft, Award, Clock, Globe, TrendingUp, TrendingDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PhoneVerification from '@/components/auth/PhoneVerification';
 
@@ -15,11 +15,21 @@ interface ExamResult {
     submittedAt: string;
 }
 
+interface SectionPerformance {
+    sectionName: string | Record<string, string>;
+    questionsAttempted: number;
+    correctAnswers: number;
+    marksEarned: number;
+    totalPossibleMarks: number;
+    percentage: number;
+}
+
 export default function StudentProfile() {
     const router = useRouter();
-    const { user, language, isAuthenticated, _hasHydrated } = useAuthStore();
+    const { user, language, isAuthenticated, _hasHydrated, setLanguage } = useAuthStore();
     const [examResults, setExamResults] = useState<ExamResult[]>([]);
-    const [userData, setUserData] = useState<any>(null); // Store fetched user details
+    const [sectionPerformance, setSectionPerformance] = useState<SectionPerformance[]>([]);
+    const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -38,6 +48,7 @@ export default function StudentProfile() {
             if (data.success) {
                 setExamResults(data.examResults || []);
                 setUserData(data.student);
+                setSectionPerformance(data.sectionPerformance || []);
             }
         } catch (error) {
             console.error('Failed to load profile data:', error);
@@ -46,7 +57,8 @@ export default function StudentProfile() {
         }
     };
 
-    const getText = (obj: Record<string, string>, lang: string) => {
+    const getText = (obj: string | Record<string, string>, lang: string): string => {
+        if (typeof obj === 'string') return obj;
         return obj?.[lang] || obj?.en || '';
     };
 
@@ -118,6 +130,95 @@ export default function StudentProfile() {
                         }}
                     />
                 </div>
+
+                {/* Language Settings */}
+                <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Globe className="w-5 h-5 text-blue-600" />
+                        <h3 className="text-lg font-bold text-gray-900">Language Settings</h3>
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setLanguage('en')}
+                            className={`px-4 py-2 rounded-lg font-medium transition ${language === 'en'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                        >
+                            English
+                        </button>
+                        <button
+                            onClick={() => setLanguage('pa')}
+                            className={`px-4 py-2 rounded-lg font-medium transition ${language === 'pa'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                        >
+                            ਪੰਜਾਬੀ (Punjabi)
+                        </button>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                        Current: {language === 'en' ? 'English' : 'ਪੰਜਾਬੀ (Punjabi)'}
+                        {userData?.preferred_language && userData.preferred_language !== language && (
+                            <span className="ml-2 text-amber-600">(Saved: {userData.preferred_language})</span>
+                        )}
+                    </p>
+                </div>
+
+                {/* Section-wise Performance */}
+                {sectionPerformance.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <TrendingUp className="w-5 h-5 text-green-600" />
+                            <h3 className="text-lg font-bold text-gray-900">Section-wise Performance</h3>
+                            <span className="text-sm text-gray-500">(Strongest to Weakest)</span>
+                        </div>
+                        <div className="space-y-3">
+                            {sectionPerformance.map((section, index) => {
+                                const isStrong = section.percentage >= 70;
+                                const isWeak = section.percentage < 40;
+                                return (
+                                    <div key={index} className="flex items-center gap-4">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isStrong ? 'bg-green-100 text-green-700' :
+                                                isWeak ? 'bg-red-100 text-red-700' :
+                                                    'bg-yellow-100 text-yellow-700'
+                                            }`}>
+                                            {index + 1}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="font-medium text-gray-900">
+                                                    {getText(section.sectionName, language)}
+                                                </span>
+                                                <span className={`font-bold ${isStrong ? 'text-green-600' :
+                                                        isWeak ? 'text-red-600' :
+                                                            'text-yellow-600'
+                                                    }`}>
+                                                    {section.percentage.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${isStrong ? 'bg-green-500' :
+                                                            isWeak ? 'bg-red-500' :
+                                                                'bg-yellow-500'
+                                                        }`}
+                                                    style={{ width: `${Math.min(section.percentage, 100)}%` }}
+                                                />
+                                            </div>
+                                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                                <span>{section.correctAnswers}/{section.questionsAttempted} correct</span>
+                                                <span>{section.marksEarned.toFixed(1)}/{section.totalPossibleMarks.toFixed(1)} marks</span>
+                                            </div>
+                                        </div>
+                                        {isStrong && <TrendingUp className="w-5 h-5 text-green-500" />}
+                                        {isWeak && <TrendingDown className="w-5 h-5 text-red-500" />}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">

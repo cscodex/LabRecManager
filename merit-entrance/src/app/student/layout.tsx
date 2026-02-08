@@ -32,7 +32,7 @@ export default function StudentLayout({
     const navItems = [
         { href: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/student/history', label: 'Exam History', icon: History },
-        // { href: '/student/profile', label: 'Profile', icon: User }, // Commented out until profile page is ready
+        { href: '/student/profile', label: 'Profile', icon: User },
     ];
 
     const handleLogout = () => {
@@ -77,10 +77,18 @@ export default function StudentLayout({
                         </div>
 
                         <div className="hidden sm:flex sm:items-center sm:ml-6 gap-4">
-                            <div className="flex items-center gap-2 text-sm text-gray-700 border-r pr-4">
+                            <Link
+                                href="/student/profile"
+                                className="flex items-center gap-2 text-sm text-gray-700 border-r pr-4 hover:text-blue-600 transition-colors cursor-pointer"
+                            >
                                 <User className="w-4 h-4 text-gray-400" />
-                                <span>{user?.name}</span>
-                            </div>
+                                <div className="flex flex-col items-start">
+                                    <span className="font-medium">{user?.name}</span>
+                                    {user?.rollNumber && (
+                                        <span className="text-xs text-gray-500">Roll: {user.rollNumber}</span>
+                                    )}
+                                </div>
+                            </Link>
                             <button
                                 onClick={handleLogout}
                                 className="text-gray-500 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-gray-100"
@@ -132,7 +140,7 @@ export default function StudentLayout({
                             })}
                         </div>
                         <div className="pt-4 pb-4 border-t border-gray-200">
-                            <div className="flex items-center px-4">
+                            <Link href="/student/profile" className="flex items-center px-4 hover:bg-gray-50">
                                 <div className="flex-shrink-0">
                                     <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
                                         <User className="h-6 w-6 text-gray-500" />
@@ -140,9 +148,11 @@ export default function StudentLayout({
                                 </div>
                                 <div className="ml-3">
                                     <div className="text-base font-medium text-gray-800">{user?.name}</div>
-                                    <div className="text-sm font-medium text-gray-500">{user?.role}</div>
+                                    <div className="text-sm font-medium text-gray-500">
+                                        {user?.rollNumber ? `Roll: ${user.rollNumber}` : user?.role}
+                                    </div>
                                 </div>
-                            </div>
+                            </Link>
                             <div className="mt-3 space-y-1">
                                 <button
                                     onClick={handleLogout}
