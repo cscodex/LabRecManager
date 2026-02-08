@@ -15,6 +15,7 @@ interface DetailedQuestion {
     options: any[];
     correctAnswer: any;
     explanation: Record<string, string> | null;
+    imageUrl?: string;
     studentResponse: any;
     isCorrect: boolean | null;
     marksAwarded: number;
@@ -236,6 +237,17 @@ export default function DetailedResultPage({ params }: { params: { attemptId: st
 
                                         <div className="p-4 sm:p-6">
                                             <div className="text-base text-gray-900 font-medium mb-4" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
+
+                                            {/* Question Image */}
+                                            {q.imageUrl && (
+                                                <div className="mb-4">
+                                                    <img
+                                                        src={q.imageUrl}
+                                                        alt="Question image"
+                                                        className="max-w-full h-auto rounded-lg border border-gray-200"
+                                                    />
+                                                </div>
+                                            )}
 
                                             {/* Options */}
                                             <div className="space-y-2">

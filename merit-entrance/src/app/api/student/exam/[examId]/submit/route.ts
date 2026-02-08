@@ -84,7 +84,20 @@ export async function POST(
                 continue;
             }
 
-            const isCorrect = JSON.stringify(studentAnswer.sort()) === JSON.stringify(correctAnswer.sort());
+            // Normalize answers for comparison - ensure both are arrays of strings
+            const normalizedStudent = Array.isArray(studentAnswer)
+                ? studentAnswer.map(a => String(a).toLowerCase().trim())
+                : [String(studentAnswer).toLowerCase().trim()];
+            const normalizedCorrect = Array.isArray(correctAnswer)
+                ? correctAnswer.map(a => String(a).toLowerCase().trim())
+                : [String(correctAnswer).toLowerCase().trim()];
+
+            const isCorrect = JSON.stringify(normalizedStudent.sort()) === JSON.stringify(normalizedCorrect.sort());
+
+            console.log('[Scoring] Question:', question.id,
+                'Student:', JSON.stringify(normalizedStudent),
+                'Correct:', JSON.stringify(normalizedCorrect),
+                'isCorrect:', isCorrect);
 
             // Update response with is_correct and marks
             if (isCorrect) {

@@ -52,17 +52,21 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
                 q.options,
                 q.correct_answer,
                 q.explanation,
+                q.image_url,
+                q.parent_id,
                 qr.answer as student_response,
                 qr.is_correct,
-                qr.marks_awarded,
                 qr.marks_awarded,
                 s.name as section_title,
                 p.content as passage_content,
                 p.text as passage_title,
-                p.id as passage_id
+                p.id as passage_id,
+                -- Also get parent question's paragraph text if it's a sub-question
+                parent_q.text as parent_text
             FROM questions q
             JOIN sections s ON q.section_id = s.id
             LEFT JOIN paragraphs p ON q.paragraph_id = p.id
+            LEFT JOIN questions parent_q ON q.parent_id = parent_q.id AND parent_q.type = 'paragraph'
             LEFT JOIN question_responses qr ON qr.question_id = q.id AND qr.attempt_id = ${attemptId}
             WHERE s.exam_id = ${attempt[0].exam_id} AND q.type != 'paragraph'
             ORDER BY s."order" ASC, q."order" ASC
@@ -79,13 +83,15 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
             options: q.options,
             correctAnswer: q.correct_answer,
             explanation: q.explanation,
+            imageUrl: q.image_url,
             studentResponse: q.student_response,
             isCorrect: q.is_correct,
             marksAwarded: q.marks_awarded || 0,
             sectionTitle: q.section_title,
-            passageContent: q.passage_content,
+            // Use passage content if available, otherwise use parent question text (for paragraph sub-questions)
+            passageContent: q.passage_content || q.parent_text,
             passageTitle: q.passage_title,
-            passageId: q.passage_id
+            passageId: q.passage_id || q.parent_id
         }));
 
         return NextResponse.json({
