@@ -65,13 +65,21 @@ export async function POST(
 
         // Check for existing attempts
         const attempts = await sql`
-      SELECT id, started_at, status FROM exam_attempts
-      WHERE exam_id = ${examId} AND student_id = ${studentId}
-      ORDER BY started_at DESC
-    `;
+            SELECT id, started_at, status FROM exam_attempts
+            WHERE exam_id = ${examId} AND student_id = ${studentId}
+            ORDER BY started_at DESC
+        `;
 
         const activeAttempt = attempts.find(a => a.status === 'in_progress');
         if (activeAttempt) {
+            // If there are multiple in_progress attempts, clean up old ones
+            const otherInProgress = attempts.filter(a => a.status === 'in_progress' && a.id !== activeAttempt.id);
+            if (otherInProgress.length > 0) {
+                console.warn('Cleaning up duplicate in_progress attempts:', otherInProgress.map(a => a.id));
+                for (const old of otherInProgress) {
+                    await sql`UPDATE exam_attempts SET status = 'abandoned' WHERE id = ${old.id}`;
+                }
+            }
             return NextResponse.json({
                 success: true,
                 attemptId: activeAttempt.id,
@@ -80,11 +88,12 @@ export async function POST(
             });
         }
 
-        // Check if attempts exhausted
-        if (attempts.length >= max_attempts) {
+        // Check if attempts exhausted - only count completed/submitted attempts
+        const completedAttempts = attempts.filter(a => a.status === 'submitted' || a.status === 'abandoned');
+        if (completedAttempts.length >= max_attempts) {
             return NextResponse.json({
                 error: 'Maximum attempts reached',
-                details: `Used ${attempts.length} of ${max_attempts} attempts`
+                details: `Used ${completedAttempts.length} of ${max_attempts} attempts`
             }, { status: 400 });
         }
 
