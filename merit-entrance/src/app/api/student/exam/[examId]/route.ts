@@ -123,14 +123,28 @@ export async function GET(
         const studentId = session.id;
 
         // Get attempt - Prioritize 'in_progress' to ensure resuming works even if there are newer submitted attempts
-        const attempts = await sql`
-      SELECT id, started_at, status, current_question_id FROM exam_attempts
-      WHERE exam_id = ${examId} AND student_id = ${studentId}
-      ORDER BY 
-        CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END,
-        started_at DESC 
-      LIMIT 1
-    `;
+        // Try with current_question_id first, fall back without it if column doesn't exist
+        let attempts;
+        try {
+            attempts = await sql`
+              SELECT id, started_at, status, current_question_id FROM exam_attempts
+              WHERE exam_id = ${examId} AND student_id = ${studentId}
+              ORDER BY 
+                CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END,
+                started_at DESC 
+              LIMIT 1
+            `;
+        } catch (err) {
+            console.warn('current_question_id column may not exist, falling back:', err);
+            attempts = await sql`
+              SELECT id, started_at, status FROM exam_attempts
+              WHERE exam_id = ${examId} AND student_id = ${studentId}
+              ORDER BY 
+                CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END,
+                started_at DESC 
+              LIMIT 1
+            `;
+        }
 
         if (attempts.length === 0) {
             return NextResponse.json({ error: 'No attempt found, start the exam first' }, { status: 400 });

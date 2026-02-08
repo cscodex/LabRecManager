@@ -17,8 +17,15 @@ export async function POST(
 
         const { examId } = params;
         const studentId = session.id;
-        const body = await request.json();
-        const { autoSubmit } = body;
+
+        // Parse body safely - may be empty when called from dashboard
+        let autoSubmit = false;
+        try {
+            const body = await request.json();
+            autoSubmit = body?.autoSubmit || false;
+        } catch {
+            // Empty body is OK
+        }
 
         // Get attempt
         const attempts = await sql`
