@@ -31,19 +31,37 @@ export async function GET(
         const durationSeconds = exam.duration * 60;
 
         // Get all in-progress attempts with student info and progress
-        const attempts = await sql`
-            SELECT 
-                ea.id as attempt_id,
-                ea.started_at,
-                ea.current_question_id,
-                s.name as student_name,
-                s.roll_number,
-                (SELECT COUNT(*) FROM question_responses qr WHERE qr.attempt_id = ea.id AND qr.answer IS NOT NULL) as answered_count
-            FROM exam_attempts ea
-            JOIN students s ON ea.student_id = s.id
-            WHERE ea.exam_id = ${examId} AND ea.status = 'in_progress'
-            ORDER BY ea.started_at ASC
-        `;
+        // Try with current_question_id first, fall back without it
+        let attempts;
+        try {
+            attempts = await sql`
+                SELECT 
+                    ea.id as attempt_id,
+                    ea.started_at,
+                    ea.current_question_id,
+                    s.name as student_name,
+                    s.roll_number,
+                    (SELECT COUNT(*) FROM question_responses qr WHERE qr.attempt_id = ea.id AND qr.answer IS NOT NULL AND qr.answer::text != 'null' AND qr.answer::text != '[]') as answered_count
+                FROM exam_attempts ea
+                JOIN students s ON ea.student_id = s.id
+                WHERE ea.exam_id = ${examId} AND ea.status = 'in_progress'
+                ORDER BY ea.started_at ASC
+            `;
+        } catch (err) {
+            console.warn('current_question_id column may not exist, falling back:', err);
+            attempts = await sql`
+                SELECT 
+                    ea.id as attempt_id,
+                    ea.started_at,
+                    s.name as student_name,
+                    s.roll_number,
+                    (SELECT COUNT(*) FROM question_responses qr WHERE qr.attempt_id = ea.id AND qr.answer IS NOT NULL AND qr.answer::text != 'null' AND qr.answer::text != '[]') as answered_count
+                FROM exam_attempts ea
+                JOIN students s ON ea.student_id = s.id
+                WHERE ea.exam_id = ${examId} AND ea.status = 'in_progress'
+                ORDER BY ea.started_at ASC
+            `;
+        }
 
         // Get total questions count for this exam
         const questionCountResult = await sql`
