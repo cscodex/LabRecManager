@@ -114,8 +114,17 @@ export async function POST(
             success: true,
             totalScore,
         });
-    } catch (error) {
-        console.error('Error submitting exam:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error('Error submitting exam:', {
+            examId: params.examId,
+            error: err.message,
+            stack: err.stack,
+            name: err.name
+        });
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: err.message
+        }, { status: 500 });
     }
 }

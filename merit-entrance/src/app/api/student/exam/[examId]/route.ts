@@ -102,9 +102,18 @@ export async function POST(
             startedAt: now,
             resumed: false,
         });
-    } catch (error) {
-        console.error('Error starting exam:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error('Error starting exam:', {
+            examId: params.examId,
+            error: err.message,
+            stack: err.stack,
+            name: err.name
+        });
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: err.message
+        }, { status: 500 });
     }
 }
 
@@ -247,8 +256,17 @@ export async function GET(
             remainingSeconds,
             currentQuestionId: attempt.current_question_id || null,
         });
-    } catch (error) {
-        console.error('Error getting exam data:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error('Error getting exam data:', {
+            examId: params.examId,
+            error: err.message,
+            stack: err.stack,
+            name: err.name
+        });
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: err.message
+        }, { status: 500 });
     }
 }
