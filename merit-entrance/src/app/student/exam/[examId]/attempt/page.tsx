@@ -418,7 +418,7 @@ export default function ExamAttemptPage() {
         }));
 
         try {
-            await fetch(`/api/student/exam/${examId}/save`, {
+            const res = await fetch(`/api/student/exam/${examId}/save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -427,8 +427,14 @@ export default function ExamAttemptPage() {
                     markedForReview,
                 }),
             });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                console.error('Save failed:', data);
+                toast.error('Failed to save response. Please try again.');
+            }
         } catch (error) {
             console.error('Save failed:', error);
+            toast.error('Failed to save response. Check your connection.');
         }
     };
 
