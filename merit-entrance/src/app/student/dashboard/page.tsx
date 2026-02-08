@@ -25,6 +25,8 @@ interface Exam {
     canAttempt: boolean;
     hasAttempted: boolean;
     lastAttemptStatus?: string;
+    answeredCount?: number;
+    unansweredCount?: number;
 }
 
 export default function StudentDashboard() {
@@ -215,6 +217,20 @@ export default function StudentDashboard() {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* Progress Stats for in-progress exams */}
+                                        {exam.lastAttemptStatus === 'in_progress' && (
+                                            <div className="flex flex-wrap gap-3 items-center text-sm mt-3 sm:mt-0">
+                                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full border border-green-200">
+                                                    <span className="font-semibold">{exam.answeredCount || 0}</span>
+                                                    <span>Answered</span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 rounded-full border border-orange-200">
+                                                    <span className="font-semibold">{exam.unansweredCount || 0}</span>
+                                                    <span>Unanswered</span>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Action Button */}
                                         <div className="flex flex-col gap-2 w-full sm:w-auto mt-2 sm:mt-0">

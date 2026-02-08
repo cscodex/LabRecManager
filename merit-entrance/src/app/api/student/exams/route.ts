@@ -59,13 +59,24 @@ export async function GET(request: NextRequest) {
                     ORDER BY started_at DESC LIMIT 1
                 ) as last_attempt_status,
                 (
+                    SELECT id FROM exam_attempts 
+                    WHERE exam_id = e.id AND student_id = ${studentId} AND status = 'in_progress'
+                    ORDER BY started_at DESC LIMIT 1
+                ) as in_progress_attempt_id,
+                (
                     SELECT COUNT(*) FROM sections WHERE exam_id = e.id
                 ) as section_count,
                 (
                     SELECT COUNT(*) FROM questions q 
                     JOIN sections s ON q.section_id = s.id 
                     WHERE s.exam_id = e.id AND q.type != 'paragraph'
-                ) as question_count
+                ) as question_count,
+                (
+                    SELECT COUNT(*) FROM question_responses qr
+                    JOIN exam_attempts att ON qr.attempt_id = att.id
+                    WHERE att.exam_id = e.id AND att.student_id = ${studentId} AND att.status = 'in_progress'
+                    AND qr.answer IS NOT NULL AND qr.answer::text != 'null' AND qr.answer::text != '[]'
+                ) as answered_count
             FROM exam_assignments ea
             JOIN exams e ON ea.exam_id = e.id
             LEFT JOIN exam_schedules es ON es.id = ea.schedule_id
@@ -77,6 +88,8 @@ export async function GET(request: NextRequest) {
         const formattedExams = assignments.map((a: any) => {
             // If no schedule (schedule_id is NULL), the exam is "always open"
             const isAlwaysOpen = !a.schedule_id || (!a.start_time && !a.end_time);
+            const questionCount = parseInt(a.question_count) || 0;
+            const answeredCount = parseInt(a.answered_count) || 0;
 
             return {
                 id: a.exam_id,
@@ -86,7 +99,7 @@ export async function GET(request: NextRequest) {
                 totalMarks: a.total_marks,
                 instructions: a.instructions,
                 sectionCount: parseInt(a.section_count) || 0,
-                questionCount: parseInt(a.question_count) || 0,
+                questionCount,
                 maxAttempts: a.max_attempts,
                 attemptCount: parseInt(a.attempt_count) || 0,
                 isAlwaysOpen,
@@ -97,6 +110,9 @@ export async function GET(request: NextRequest) {
                 hasAttempted: a.last_attempt_status === 'submitted',
                 lastAttemptStatus: a.last_attempt_status,
                 canAttempt: (parseInt(a.attempt_count) || 0) < a.max_attempts,
+                // Progress stats for in-progress exams
+                answeredCount: a.last_attempt_status === 'in_progress' ? answeredCount : 0,
+                unansweredCount: a.last_attempt_status === 'in_progress' ? questionCount - answeredCount : 0,
             };
         });
 
