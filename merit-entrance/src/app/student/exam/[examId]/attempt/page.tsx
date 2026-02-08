@@ -254,9 +254,7 @@ export default function ExamAttemptPage() {
                 return;
             }
 
-            // Normal Mode: Pause the exam
-            // We only pause if not already paused/submitting
-            pauseExam();
+            // Normal Mode: No pause - just let time run
         };
 
         const handleWindowFocus = () => {
@@ -272,8 +270,7 @@ export default function ExamAttemptPage() {
                 return;
             }
 
-            // Normal Mode: Resume exam
-            resumeExam();
+            // Normal Mode: Nothing to do (no pause/resume)
         };
 
         // Add event listeners
