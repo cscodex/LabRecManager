@@ -17,21 +17,29 @@ export async function GET(
         const { examId } = params;
         const studentId = session.id;
 
-        // Get attempt
+        // Get the most recent submitted attempt
         const attempts = await sql`
-      SELECT id, started_at, submitted_at, total_score, status
-      FROM exam_attempts
-      WHERE exam_id = ${examId} AND student_id = ${studentId}
-    `;
+            SELECT id, started_at, submitted_at, total_score, status
+            FROM exam_attempts
+            WHERE exam_id = ${examId} AND student_id = ${studentId} AND status = 'submitted'
+            ORDER BY submitted_at DESC
+            LIMIT 1
+        `;
 
         if (attempts.length === 0) {
+            // Check if there's an in_progress attempt
+            const inProgressAttempts = await sql`
+                SELECT id FROM exam_attempts
+                WHERE exam_id = ${examId} AND student_id = ${studentId} AND status = 'in_progress'
+                LIMIT 1
+            `;
+            if (inProgressAttempts.length > 0) {
+                return NextResponse.json({ error: 'Exam not yet submitted' }, { status: 400 });
+            }
             return NextResponse.json({ error: 'No attempt found' }, { status: 404 });
         }
 
         const attempt = attempts[0];
-        if (attempt.status !== 'submitted') {
-            return NextResponse.json({ error: 'Exam not yet submitted' }, { status: 400 });
-        }
 
         // Get exam details
         const exams = await sql`

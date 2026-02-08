@@ -104,11 +104,17 @@ export default function ExamAttemptPage() {
     };
 
     useEffect(() => {
-        if (!_hasHydrated) return;
+        console.log('[DEBUG useEffect] _hasHydrated:', _hasHydrated, 'isAuthenticated:', isAuthenticated, 'user:', user?.role, user?.id);
+        if (!_hasHydrated) {
+            console.log('[DEBUG useEffect] Not hydrated yet, returning early');
+            return;
+        }
         if (!isAuthenticated || user?.role !== 'student') {
+            console.log('[DEBUG useEffect] Not authenticated or not student, redirecting');
             router.push('/');
             return;
         }
+        console.log('[DEBUG useEffect] Calling loadExamData()');
         loadExamData();
 
         // Copy refs to local variables for cleanup
@@ -290,8 +296,10 @@ export default function ExamAttemptPage() {
     }, [submitting, showSubmitConfirm, examData?.securityMode]);
 
     const loadExamData = async (forceLogin = false) => {
+        console.log('[DEBUG loadExamData] Started, examId:', examId);
         try {
             // First, validate/claim session (optional - don't block exam if this fails)
+            console.log('[DEBUG loadExamData] About to validate session');
             try {
                 const storedToken = sessionStorage.getItem(`exam-session-${examId}`);
                 const sessionRes = await fetch(`/api/student/exam/${examId}/session`, {
@@ -299,9 +307,12 @@ export default function ExamAttemptPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ clientToken: storedToken, forceLogin }),
                 });
+                console.log('[DEBUG loadExamData] Session response status:', sessionRes.status);
                 const sessionData = await sessionRes.json();
+                console.log('[DEBUG loadExamData] Session data:', sessionData);
 
                 if (sessionData.activeOnOtherDevice && !forceLogin) {
+                    console.log('[DEBUG loadExamData] Device conflict detected, showing modal');
                     // Show device conflict modal
                     setShowDeviceConflict(true);
                     setLoading(false);
@@ -318,11 +329,15 @@ export default function ExamAttemptPage() {
             }
 
             // Now load exam data
+            console.log('[DEBUG] Fetching exam data for examId:', examId);
             const response = await fetch(`/api/student/exam/${examId}`, { cache: 'no-store' });
+            console.log('[DEBUG] Response status:', response.status, response.statusText);
             const data = await response.json();
+            console.log('[DEBUG] API response:', JSON.stringify(data).substring(0, 500));
 
             if (!data.success) {
                 const errMsg = data.error || 'Failed to load exam';
+                console.error('[DEBUG] API returned error:', errMsg, data.details);
                 toast.error(errMsg);
                 setErrorMessage(errMsg + (data.details ? `: ${data.details}` : ''));
                 setLoading(false);
@@ -548,6 +563,10 @@ export default function ExamAttemptPage() {
         setSubmitting(true);
         setShowSubmitConfirm(false);
 
+        // Stop timer and auto-save immediately
+        if (timerRef.current) clearInterval(timerRef.current);
+        if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+
         // Save all responses first
         await saveAllResponses();
 
@@ -602,6 +621,41 @@ export default function ExamAttemptPage() {
     }
 
     if (!examData) {
+        // If device conflict, show modal instead of error
+        if (showDeviceConflict) {
+            return (
+                <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+                    <div className="bg-white rounded-xl p-8 max-w-md w-full text-center shadow-2xl">
+                        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle className="w-8 h-8 text-yellow-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Active on Another Device</h2>
+                        <p className="text-gray-600 mb-6">
+                            This exam is currently active on another device or browser.
+                            Would you like to continue here? This will log you out from the other device.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => router.push('/student/dashboard')}
+                                className="flex-1 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition"
+                            >
+                                Go Back
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowDeviceConflict(false);
+                                    setLoading(true);
+                                    loadExamData(true); // Force login
+                                }}
+                                className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                            >
+                                Continue Here
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100">
                 <div className="text-center">
