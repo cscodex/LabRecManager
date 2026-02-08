@@ -40,6 +40,30 @@ export default function ExamHistoryPage() {
     const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
     const [loading, setLoading] = useState(true);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+    const [selectedAttempts, setSelectedAttempts] = useState<Set<string>>(new Set());
+
+    // Toggle attempt selection
+    const toggleAttemptSelection = (attemptId: string) => {
+        setSelectedAttempts(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(attemptId)) {
+                newSet.delete(attemptId);
+            } else {
+                newSet.add(attemptId);
+            }
+            return newSet;
+        });
+    };
+
+    // Select/deselect all
+    const selectAllAttempts = () => {
+        const submittedAttempts = attempts.filter(a => a.status === 'submitted' && a.score !== null);
+        if (selectedAttempts.size === submittedAttempts.length) {
+            setSelectedAttempts(new Set());
+        } else {
+            setSelectedAttempts(new Set(submittedAttempts.map(a => a.id)));
+        }
+    };
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -100,19 +124,41 @@ export default function ExamHistoryPage() {
         );
     };
 
-    // Prepare data for the chart - reverse to show chronological order left-to-right
-    const chartData = [...attempts]
-        .filter(a => a.status === 'submitted' && a.score !== null)
+    // Prepare data for the chart - filter by selected attempts or show all if none selected
+    const submittedAttempts = attempts.filter(a => a.status === 'submitted' && a.score !== null);
+    const attemptsForChart = selectedAttempts.size > 0
+        ? submittedAttempts.filter(a => selectedAttempts.has(a.id))
+        : submittedAttempts;
+
+    // Reverse to show chronological order and calculate rise/dip
+    const chartData = [...attemptsForChart]
         .reverse()
-        .map((a, index) => ({
-            name: `${getText(a.title, language).substring(0, 15)}... (${index + 1})`,
-            fullName: getText(a.title, language),
-            score: a.score,
-            total: a.totalMarks,
-            percentage: a.score ? Math.round((a.score / a.totalMarks) * 100) : 0,
-            date: new Date(a.submittedAt!).toLocaleDateString(),
-            uniqueKey: `${a.id}-${index}`
-        }));
+        .map((a, index, arr) => {
+            const percentage = a.score ? Math.round((a.score / a.totalMarks) * 100) : 0;
+            let change = 0;
+            let changeLabel = '';
+
+            // Calculate change from previous attempt in the chart
+            if (index > 0) {
+                const prevAttempt = arr[index - 1];
+                const prevPercentage = prevAttempt.score ? Math.round((prevAttempt.score / prevAttempt.totalMarks) * 100) : 0;
+                change = percentage - prevPercentage;
+                changeLabel = change >= 0 ? `+${change}%` : `${change}%`;
+            }
+
+            return {
+                name: `${getText(a.title, language).substring(0, 12)}...`,
+                fullName: getText(a.title, language),
+                score: a.score,
+                total: a.totalMarks,
+                percentage,
+                change,
+                changeLabel,
+                date: new Date(a.submittedAt!).toLocaleDateString(),
+                uniqueKey: `${a.id}-${index}`,
+                attemptId: a.id
+            };
+        });
 
     if (!_hasHydrated || loading) {
         return (
@@ -144,54 +190,125 @@ export default function ExamHistoryPage() {
 
             <main className="max-w-6xl mx-auto px-4 py-8">
                 {/* Performance Chart Section */}
-                {chartData.length > 0 && (
+                {submittedAttempts.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
-                        <div className="flex items-center gap-2 mb-6">
-                            <BarChart2 className="w-5 h-5 text-blue-600" />
-                            <h2 className="text-lg font-bold text-gray-900">Performance Overview</h2>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                            <div className="flex items-center gap-2">
+                                <BarChart2 className="w-5 h-5 text-blue-600" />
+                                <h2 className="text-lg font-bold text-gray-900">Performance Overview</h2>
+                                {selectedAttempts.size > 0 && (
+                                    <span className="text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                        {selectedAttempts.size} selected
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={selectAllAttempts}
+                                    className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition"
+                                >
+                                    {selectedAttempts.size === submittedAttempts.length ? 'Deselect All' : 'Select All'}
+                                </button>
+                                {selectedAttempts.size > 0 && (
+                                    <button
+                                        onClick={() => setSelectedAttempts(new Set())}
+                                        className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                    <XAxis
-                                        dataKey="uniqueKey"
-                                        tickFormatter={(value, index) => {
-                                            // Custom formatter to show name from payload matching uniqueKey
-                                            // Since we can't easily access payload here without index matching
-                                            // We will rely on index matching chartData
-                                            return chartData[index]?.name || '';
-                                        }}
-                                        tick={{ fontSize: 12, fill: '#6B7280' }}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <YAxis
-                                        tick={{ fontSize: 12, fill: '#6B7280' }}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip
-                                        labelFormatter={(value, payload) => {
-                                            if (payload && payload.length > 0) {
-                                                const data = payload[0].payload;
-                                                return `${data.fullName} - ${data.date}`;
-                                            }
-                                            return '';
-                                        }}
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        cursor={{ fill: '#F3F4F6' }}
-                                    />
-                                    <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                        {chartData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={entry.percentage >= 80 ? '#22C55E' : entry.percentage >= 50 ? '#3B82F6' : '#EF4444'}
-                                            />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+
+                        {chartData.length > 0 ? (
+                            <div className="h-72 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={chartData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <XAxis
+                                            dataKey="uniqueKey"
+                                            tickFormatter={(value, index) => chartData[index]?.name || ''}
+                                            tick={{ fontSize: 11, fill: '#6B7280' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            tick={{ fontSize: 12, fill: '#6B7280' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length > 0) {
+                                                    const data = payload[0].payload;
+                                                    return (
+                                                        <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-3">
+                                                            <p className="font-semibold text-gray-900">{data.fullName}</p>
+                                                            <p className="text-sm text-gray-500">{data.date}</p>
+                                                            <div className="mt-2 pt-2 border-t">
+                                                                <p className="text-sm">
+                                                                    Score: <span className="font-bold">{data.score}/{data.total}</span>
+                                                                    <span className="text-gray-500 ml-1">({data.percentage}%)</span>
+                                                                </p>
+                                                                {data.changeLabel && (
+                                                                    <p className={`text-sm font-bold mt-1 ${data.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                        {data.change >= 0 ? '▲' : '▼'} {data.changeLabel} from previous
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                            cursor={{ fill: '#F3F4F6' }}
+                                        />
+                                        <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={60} label={({ x, y, width, index }) => {
+                                            const item = chartData[index];
+                                            if (!item?.changeLabel) return null;
+                                            return (
+                                                <text
+                                                    x={x + width / 2}
+                                                    y={y - 8}
+                                                    textAnchor="middle"
+                                                    fontSize={11}
+                                                    fontWeight="bold"
+                                                    fill={item.change >= 0 ? '#16A34A' : '#DC2626'}
+                                                >
+                                                    {item.changeLabel}
+                                                </text>
+                                            );
+                                        }}>
+                                            {chartData.map((entry, index) => (
+                                                <Cell
+                                                    key={`cell-${index}`}
+                                                    fill={entry.percentage >= 80 ? '#22C55E' : entry.percentage >= 50 ? '#3B82F6' : '#EF4444'}
+                                                />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <div className="h-32 flex items-center justify-center text-gray-500">
+                                Select attempts below to compare performance
+                            </div>
+                        )}
+
+                        {/* Legend */}
+                        <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t text-sm text-gray-600">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded bg-green-500"></div>
+                                <span>≥80% (Excellent)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded bg-blue-500"></div>
+                                <span>50-79% (Good)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded bg-red-500"></div>
+                                <span>&lt;50% (Needs Work)</span>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -219,11 +336,28 @@ export default function ExamHistoryPage() {
                         {attempts.map((attempt) => (
                             <div
                                 key={attempt.id}
-                                className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 transition hover:shadow-md"
+                                className={`bg-white rounded-xl shadow-sm border p-4 sm:p-6 transition hover:shadow-md ${selectedAttempts.has(attempt.id)
+                                        ? 'border-blue-300 bg-blue-50/50 ring-1 ring-blue-200'
+                                        : 'border-gray-100'
+                                    }`}
                             >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex-1">
                                         <div className="flex items-start justify-between sm:justify-start gap-3">
+                                            {/* Checkbox for selection */}
+                                            {attempt.status === 'submitted' && attempt.score !== null && (
+                                                <button
+                                                    onClick={() => toggleAttemptSelection(attempt.id)}
+                                                    className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${selectedAttempts.has(attempt.id)
+                                                            ? 'bg-blue-600 border-blue-600 text-white'
+                                                            : 'border-gray-300 hover:border-blue-400'
+                                                        }`}
+                                                >
+                                                    {selectedAttempts.has(attempt.id) && (
+                                                        <CheckCircle className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                            )}
                                             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-sm">
                                                 {attempt.attemptNumber}
                                             </span>
