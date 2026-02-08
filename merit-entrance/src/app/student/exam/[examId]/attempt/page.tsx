@@ -290,25 +290,30 @@ export default function ExamAttemptPage() {
 
     const loadExamData = async (forceLogin = false) => {
         try {
-            // First, validate/claim session
-            const storedToken = sessionStorage.getItem(`exam-session-${examId}`);
-            const sessionRes = await fetch(`/api/student/exam/${examId}/session`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientToken: storedToken, forceLogin }),
-            });
-            const sessionData = await sessionRes.json();
+            // First, validate/claim session (optional - don't block exam if this fails)
+            try {
+                const storedToken = sessionStorage.getItem(`exam-session-${examId}`);
+                const sessionRes = await fetch(`/api/student/exam/${examId}/session`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientToken: storedToken, forceLogin }),
+                });
+                const sessionData = await sessionRes.json();
 
-            if (sessionData.activeOnOtherDevice && !forceLogin) {
-                // Show device conflict modal
-                setShowDeviceConflict(true);
-                setLoading(false);
-                return;
-            }
+                if (sessionData.activeOnOtherDevice && !forceLogin) {
+                    // Show device conflict modal
+                    setShowDeviceConflict(true);
+                    setLoading(false);
+                    return;
+                }
 
-            if (sessionData.sessionToken) {
-                sessionStorage.setItem(`exam-session-${examId}`, sessionData.sessionToken);
-                setSessionToken(sessionData.sessionToken);
+                if (sessionData.sessionToken) {
+                    sessionStorage.setItem(`exam-session-${examId}`, sessionData.sessionToken);
+                    setSessionToken(sessionData.sessionToken);
+                }
+            } catch (sessionErr) {
+                console.warn('Session validation failed, continuing without:', sessionErr);
+                // Continue loading exam anyway - session is for single device, not blocking
             }
 
             // Now load exam data
