@@ -264,6 +264,8 @@ export default function ExamHistoryPage() {
                                             cursor={{ fill: '#F3F4F6' }}
                                         />
                                         <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={60} label={({ x, y, width, index }) => {
+                                            if (index === undefined || x === undefined || y === undefined || width === undefined) return null;
+                                            if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number') return null;
                                             const item = chartData[index];
                                             if (!item?.changeLabel) return null;
                                             return (
@@ -337,8 +339,8 @@ export default function ExamHistoryPage() {
                             <div
                                 key={attempt.id}
                                 className={`bg-white rounded-xl shadow-sm border p-4 sm:p-6 transition hover:shadow-md ${selectedAttempts.has(attempt.id)
-                                        ? 'border-blue-300 bg-blue-50/50 ring-1 ring-blue-200'
-                                        : 'border-gray-100'
+                                    ? 'border-blue-300 bg-blue-50/50 ring-1 ring-blue-200'
+                                    : 'border-gray-100'
                                     }`}
                             >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -349,8 +351,8 @@ export default function ExamHistoryPage() {
                                                 <button
                                                     onClick={() => toggleAttemptSelection(attempt.id)}
                                                     className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${selectedAttempts.has(attempt.id)
-                                                            ? 'bg-blue-600 border-blue-600 text-white'
-                                                            : 'border-gray-300 hover:border-blue-400'
+                                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                                        : 'border-gray-300 hover:border-blue-400'
                                                         }`}
                                                 >
                                                     {selectedAttempts.has(attempt.id) && (
