@@ -228,6 +228,33 @@ export default function StudentDashboard() {
                                                 </button>
                                             )}
 
+                                            {exam.lastAttemptStatus === 'in_progress' && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm('Are you sure you want to end this exam? This will submit all your answers and cannot be undone.')) {
+                                                            try {
+                                                                const res = await fetch(`/api/student/exam/${exam.id}/submit`, {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                });
+                                                                const data = await res.json();
+                                                                if (data.success) {
+                                                                    toast.success('Exam submitted successfully!');
+                                                                    loadExams(); // Refresh exam list
+                                                                } else {
+                                                                    toast.error(data.error || 'Failed to submit exam');
+                                                                }
+                                                            } catch {
+                                                                toast.error('Failed to submit exam');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition shadow-sm"
+                                                >
+                                                    End Exam
+                                                </button>
+                                            )}
+
                                             {exam.attemptCount > 0 && (
                                                 <button
                                                     onClick={() => router.push(`/student/history`)}
