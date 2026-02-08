@@ -27,21 +27,29 @@ export async function POST(
             // Empty body is OK
         }
 
-        // Get attempt
+        // Get the in_progress attempt - must select the correct one if multiple exist
         const attempts = await sql`
-      SELECT id, status FROM exam_attempts
-      WHERE exam_id = ${examId} AND student_id = ${studentId}
-    `;
+            SELECT id, status FROM exam_attempts
+            WHERE exam_id = ${examId} AND student_id = ${studentId} AND status = 'in_progress'
+            ORDER BY started_at DESC
+            LIMIT 1
+        `;
 
         if (attempts.length === 0) {
+            // Check if there's a submitted attempt
+            const submittedAttempts = await sql`
+                SELECT id FROM exam_attempts
+                WHERE exam_id = ${examId} AND student_id = ${studentId} AND status = 'submitted'
+                LIMIT 1
+            `;
+            if (submittedAttempts.length > 0) {
+                return NextResponse.json({ error: 'Already submitted' }, { status: 400 });
+            }
             return NextResponse.json({ error: 'No attempt found' }, { status: 400 });
         }
 
-        if (attempts[0].status === 'submitted') {
-            return NextResponse.json({ error: 'Already submitted' }, { status: 400 });
-        }
-
         const attemptId = attempts[0].id;
+        console.log('[Submit] Processing attempt:', attemptId, 'for student:', studentId);
 
         // Get all questions and their correct answers
         const questions = await sql`
