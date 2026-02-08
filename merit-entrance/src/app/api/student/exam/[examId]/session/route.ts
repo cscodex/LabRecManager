@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
-import { v4 as uuidv4 } from 'uuid';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
@@ -37,7 +36,7 @@ export async function POST(
 
         // If no session token exists, this is first login - generate one
         if (!attempt.session_token) {
-            const newToken = uuidv4();
+            const newToken = crypto.randomUUID();
             await sql`
                 UPDATE exam_attempts
                 SET session_token = ${newToken}
@@ -70,7 +69,7 @@ export async function POST(
         }
 
         // Force login - generate new token, invalidating old session
-        const newToken = uuidv4();
+        const newToken = crypto.randomUUID();
         await sql`
             UPDATE exam_attempts
             SET session_token = ${newToken}
