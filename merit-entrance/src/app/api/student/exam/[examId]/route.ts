@@ -124,7 +124,7 @@ export async function GET(
 
         // Get attempt - Prioritize 'in_progress' to ensure resuming works even if there are newer submitted attempts
         const attempts = await sql`
-      SELECT id, started_at, status, paused_at, time_spent FROM exam_attempts
+      SELECT id, started_at, status, current_question_id FROM exam_attempts
       WHERE exam_id = ${examId} AND student_id = ${studentId}
       ORDER BY 
         CASE WHEN status = 'in_progress' THEN 0 ELSE 1 END,
@@ -192,44 +192,11 @@ export async function GET(
             };
         });
 
-        // Get remaining time
-        // Helper to calculate remaining time
-        let remainingSeconds = 0;
-
-        if (attempt.paused_at) {
-            // Exam is paused. Remaining time = duration - time_spent
-            // Note: time_spent is stored in seconds
-            const timeSpent = attempt.time_spent || 0;
-            remainingSeconds = Math.max(0, exam.duration * 60 - timeSpent);
-
-            // We do NOT unpause here. The frontend should call a "resume" action or we auto-resume on load?
-            // The requirement says "display continue button in front of exam".
-            // So on the dashboard, it's just a link.
-            // When the EXAM PAGE LOADS (this API), we should effectively "resume" the timer?
-            // If we just return remainingSeconds, the frontend timer starts.
-            // But we must also unpause the DB so that subsequent pauses work correctly.
-            // New Start Time = NOW - Time Spent
-
-            const newStartedAt = new Date(Date.now() - (timeSpent * 1000)).toISOString();
-
-            // Auto-resume on load
-            await sql`
-                UPDATE exam_attempts
-                SET 
-                    paused_at = NULL,
-                    started_at = ${newStartedAt}
-                WHERE id = ${attempt.id}
-            `;
-
-            // Update local object for response
-            attempt.started_at = newStartedAt;
-
-        } else {
-            // Exam is running. Elapsed = NOW - Started At
-            const startedAt = new Date(attempt.started_at);
-            const elapsedSeconds = Math.floor((Date.now() - startedAt.getTime()) / 1000);
-            remainingSeconds = Math.max(0, exam.duration * 60 - elapsedSeconds);
-        }
+        // Calculate remaining time - timer runs continuously from started_at
+        // No pause logic - timer always runs
+        const startedAt = new Date(attempt.started_at);
+        const elapsedSeconds = Math.floor((Date.now() - startedAt.getTime()) / 1000);
+        const remainingSeconds = Math.max(0, exam.duration * 60 - elapsedSeconds);
 
         return NextResponse.json({
             success: true,
@@ -264,6 +231,7 @@ export async function GET(
             })),
             responses: responseMap,
             remainingSeconds,
+            currentQuestionId: attempt.current_question_id || null,
         });
     } catch (error) {
         console.error('Error getting exam data:', error);

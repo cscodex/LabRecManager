@@ -7,7 +7,7 @@ import { useAuthStore, useExamStore } from '@/lib/store';
 import { getText, formatTimer, getQuestionStatusColor } from '@/lib/utils';
 import {
     Clock, User, Globe, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
-    Flag, RotateCcw, Save, Send, AlertCircle, Maximize, AlertTriangle
+    Flag, RotateCcw, Save, Send, AlertCircle, Maximize, AlertTriangle, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -72,12 +72,17 @@ export default function ExamAttemptPage() {
     const [showTabWarning, setShowTabWarning] = useState(false);
     const [tabSwitchCountdown, setTabSwitchCountdown] = useState(10);
     const [violationCount, setViolationCount] = useState(0);
-    const [isPaused, setIsPaused] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
+
+    // Single device login
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
+    const [showDeviceConflict, setShowDeviceConflict] = useState(false);
 
     const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const tabWarningRef = useRef<NodeJS.Timeout | null>(null);
     const countdownRef = useRef<NodeJS.Timeout | null>(null);
+    const remainingTimeRef = useRef(0);
 
     // Get questions for current section - FILTER OUT paragraph type (they are just containers)
     const currentSection = sections[currentSectionIndex];
@@ -286,30 +291,30 @@ export default function ExamAttemptPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [submitting, showSubmitConfirm, examData?.securityMode]);
 
-    const pauseExam = async () => {
+    const loadExamData = async (forceLogin = false) => {
         try {
-            // Stop local timer
-            if (timerRef.current) clearInterval(timerRef.current);
-            setIsPaused(true);
-
-            await fetch(`/api/student/exam/${examId}/pause`, {
+            // First, validate/claim session
+            const storedToken = sessionStorage.getItem(`exam-session-${examId}`);
+            const sessionRes = await fetch(`/api/student/exam/${examId}/session`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientToken: storedToken, forceLogin }),
             });
-        } catch (error) {
-            console.error('Failed to pause:', error);
-        }
-    };
+            const sessionData = await sessionRes.json();
 
-    const resumeExam = async () => {
-        if (!isPaused) return;
+            if (sessionData.activeOnOtherDevice && !forceLogin) {
+                // Show device conflict modal
+                setShowDeviceConflict(true);
+                setLoading(false);
+                return;
+            }
 
-        // Reload data to sync timer from server (which adjusts startedAt)
-        await loadExamData();
-        setIsPaused(false);
-    };
+            if (sessionData.sessionToken) {
+                sessionStorage.setItem(`exam-session-${examId}`, sessionData.sessionToken);
+                setSessionToken(sessionData.sessionToken);
+            }
 
-    const loadExamData = async () => {
-        try {
+            // Now load exam data
             const response = await fetch(`/api/student/exam/${examId}`, { cache: 'no-store' });
             const data = await response.json();
 
@@ -322,16 +327,39 @@ export default function ExamAttemptPage() {
             setExamData(data.exam);
             setSections(data.sections);
             setQuestions(data.questions);
-            setResponses(data.responses);
-            setTimeRemaining(data.remainingSeconds);
 
-            // Mark first question as visited
+            // Server responses are the source of truth
+            setResponses(data.responses);
+
+            // Build visited questions from existing responses
+            const visitedIds = new Set<string>(Object.keys(data.responses));
             if (data.questions.length > 0) {
-                setVisitedQuestions(new Set([data.questions[0].id]));
+                visitedIds.add(data.questions[0].id);
+            }
+            setVisitedQuestions(visitedIds);
+
+            // Restore last visited question position
+            if (data.currentQuestionId) {
+                const allQuestions = data.questions.filter((q: Question) => q.type !== 'paragraph');
+                const targetQuestion = allQuestions.find((q: Question) => q.id === data.currentQuestionId);
+                if (targetQuestion) {
+                    const sectionIdx = data.sections.findIndex((s: Section) => s.id === targetQuestion.sectionId);
+                    if (sectionIdx >= 0) {
+                        setCurrentSectionIndex(sectionIdx);
+                        const sectionQs = allQuestions.filter((q: Question) => q.sectionId === data.sections[sectionIdx].id);
+                        const qIdxInSection = sectionQs.findIndex((q: Question) => q.id === data.currentQuestionId);
+                        if (qIdxInSection >= 0) {
+                            setCurrentQuestionIndex(qIdxInSection);
+                        }
+                    }
+                }
             }
 
+            setTimeRemaining(data.remainingSeconds);
+            remainingTimeRef.current = data.remainingSeconds;
+
             // Start timer
-            startTimer(data.remainingSeconds);
+            startTimer();
 
             // Start auto-save every 30 seconds
             autoSaveRef.current = setInterval(saveAllResponses, 30000);
@@ -344,13 +372,17 @@ export default function ExamAttemptPage() {
         }
     };
 
-    const startTimer = (seconds: number) => {
-        let remaining = seconds;
-        timerRef.current = setInterval(() => {
-            remaining--;
-            setTimeRemaining(remaining);
+    const startTimer = () => {
+        // Clear any existing timer
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+        }
 
-            if (remaining <= 0) {
+        timerRef.current = setInterval(() => {
+            remainingTimeRef.current = remainingTimeRef.current - 1;
+            setTimeRemaining(remainingTimeRef.current);
+
+            if (remainingTimeRef.current <= 0) {
                 clearInterval(timerRef.current!);
                 handleSubmit(true); // Auto-submit
             }
@@ -425,6 +457,13 @@ export default function ExamAttemptPage() {
     };
 
     const handleMarkForReview = () => {
+        if (!currentQuestion) return;
+        const currentResponse = responses[currentQuestion.id];
+        // Toggle mark status WITHOUT navigating
+        saveCurrentResponse(currentResponse?.answer || [], !currentResponse?.markedForReview);
+    };
+
+    const handleMarkAndNext = () => {
         if (!currentQuestion) return;
         const currentResponse = responses[currentQuestion.id];
         saveCurrentResponse(currentResponse?.answer || [], true);
@@ -561,31 +600,47 @@ export default function ExamAttemptPage() {
     // Check if current section has no questions (empty section)
     const hasEmptySection = sectionQuestions.length === 0;
 
-    // Stats
-    const answeredCount = Object.values(responses).filter(r => r.answer && r.answer.length > 0).length;
+    // Stats - properly check for empty answers
+    const answeredCount = Object.values(responses).filter(r => {
+        if (!r.answer) return false;
+        if (Array.isArray(r.answer) && r.answer.length === 0) return false;
+        return true;
+    }).length;
     const markedCount = Object.values(responses).filter(r => r.markedForReview).length;
-    const notAnsweredCount = visitedQuestions.size - answeredCount;
+    const unansweredCount = answerableQuestions.length - answeredCount;
 
     return (
         <div className="min-h-screen bg-gray-100 flex flex-col relative">
-            {/* Paused Overlay */}
-            {isPaused && (
+            {/* Device Conflict Modal */}
+            {showDeviceConflict && (
                 <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
                     <div className="bg-white rounded-xl p-8 max-w-md w-full text-center shadow-2xl">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Clock className="w-8 h-8 text-blue-600" />
+                        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle className="w-8 h-8 text-yellow-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Exam Paused</h2>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Active on Another Device</h2>
                         <p className="text-gray-600 mb-6">
-                            You have left the exam window. The timer has been paused.
-                            Click the button below to resume.
+                            This exam is currently active on another device or browser.
+                            Would you like to continue here? This will log you out from the other device.
                         </p>
-                        <button
-                            onClick={resumeExam}
-                            className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                        >
-                            Resume Exam
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => router.push('/student/dashboard')}
+                                className="flex-1 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition"
+                            >
+                                Go Back
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowDeviceConflict(false);
+                                    setLoading(true);
+                                    loadExamData(true); // Force login
+                                }}
+                                className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                            >
+                                Continue Here
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -705,11 +760,21 @@ export default function ExamAttemptPage() {
                                     </p>
                                     {currentQuestion.imageUrl && (
                                         <div className="relative h-64 w-full mt-4 max-w-md">
+                                            {imageLoading && (
+                                                <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                    <div className="text-center">
+                                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                                        <p className="text-sm text-gray-500">Loading image...</p>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <Image
                                                 src={currentQuestion.imageUrl}
                                                 alt="Question"
                                                 fill
-                                                className="object-contain rounded-lg"
+                                                className={`object-contain rounded-lg transition-opacity ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                                                onLoad={() => setImageLoading(false)}
+                                                onLoadStart={() => setImageLoading(true)}
                                             />
                                         </div>
                                     )}
@@ -745,34 +810,37 @@ export default function ExamAttemptPage() {
                                 )}
 
                                 {/* Action Buttons */}
-                                <div className="flex flex-wrap gap-3 mt-8 pt-4 border-t">
+                                <div className="flex flex-wrap gap-2 mt-8 pt-4 border-t">
                                     <button
                                         onClick={handleMarkForReview}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${responses[currentQuestion.id]?.markedForReview
+                                        title={responses[currentQuestion.id]?.markedForReview ? 'Unmark' : 'Mark for Review'}
+                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition ${responses[currentQuestion.id]?.markedForReview
                                             ? 'bg-purple-600 text-white hover:bg-purple-700'
                                             : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                                             }`}
                                     >
                                         <Flag className="w-4 h-4" />
-                                        {responses[currentQuestion.id]?.markedForReview ? 'Marked' : 'Mark for Review'}
+                                        <span className="hidden sm:inline">{responses[currentQuestion.id]?.markedForReview ? 'Unmark' : 'Mark'}</span>
                                     </button>
                                     {responses[currentQuestion.id]?.answer?.length > 0 && (
                                         <button
                                             onClick={handleClearResponse}
-                                            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                                            title="Clear Response"
+                                            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
                                         >
                                             <RotateCcw className="w-4 h-4" />
-                                            Clear Response
+                                            <span className="hidden sm:inline">Clear</span>
                                         </button>
                                     )}
                                     <div className="flex-1"></div>
                                     <button
                                         onClick={moveToPrev}
                                         disabled={currentSectionIndex === 0 && currentQuestionIndex === 0}
-                                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                        title="Previous"
+                                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
                                     >
                                         <ChevronLeft className="w-4 h-4" />
-                                        Previous
+                                        <span className="hidden sm:inline">Prev</span>
                                     </button>
 
                                     {/* Smart Logic for Next/Save Button */}
@@ -786,10 +854,11 @@ export default function ExamAttemptPage() {
                                             return (
                                                 <button
                                                     onClick={handleSaveAndNext}
-                                                    className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                                    title="Save"
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
                                                 >
                                                     <Save className="w-4 h-4" />
-                                                    Save
+                                                    <span className="hidden sm:inline">Save</span>
                                                 </button>
                                             );
                                         }
@@ -798,10 +867,11 @@ export default function ExamAttemptPage() {
                                             return (
                                                 <button
                                                     onClick={handleSaveAndNext}
-                                                    className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                                    title="Save & Next"
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
                                                 >
                                                     <Save className="w-4 h-4" />
-                                                    Save & Next
+                                                    <span className="hidden sm:inline">Save</span>
                                                     <ChevronRight className="w-4 h-4" />
                                                 </button>
                                             );
@@ -811,9 +881,10 @@ export default function ExamAttemptPage() {
                                         return (
                                             <button
                                                 onClick={moveToNext}
-                                                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                                title="Next"
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                                             >
-                                                Next
+                                                <span className="hidden sm:inline">Next</span>
                                                 <ChevronRight className="w-4 h-4" />
                                             </button>
                                         );
@@ -857,7 +928,7 @@ export default function ExamAttemptPage() {
                         </div>
                         <div className="flex flex-col items-center">
                             <span className="w-4 h-4 rounded bg-red-500"></span>
-                            <span className="text-gray-500">{notAnsweredCount}</span>
+                            <span className="text-gray-500">{unansweredCount}</span>
                         </div>
                         <div className="flex flex-col items-center">
                             <span className="w-4 h-4 rounded bg-purple-500"></span>
@@ -965,7 +1036,7 @@ export default function ExamAttemptPage() {
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="w-3 h-3 rounded bg-red-500"></span>
-                                <span>{notAnsweredCount}</span>
+                                <span>{unansweredCount}</span>
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="w-3 h-3 rounded bg-purple-500"></span>
@@ -1050,7 +1121,7 @@ export default function ExamAttemptPage() {
                                     <span className="w-2 h-2 rounded-full bg-red-500"></span>
                                     Not Answered
                                 </span>
-                                <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">{notAnsweredCount}</span>
+                                <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">{unansweredCount}</span>
                             </div>
                             <div className="flex justify-between items-center border-t pt-2 mt-2">
                                 <span className="text-gray-500">Total Questions</span>

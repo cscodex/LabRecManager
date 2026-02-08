@@ -42,6 +42,13 @@ export async function POST(
         marked_for_review = ${markedForReview || false}
     `;
 
+        // Update current question position
+        await sql`
+            UPDATE exam_attempts
+            SET current_question_id = ${questionId}
+            WHERE id = ${attemptId}
+        `;
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error saving response:', error);
