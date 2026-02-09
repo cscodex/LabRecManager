@@ -167,27 +167,47 @@ export async function POST(
 
         for (const studentId of studentIds) {
             try {
-                // For 'append', we now allow inserting multiple (Validation ensured non-overlap)
-                // We rely on the DB unique constraint (examId, studentId, scheduleId) to prevent EXACT duplicate of same schedule
+                if (updateAttemptsOnly) {
+                    // For updateAttemptsOnly, directly UPDATE existing assignments
+                    // This handles NULL schedule_id properly
+                    await sql`
+                        UPDATE exam_assignments 
+                        SET max_attempts = ${maxAttempts}
+                        WHERE exam_id = ${params.id} AND student_id = ${studentId}
+                    `;
 
-                await sql`
-                    INSERT INTO exam_assignments (exam_id, student_id, max_attempts, schedule_id)
-                    VALUES (${params.id}, ${studentId}, ${maxAttempts}, ${finalScheduleId})
-                    ON CONFLICT (exam_id, student_id, schedule_id) 
-                    DO UPDATE SET max_attempts = ${maxAttempts}
-                `;
+                    // Log the update
+                    await sql`
+                         INSERT INTO exam_assignment_logs (
+                            exam_id, student_id, schedule_id, max_attempts, 
+                            action, assigned_by
+                        ) VALUES (
+                            ${params.id}, ${studentId}, ${finalScheduleId}, ${maxAttempts},
+                            'ATTEMPTS_UPDATED',
+                            ${session.id}
+                        )
+                    `;
+                } else {
+                    // For regular append/insert, use INSERT with ON CONFLICT
+                    await sql`
+                        INSERT INTO exam_assignments (exam_id, student_id, max_attempts, schedule_id)
+                        VALUES (${params.id}, ${studentId}, ${maxAttempts}, ${finalScheduleId})
+                        ON CONFLICT (exam_id, student_id, schedule_id) 
+                        DO UPDATE SET max_attempts = ${maxAttempts}
+                    `;
 
-                // Log Assignment
-                await sql`
-                     INSERT INTO exam_assignment_logs (
-                        exam_id, student_id, schedule_id, max_attempts, 
-                        action, assigned_by
-                    ) VALUES (
-                        ${params.id}, ${studentId}, ${finalScheduleId}, ${maxAttempts},
-                        ${mode === 'replace' ? 'ASSIGNED_REPLACE' : 'ASSIGNED_APPEND'},
-                        ${session.id}
-                    )
-                `;
+                    // Log Assignment
+                    await sql`
+                         INSERT INTO exam_assignment_logs (
+                            exam_id, student_id, schedule_id, max_attempts, 
+                            action, assigned_by
+                        ) VALUES (
+                            ${params.id}, ${studentId}, ${finalScheduleId}, ${maxAttempts},
+                            ${mode === 'replace' ? 'ASSIGNED_REPLACE' : 'ASSIGNED_APPEND'},
+                            ${session.id}
+                        )
+                    `;
+                }
 
                 addedCount++;
             } catch (e) {
