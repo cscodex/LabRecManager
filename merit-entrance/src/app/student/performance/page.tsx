@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { ArrowLeft, Award, Clock, BookOpen, TrendingUp, TrendingDown, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
+import { ArrowLeft, Award, Clock, BookOpen, TrendingUp, TrendingDown, BarChart3, PieChart as PieChartIcon, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 interface ExamStats {
@@ -12,23 +12,25 @@ interface ExamStats {
     bestPercentage: number;
 }
 
-interface SectionPerformance {
-    sectionName: string | Record<string, string>;
+interface PerformanceData {
+    name: string | Record<string, string>;
     questionsAttempted: number;
     correctAnswers: number;
     marksEarned: number;
     totalPossibleMarks: number;
     percentage: number;
-    trend: number | null;
-    hasTrend: boolean;
 }
 
 export default function PerformanceAnalysisPage() {
     const router = useRouter();
     const { user, language, isAuthenticated, _hasHydrated } = useAuthStore();
     const [examStats, setExamStats] = useState<ExamStats>({ totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
-    const [sectionPerformance, setSectionPerformance] = useState<SectionPerformance[]>([]);
+    const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Filters
+    const [groupBy, setGroupBy] = useState<'section' | 'tag'>('section');
+    const [range, setRange] = useState<'all' | 'latest'>('all');
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -36,16 +38,24 @@ export default function PerformanceAnalysisPage() {
             router.push('/');
             return;
         }
-        loadPerformance();
-    }, [_hasHydrated, isAuthenticated, user, router]);
+        loadData();
+    }, [_hasHydrated, isAuthenticated, user, router, groupBy, range]);
 
-    const loadPerformance = async () => {
+    const loadData = async () => {
+        setLoading(true);
         try {
-            const response = await fetch('/api/student/profile');
-            const data = await response.json();
-            if (data.success) {
-                setExamStats(data.examStats || { totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
-                setSectionPerformance(data.sectionPerformance || []);
+            // Load generic stats (only once ideally, but cheap enough)
+            const profileRes = await fetch('/api/student/profile');
+            const profileData = await profileRes.json();
+            if (profileData.success) {
+                setExamStats(profileData.examStats || { totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
+            }
+
+            // Load filtered performance data
+            const perfRes = await fetch(`/api/student/performance?groupBy=${groupBy}&range=${range}`);
+            const perfData = await perfRes.json();
+            if (perfData.success) {
+                setPerformanceData(perfData.performance || []);
             }
         } catch (error) {
             console.error('Failed to load performance data:', error);
@@ -71,16 +81,51 @@ export default function PerformanceAnalysisPage() {
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <header className="bg-white shadow-sm sticky top-0 z-40">
-                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center gap-3">
-                    <button
-                        onClick={() => router.back()}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <BarChart3 className="w-6 h-6 text-blue-600" />
-                        <h1 className="text-lg font-bold text-gray-900">Performance Analysis</h1>
+                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => router.back()}
+                            className="p-2 hover:bg-gray-100 rounded-lg"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <BarChart3 className="w-6 h-6 text-blue-600" />
+                            <h1 className="text-lg font-bold text-gray-900">Performance Analysis</h1>
+                        </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                            <button
+                                onClick={() => setGroupBy('section')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${groupBy === 'section' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Section
+                            </button>
+                            <button
+                                onClick={() => setGroupBy('tag')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${groupBy === 'tag' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Tag
+                            </button>
+                        </div>
+                        <div className="h-6 w-px bg-gray-300 mx-1"></div>
+                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                            <button
+                                onClick={() => setRange('all')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${range === 'all' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                All Tests
+                            </button>
+                            <button
+                                onClick={() => setRange('latest')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${range === 'latest' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Latest
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -105,19 +150,21 @@ export default function PerformanceAnalysisPage() {
                     </div>
                 </div>
 
-                {/* Pie Chart - Section Performance Distribution */}
-                {sectionPerformance.length > 0 && (
+                {/* Pie Chart */}
+                {performanceData.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                         <div className="flex items-center gap-2 mb-4">
                             <PieChartIcon className="w-6 h-6 text-purple-600" />
-                            <h2 className="text-xl font-bold text-gray-900">Section Performance Distribution</h2>
+                            <h2 className="text-xl font-bold text-gray-900">
+                                {groupBy === 'section' ? 'Section' : 'Tag'} Performance Distribution
+                            </h2>
                         </div>
                         <div className="h-64 sm:h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={sectionPerformance.map((s, i) => ({
-                                            name: getText(s.sectionName, language),
+                                        data={performanceData.map((s) => ({
+                                            name: getText(s.name, language),
                                             value: s.percentage,
                                             marks: `${s.marksEarned.toFixed(1)}/${s.totalPossibleMarks.toFixed(1)}`
                                         }))}
@@ -130,7 +177,7 @@ export default function PerformanceAnalysisPage() {
                                         label={({ name, value }) => `${name}: ${value.toFixed(0)}%`}
                                         labelLine={{ stroke: '#6B7280', strokeWidth: 1 }}
                                     >
-                                        {sectionPerformance.map((_, index) => {
+                                        {performanceData.map((_, index) => {
                                             const colors = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
                                             return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                                         })}
@@ -167,25 +214,27 @@ export default function PerformanceAnalysisPage() {
                     </div>
                 )}
 
-                {/* Section-wise Performance */}
+                {/* Detailed List */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-6">
                         <TrendingUp className="w-6 h-6 text-green-600" />
-                        <h2 className="text-xl font-bold text-gray-900">Section-wise Performance</h2>
+                        <h2 className="text-xl font-bold text-gray-900">
+                            {groupBy === 'section' ? 'Section' : 'Tag'}-wise Performance
+                        </h2>
                         <span className="text-sm text-gray-500 ml-2">(Strongest → Weakest)</span>
                     </div>
 
-                    {sectionPerformance.length === 0 ? (
+                    {performanceData.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
                             <BarChart3 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                             <p className="text-lg font-medium">No performance data yet</p>
-                            <p className="text-sm mt-1">Complete some exams to see your section-wise analysis</p>
+                            <p className="text-sm mt-1">Try changing filters or complete more exams</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {sectionPerformance.map((section, index) => {
-                                const isStrong = section.percentage >= 70;
-                                const isWeak = section.percentage < 40;
+                            {performanceData.map((item, index) => {
+                                const isStrong = item.percentage >= 70;
+                                const isWeak = item.percentage < 40;
                                 return (
                                     <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                                         {/* Rank */}
@@ -196,17 +245,17 @@ export default function PerformanceAnalysisPage() {
                                             #{index + 1}
                                         </div>
 
-                                        {/* Section Info */}
+                                        {/* Info */}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="font-semibold text-gray-900 truncate">
-                                                    {getText(section.sectionName, language)}
+                                                    {getText(item.name, language)}
                                                 </span>
                                                 <span className={`font-bold text-lg ${isStrong ? 'text-green-600' :
                                                     isWeak ? 'text-red-600' :
                                                         'text-yellow-600'
                                                     }`}>
-                                                    {section.percentage.toFixed(1)}%
+                                                    {item.percentage.toFixed(1)}%
                                                 </span>
                                             </div>
 
@@ -217,37 +266,15 @@ export default function PerformanceAnalysisPage() {
                                                         isWeak ? 'bg-red-500' :
                                                             'bg-yellow-500'
                                                         }`}
-                                                    style={{ width: `${Math.min(section.percentage, 100)}%` }}
+                                                    style={{ width: `${Math.min(item.percentage, 100)}%` }}
                                                 />
                                             </div>
 
                                             {/* Stats */}
                                             <div className="flex justify-between text-xs text-gray-500 mt-2">
-                                                <span>✓ {section.correctAnswers}/{section.questionsAttempted} correct</span>
-                                                <span>{section.marksEarned.toFixed(1)}/{section.totalPossibleMarks.toFixed(1)} marks</span>
+                                                <span>✓ {item.correctAnswers}/{item.questionsAttempted} correct</span>
+                                                <span>{item.marksEarned.toFixed(1)}/{item.totalPossibleMarks.toFixed(1)} marks</span>
                                             </div>
-                                        </div>
-
-                                        {/* Trend Indicator */}
-                                        <div className="flex-shrink-0 text-right min-w-[60px]">
-                                            {section.hasTrend ? (
-                                                <div className={`flex flex-col items-end ${section.trend! > 0 ? 'text-green-600' : section.trend! < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                                    {section.trend! > 0 ? (
-                                                        <TrendingUp className="w-5 h-5 mb-0.5" />
-                                                    ) : section.trend! < 0 ? (
-                                                        <TrendingDown className="w-5 h-5 mb-0.5" />
-                                                    ) : null}
-                                                    <span className="text-xs font-bold">
-                                                        {section.trend! > 0 ? '+' : ''}{section.trend!.toFixed(1)}%
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-400">vs last</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-end">
-                                                    {isStrong && <TrendingUp className="w-5 h-5 text-green-500" />}
-                                                    {isWeak && <TrendingDown className="w-5 h-5 text-red-500" />}
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 );
@@ -260,8 +287,8 @@ export default function PerformanceAnalysisPage() {
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
                     <h3 className="font-bold text-gray-900 mb-3">💡 Tips for Improvement</h3>
                     <ul className="space-y-2 text-sm text-gray-700">
-                        {sectionPerformance.length > 0 && sectionPerformance[sectionPerformance.length - 1].percentage < 50 && (
-                            <li>• Focus more on <strong>{getText(sectionPerformance[sectionPerformance.length - 1].sectionName, language)}</strong> - it&apos;s your weakest section</li>
+                        {performanceData.length > 0 && performanceData[performanceData.length - 1].percentage < 50 && (
+                            <li>• Focus more on <strong>{getText(performanceData[performanceData.length - 1].name, language)}</strong> - it&apos;s your weakest area</li>
                         )}
                         <li>• Practice regularly to maintain consistency</li>
                         <li>• Review incorrect answers to understand your mistakes</li>

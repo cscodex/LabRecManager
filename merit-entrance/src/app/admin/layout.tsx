@@ -17,7 +17,8 @@ import {
     X,
     Shield,
     ChevronDown,
-    ChevronRight
+    ChevronRight,
+    Tag
 } from 'lucide-react';
 import Clock from '@/components/Clock';
 
@@ -45,6 +46,7 @@ export default function AdminLayout({
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/exams', label: 'Exams', icon: FileText },
         { href: '/admin/students', label: 'Students', icon: Users },
+        { href: '/admin/tags', label: 'Tags', icon: Tag },
         { href: '/admin/results', label: 'Results', icon: BarChart3 },
         { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
     ];

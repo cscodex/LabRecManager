@@ -15,9 +15,10 @@ export async function GET(
         }
 
         const questions = await sql`
-      SELECT q.*, p.content as paragraph_text
+      SELECT q.*, p.content as paragraph_text, t.name as tag_name
       FROM questions q
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
+      LEFT JOIN tags t ON q.tag_id = t.id
       WHERE q.section_id = ${params.sectionId}
       ORDER BY q."order"
     `;
@@ -31,6 +32,8 @@ export async function GET(
                 correct_answer: typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : q.correct_answer,
                 explanation: q.explanation ? (typeof q.explanation === 'string' ? JSON.parse(q.explanation) : q.explanation) : null,
                 paragraph_text: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
+                tag_id: q.tag_id,
+                tag_name: q.tag_name,
             })),
         });
     } catch (error) {
@@ -50,7 +53,7 @@ export async function POST(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tagId } = body;
 
         // For paragraph type, paragraph_text is required; for sub-questions, parent_id is required
         if (type === 'paragraph') {
@@ -75,7 +78,7 @@ export async function POST(
         }
 
         const result = await sql`
-      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id)
+      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id, tag_id)
       VALUES (
         ${params.sectionId},
         ${type || 'mcq_single'},
@@ -89,7 +92,8 @@ export async function POST(
         ${imageUrl || null},
         ${order || 1},
         ${parentId || null},
-        ${paragraphId}
+        ${paragraphId},
+        ${tagId || null}
       )
       RETURNING id
     `;

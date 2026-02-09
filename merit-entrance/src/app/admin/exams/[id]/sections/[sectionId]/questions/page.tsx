@@ -39,6 +39,7 @@ interface Question {
     image_url?: string;
     parent_id?: string | null;
     paragraph_text?: Record<string, string> | null;
+    tag_id?: string | null;
 }
 
 interface Section {
@@ -62,6 +63,7 @@ export default function ManageQuestionsPage() {
 
     const [section, setSection] = useState<Section | null>(null);
     const [questions, setQuestions] = useState<Question[]>([]);
+    const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -129,6 +131,7 @@ export default function ManageQuestionsPage() {
         paragraphTextEn: '', // For paragraph type
         paragraphTextPa: '', // For paragraph type
         parentId: '', // For sub-questions linked to paragraphs
+        tagId: '',
     });
 
     const [formData, setFormData] = useState(createEmptyQuestion());
@@ -151,6 +154,13 @@ export default function ManageQuestionsPage() {
                 if (section) {
                     setSection(section);
                 }
+            }
+
+            // Load tags
+            const tRes = await fetch('/api/admin/tags');
+            const tData = await tRes.json();
+            if (tData.success) {
+                setTags(tData.tags);
             }
         } catch (error) {
             toast.error('Failed to load data');
@@ -407,6 +417,8 @@ export default function ManageQuestionsPage() {
             if (formData.parentId) body.parentId = formData.parentId;
         }
 
+        if (formData.tagId) body.tagId = formData.tagId;
+
         try {
             // First, shift others if needed (Bulk Reorder via API or sequential updates? 
             // Better to rely on the backend or do a bulk update. 
@@ -507,6 +519,8 @@ export default function ManageQuestionsPage() {
             body.correctAnswer = formData.correctAnswer;
             body.parentId = formData.parentId || null;
         }
+
+        if (formData.tagId) body.tagId = formData.tagId;
 
         try {
             // If moving to a new group, we might need to shift others to make space
@@ -695,7 +709,8 @@ export default function ManageQuestionsPage() {
                 imageUrl: question.image_url || '',
                 paragraphTextEn: question.paragraph_text?.en || '',
                 paragraphTextPa: question.paragraph_text?.pa || '',
-                parentId: ''
+                parentId: '',
+                tagId: question.tag_id || ''
             });
 
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -729,6 +744,7 @@ export default function ManageQuestionsPage() {
             paragraphTextEn: question.paragraph_text?.en || '',
             paragraphTextPa: question.paragraph_text?.pa || '',
             parentId: question.parent_id || '',
+            tagId: question.tag_id || ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -1265,7 +1281,7 @@ export default function ManageQuestionsPage() {
                     </button>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-4 md:grid-cols-5 gap-4">
                     <div className="col-span-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                         <select
@@ -1310,6 +1326,21 @@ export default function ManageQuestionsPage() {
                             <option value="3">3 - Moderate</option>
                             <option value="4">4 - Hard</option>
                             <option value="5">5 - Expert</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tag (Optional)</label>
+                        <select
+                            value={formData.tagId || ''}
+                            onChange={(e) => setFormData({ ...formData, tagId: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-lg bg-white"
+                        >
+                            <option value="">-- No Tag --</option>
+                            {tags.map((tag) => (
+                                <option key={tag.id} value={tag.id}>
+                                    {tag.name}
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>

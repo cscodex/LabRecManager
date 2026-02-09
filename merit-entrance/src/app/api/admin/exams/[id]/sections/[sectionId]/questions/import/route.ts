@@ -24,6 +24,7 @@ interface ImportedQuestion {
     explanationEn?: string;
     explanationPa?: string;
     parentRow?: number; // For sub-questions linked to paragraphs
+    tag?: string;
 }
 
 export async function POST(
@@ -67,6 +68,40 @@ export async function POST(
         // Track paragraph IDs by row for linking sub-questions
         const paragraphIdByRow: Record<number, string> = {};
 
+        // Pre-process tags: Collect all unique tags and upsert them
+        const uniqueTags = new Set<string>();
+        questions.forEach(q => {
+            if (q.tag && q.tag.trim()) {
+                uniqueTags.add(q.tag.trim());
+            }
+        });
+
+        const tagMap: Record<string, string> = {}; // Name -> ID
+
+        if (uniqueTags.size > 0) {
+            for (const tagName of Array.from(uniqueTags)) {
+                try {
+                    // Try to find existing tag
+                    const existingTag = await sql`SELECT id FROM tags WHERE name = ${tagName}`;
+                    if (existingTag.length > 0) {
+                        tagMap[tagName] = existingTag[0].id;
+                    } else {
+                        // Create new tag
+                        const newTag = await sql`
+                            INSERT INTO tags (name) VALUES (${tagName})
+                            ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                            RETURNING id
+                        `;
+                        if (newTag.length > 0) {
+                            tagMap[tagName] = newTag[0].id;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error processing tag "${tagName}":`, error);
+                }
+            }
+        }
+
         // First pass: import paragraph questions
         for (const q of questions) {
             if (q.type === 'paragraph' && q.row) {
@@ -96,7 +131,7 @@ export async function POST(
                     await sql`
                         INSERT INTO questions (
                             id, section_id, type, text, paragraph_id, options, correct_answer, 
-                            marks, difficulty, negative_marks, "order"
+                            marks, difficulty, negative_marks, "order", tag_id
                         ) VALUES (
                             ${questionId},
                             ${sectionId},
@@ -108,7 +143,9 @@ export async function POST(
                             ${0},
                             ${1},
                             ${0},
-                            ${currentOrder}
+                            ${0},
+                            ${currentOrder},
+                            ${q.tag && tagMap[q.tag.trim()] ? tagMap[q.tag.trim()] : null}
                         )
                     `;
                     currentOrder++;
@@ -213,7 +250,7 @@ export async function POST(
                 await sql`
                     INSERT INTO questions (
                         id, section_id, type, text, options, correct_answer, 
-                        explanation, marks, difficulty, negative_marks, "order", parent_id
+                        explanation, marks, difficulty, negative_marks, "order", parent_id, tag_id
                     ) VALUES (
                         ${questionId},
                         ${sectionId},
@@ -226,7 +263,8 @@ export async function POST(
                         ${1},
                         ${q.negativeMarks || 0},
                         ${currentOrder},
-                        ${parentId}
+                        ${parentId},
+                        ${q.tag && tagMap[q.tag.trim()] ? tagMap[q.tag.trim()] : null}
                     )
                 `;
 
