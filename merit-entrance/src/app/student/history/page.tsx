@@ -57,7 +57,7 @@ export default function ExamHistoryPage() {
 
     // Select/deselect all
     const selectAllAttempts = () => {
-        const submittedAttempts = attempts.filter(a => a.status === 'submitted' && a.score !== null);
+        const submittedAttempts = attempts.filter(a => a.status === 'submitted');
         if (selectedAttempts.size === submittedAttempts.length) {
             setSelectedAttempts(new Set());
         } else {
@@ -125,7 +125,7 @@ export default function ExamHistoryPage() {
     };
 
     // Prepare data for the chart - filter by selected attempts or show all if none selected
-    const submittedAttempts = attempts.filter(a => a.status === 'submitted' && a.score !== null);
+    const submittedAttempts = attempts.filter(a => a.status === 'submitted');
     const attemptsForChart = selectedAttempts.size > 0
         ? submittedAttempts.filter(a => selectedAttempts.has(a.id))
         : submittedAttempts;
@@ -134,7 +134,8 @@ export default function ExamHistoryPage() {
     const chartData = [...attemptsForChart]
         .reverse()
         .map((a, index, arr) => {
-            const percentage = a.score ? Math.round((a.score / a.totalMarks) * 100) : 0;
+            const score = a.score ?? 0; // Treat null score as 0
+            const percentage = a.totalMarks > 0 ? Math.round((score / a.totalMarks) * 100) : 0;
             let change = 0;
             let changeLabel = '';
 
@@ -149,12 +150,12 @@ export default function ExamHistoryPage() {
             return {
                 name: `${getText(a.title, language).substring(0, 12)}...`,
                 fullName: getText(a.title, language),
-                score: a.score,
+                score: score,
                 total: a.totalMarks,
                 percentage,
                 change,
                 changeLabel,
-                date: new Date(a.submittedAt!).toLocaleDateString(),
+                date: a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : 'N/A',
                 uniqueKey: `${a.id}-${index}`,
                 attemptId: a.id
             };
@@ -364,7 +365,7 @@ export default function ExamHistoryPage() {
                                     <div className="flex-1">
                                         <div className="flex items-start justify-between sm:justify-start gap-3">
                                             {/* Checkbox for selection */}
-                                            {attempt.status === 'submitted' && attempt.score !== null && (
+                                            {attempt.status === 'submitted' && (
                                                 <button
                                                     onClick={() => toggleAttemptSelection(attempt.id)}
                                                     className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${selectedAttempts.has(attempt.id)
