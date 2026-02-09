@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { User, Mail, Phone, ArrowLeft, Globe, Calendar, GraduationCap, CheckCircle, Building2, IdCard } from 'lucide-react';
+import { User, Mail, Phone, ArrowLeft, Globe, Calendar, GraduationCap, CheckCircle, Building2, IdCard, Edit2, Save, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Link from 'next/link';
 
 interface StudentData {
@@ -26,6 +27,16 @@ export default function StudentProfile() {
     const [studentData, setStudentData] = useState<StudentData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    // Edit form state
+    const [editForm, setEditForm] = useState({
+        email: '',
+        phone: '',
+        class: '',
+        school: ''
+    });
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -43,6 +54,13 @@ export default function StudentProfile() {
             console.log('Profile API response:', data);
             if (data.success) {
                 setStudentData(data.student);
+                // Initialize edit form with current values
+                setEditForm({
+                    email: data.student.email || '',
+                    phone: data.student.phone || '',
+                    class: data.student.class || '',
+                    school: data.student.school || ''
+                });
             } else {
                 setError(data.error || 'Failed to load profile');
             }
@@ -52,6 +70,41 @@ export default function StudentProfile() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const response = await fetch('/api/student/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editForm)
+            });
+            const data = await response.json();
+            if (data.success) {
+                setStudentData(data.student);
+                setIsEditing(false);
+                toast.success('Profile updated successfully!');
+            } else {
+                toast.error(data.error || 'Failed to update profile');
+            }
+        } catch (error) {
+            console.error('Failed to update profile:', error);
+            toast.error('Failed to update profile');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleCancel = () => {
+        // Reset form to current values
+        setEditForm({
+            email: studentData?.email || '',
+            phone: studentData?.phone || '',
+            class: studentData?.class || '',
+            school: studentData?.school || ''
+        });
+        setIsEditing(false);
     };
 
     if (!_hasHydrated || loading) {
@@ -79,17 +132,48 @@ export default function StudentProfile() {
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <header className="bg-white shadow-sm sticky top-0 z-40">
-                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center gap-3">
-                    <button
-                        onClick={() => router.push('/student/dashboard')}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <User className="w-6 h-6 text-blue-600" />
-                        <h1 className="text-lg font-bold text-gray-900">My Profile</h1>
+                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => router.push('/student/dashboard')}
+                            className="p-2 hover:bg-gray-100 rounded-lg"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <User className="w-6 h-6 text-blue-600" />
+                            <h1 className="text-lg font-bold text-gray-900">My Profile</h1>
+                        </div>
                     </div>
+
+                    {/* Edit Button */}
+                    {!isEditing ? (
+                        <button
+                            onClick={() => setIsEditing(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                            Edit
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleCancel}
+                                className="flex items-center gap-1 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <X className="w-4 h-4" />
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                            >
+                                <Save className="w-4 h-4" />
+                                {saving ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -135,6 +219,7 @@ export default function StudentProfile() {
                     <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                         <User className="w-5 h-5 text-gray-400" />
                         Student Information
+                        {isEditing && <span className="text-sm font-normal text-blue-600 ml-2">(Editing)</span>}
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Email */}
@@ -144,7 +229,17 @@ export default function StudentProfile() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</p>
-                                <p className="text-gray-900 font-medium truncate">{studentData?.email || 'Not provided'}</p>
+                                {isEditing ? (
+                                    <input
+                                        type="email"
+                                        value={editForm.email}
+                                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                                        placeholder="Enter email"
+                                    />
+                                ) : (
+                                    <p className="text-gray-900 font-medium truncate">{studentData?.email || 'Not provided'}</p>
+                                )}
                             </div>
                         </div>
 
@@ -155,9 +250,17 @@ export default function StudentProfile() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</p>
-                                <p className="text-gray-900 font-medium">
-                                    {studentData?.phone || 'Not provided'}
-                                </p>
+                                {isEditing ? (
+                                    <input
+                                        type="tel"
+                                        value={editForm.phone}
+                                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                                        placeholder="Enter phone"
+                                    />
+                                ) : (
+                                    <p className="text-gray-900 font-medium">{studentData?.phone || 'Not provided'}</p>
+                                )}
                             </div>
                         </div>
 
@@ -168,7 +271,17 @@ export default function StudentProfile() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Class</p>
-                                <p className="text-gray-900 font-medium">{studentData?.class || 'Not specified'}</p>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={editForm.class}
+                                        onChange={(e) => setEditForm({ ...editForm, class: e.target.value })}
+                                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                                        placeholder="Enter class"
+                                    />
+                                ) : (
+                                    <p className="text-gray-900 font-medium">{studentData?.class || 'Not specified'}</p>
+                                )}
                             </div>
                         </div>
 
@@ -179,11 +292,21 @@ export default function StudentProfile() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">School</p>
-                                <p className="text-gray-900 font-medium truncate">{studentData?.school || 'Not specified'}</p>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        value={editForm.school}
+                                        onChange={(e) => setEditForm({ ...editForm, school: e.target.value })}
+                                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                                        placeholder="Enter school"
+                                    />
+                                ) : (
+                                    <p className="text-gray-900 font-medium truncate">{studentData?.school || 'Not specified'}</p>
+                                )}
                             </div>
                         </div>
 
-                        {/* Member Since */}
+                        {/* Member Since - Read Only */}
                         <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100 sm:col-span-2">
                             <div className="p-2 bg-indigo-100 rounded-lg">
                                 <Calendar className="w-5 h-5 text-indigo-600" />
@@ -204,7 +327,6 @@ export default function StudentProfile() {
                     </div>
                 </div>
 
-
                 {/* Language Settings */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -215,8 +337,8 @@ export default function StudentProfile() {
                         <button
                             onClick={() => setLanguage('en')}
                             className={`px-5 py-2.5 rounded-xl font-medium transition-all ${language === 'en'
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             English
@@ -224,8 +346,8 @@ export default function StudentProfile() {
                         <button
                             onClick={() => setLanguage('pa')}
                             className={`px-5 py-2.5 rounded-xl font-medium transition-all ${language === 'pa'
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             ਪੰਜਾਬੀ (Punjabi)

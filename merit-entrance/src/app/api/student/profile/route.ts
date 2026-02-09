@@ -104,3 +104,64 @@ export async function GET() {
         return NextResponse.json({ success: false, error: 'Failed to load profile' }, { status: 500 });
     }
 }
+
+export async function PUT(request: Request) {
+    try {
+        const session = await getSession();
+
+        if (!session || session.role !== 'student') {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const studentId = session.id;
+        const body = await request.json();
+        const { email, phone, class: studentClass, school } = body;
+
+        // Update student profile
+        await sql`
+            UPDATE students 
+            SET 
+                email = COALESCE(${email || null}, email),
+                phone = COALESCE(${phone || null}, phone),
+                class = COALESCE(${studentClass || null}, class),
+                school = COALESCE(${school || null}, school)
+            WHERE id = ${studentId}
+        `;
+
+        // Get updated student data
+        const updatedStudent = await sql`
+            SELECT 
+                id, roll_number, name, name_regional, email, phone, 
+                photo_url, class, school, is_active, created_at
+            FROM students 
+            WHERE id = ${studentId}
+        `;
+
+        if (updatedStudent.length === 0) {
+            return NextResponse.json({ success: false, error: 'Student not found' }, { status: 404 });
+        }
+
+        const student = updatedStudent[0];
+
+        return NextResponse.json({
+            success: true,
+            message: 'Profile updated successfully',
+            student: {
+                id: student.id,
+                rollNumber: student.roll_number,
+                name: student.name,
+                nameRegional: student.name_regional,
+                email: student.email,
+                phone: student.phone,
+                photoUrl: student.photo_url,
+                class: student.class,
+                school: student.school,
+                isActive: student.is_active,
+                createdAt: student.created_at
+            }
+        });
+    } catch (error) {
+        console.error('Profile update error:', error);
+        return NextResponse.json({ success: false, error: 'Failed to update profile' }, { status: 500 });
+    }
+}
