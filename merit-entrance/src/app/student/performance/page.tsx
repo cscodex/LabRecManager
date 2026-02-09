@@ -18,6 +18,8 @@ interface SectionPerformance {
     marksEarned: number;
     totalPossibleMarks: number;
     percentage: number;
+    trend: number | null;
+    hasTrend: boolean;
 }
 
 export default function PerformanceAnalysisPage() {
@@ -125,8 +127,8 @@ export default function PerformanceAnalysisPage() {
                                     <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                                         {/* Rank */}
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${isStrong ? 'bg-green-100 text-green-700' :
-                                                isWeak ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                            isWeak ? 'bg-red-100 text-red-700' :
+                                                'bg-yellow-100 text-yellow-700'
                                             }`}>
                                             #{index + 1}
                                         </div>
@@ -138,8 +140,8 @@ export default function PerformanceAnalysisPage() {
                                                     {getText(section.sectionName, language)}
                                                 </span>
                                                 <span className={`font-bold text-lg ${isStrong ? 'text-green-600' :
-                                                        isWeak ? 'text-red-600' :
-                                                            'text-yellow-600'
+                                                    isWeak ? 'text-red-600' :
+                                                        'text-yellow-600'
                                                     }`}>
                                                     {section.percentage.toFixed(1)}%
                                                 </span>
@@ -149,8 +151,8 @@ export default function PerformanceAnalysisPage() {
                                             <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full transition-all duration-500 ${isStrong ? 'bg-green-500' :
-                                                            isWeak ? 'bg-red-500' :
-                                                                'bg-yellow-500'
+                                                        isWeak ? 'bg-red-500' :
+                                                            'bg-yellow-500'
                                                         }`}
                                                     style={{ width: `${Math.min(section.percentage, 100)}%` }}
                                                 />
@@ -163,10 +165,26 @@ export default function PerformanceAnalysisPage() {
                                             </div>
                                         </div>
 
-                                        {/* Trend Icon */}
-                                        <div className="flex-shrink-0">
-                                            {isStrong && <TrendingUp className="w-6 h-6 text-green-500" />}
-                                            {isWeak && <TrendingDown className="w-6 h-6 text-red-500" />}
+                                        {/* Trend Indicator */}
+                                        <div className="flex-shrink-0 text-right min-w-[60px]">
+                                            {section.hasTrend ? (
+                                                <div className={`flex flex-col items-end ${section.trend! > 0 ? 'text-green-600' : section.trend! < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                                    {section.trend! > 0 ? (
+                                                        <TrendingUp className="w-5 h-5 mb-0.5" />
+                                                    ) : section.trend! < 0 ? (
+                                                        <TrendingDown className="w-5 h-5 mb-0.5" />
+                                                    ) : null}
+                                                    <span className="text-xs font-bold">
+                                                        {section.trend! > 0 ? '+' : ''}{section.trend!.toFixed(1)}%
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400">vs last</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-end">
+                                                    {isStrong && <TrendingUp className="w-5 h-5 text-green-500" />}
+                                                    {isWeak && <TrendingDown className="w-5 h-5 text-red-500" />}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );

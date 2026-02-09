@@ -63,19 +63,92 @@ export async function GET() {
               AND ea.status = 'submitted'
         `;
 
-        // Format section performance with percentage
-        const formattedSectionPerformance = sectionPerformance.map((s: any) => ({
-            sectionName: typeof s.section_name === 'string' && s.section_name.startsWith('{')
-                ? JSON.parse(s.section_name)
-                : s.section_name,
-            questionsAttempted: parseInt(s.questions_attempted),
-            correctAnswers: parseInt(s.correct_answers),
-            marksEarned: parseFloat(s.marks_earned) || 0,
-            totalPossibleMarks: parseFloat(s.total_possible_marks) || 0,
-            percentage: s.total_possible_marks > 0
-                ? (parseFloat(s.marks_earned) / parseFloat(s.total_possible_marks)) * 100
-                : 0
-        }));
+        // Get the 2 most recent submitted attempts
+        const recentAttempts = await sql`
+            SELECT id, exam_id, submitted_at
+            FROM exam_attempts 
+            WHERE student_id = ${studentId} AND status = 'submitted'
+            ORDER BY submitted_at DESC
+            LIMIT 2
+        `;
+
+        // Calculate section trends if we have at least 2 attempts
+        let sectionTrends: Record<string, number> = {};
+        if (recentAttempts.length >= 2) {
+            const latestAttemptId = recentAttempts[0].id;
+            const previousAttemptId = recentAttempts[1].id;
+
+            // Get section performance for latest attempt
+            const latestSectionPerf = await sql`
+                SELECT 
+                    s.name as section_name,
+                    SUM(COALESCE(qr.marks_awarded, 0)) as marks_earned,
+                    SUM(q.marks) as total_marks
+                FROM question_responses qr
+                JOIN questions q ON qr.question_id = q.id
+                JOIN sections s ON q.section_id = s.id
+                WHERE qr.attempt_id = ${latestAttemptId}
+                GROUP BY s.id, s.name
+            `;
+
+            // Get section performance for previous attempt
+            const previousSectionPerf = await sql`
+                SELECT 
+                    s.name as section_name,
+                    SUM(COALESCE(qr.marks_awarded, 0)) as marks_earned,
+                    SUM(q.marks) as total_marks
+                FROM question_responses qr
+                JOIN questions q ON qr.question_id = q.id
+                JOIN sections s ON q.section_id = s.id
+                WHERE qr.attempt_id = ${previousAttemptId}
+                GROUP BY s.id, s.name
+            `;
+
+            // Build a map of section name -> previous percentage
+            const prevMap: Record<string, number> = {};
+            previousSectionPerf.forEach((s: any) => {
+                const name = typeof s.section_name === 'string' && s.section_name.startsWith('{')
+                    ? JSON.stringify(JSON.parse(s.section_name))
+                    : s.section_name;
+                const percentage = s.total_marks > 0 ? (parseFloat(s.marks_earned) / parseFloat(s.total_marks)) * 100 : 0;
+                prevMap[name] = percentage;
+            });
+
+            // Calculate trends for latest sections
+            latestSectionPerf.forEach((s: any) => {
+                const name = typeof s.section_name === 'string' && s.section_name.startsWith('{')
+                    ? JSON.stringify(JSON.parse(s.section_name))
+                    : s.section_name;
+                const latestPercentage = s.total_marks > 0 ? (parseFloat(s.marks_earned) / parseFloat(s.total_marks)) * 100 : 0;
+                const prevPercentage = prevMap[name] ?? null;
+                if (prevPercentage !== null) {
+                    sectionTrends[name] = latestPercentage - prevPercentage;
+                }
+            });
+        }
+
+        // Format section performance with percentage and trend
+        const formattedSectionPerformance = sectionPerformance.map((s: any) => {
+            const sectionNameKey = typeof s.section_name === 'string' && s.section_name.startsWith('{')
+                ? JSON.stringify(JSON.parse(s.section_name))
+                : s.section_name;
+            const trend = sectionTrends[sectionNameKey] ?? null;
+
+            return {
+                sectionName: typeof s.section_name === 'string' && s.section_name.startsWith('{')
+                    ? JSON.parse(s.section_name)
+                    : s.section_name,
+                questionsAttempted: parseInt(s.questions_attempted),
+                correctAnswers: parseInt(s.correct_answers),
+                marksEarned: parseFloat(s.marks_earned) || 0,
+                totalPossibleMarks: parseFloat(s.total_possible_marks) || 0,
+                percentage: s.total_possible_marks > 0
+                    ? (parseFloat(s.marks_earned) / parseFloat(s.total_possible_marks)) * 100
+                    : 0,
+                trend: trend, // Positive = rise, Negative = dip, null = no previous data
+                hasTrend: trend !== null
+            };
+        });
 
         return NextResponse.json({
             success: true,
