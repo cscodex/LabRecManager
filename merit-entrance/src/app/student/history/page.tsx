@@ -460,9 +460,10 @@ export default function ExamHistoryPage() {
                                         {attempt.status === 'submitted' && (
                                             <button
                                                 onClick={() => router.push(`/student/history/${attempt.id}`)}
-                                                className="hidden sm:flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition"
+                                                className="flex items-center px-3 sm:px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition"
                                             >
-                                                View Analysis
+                                                <span className="hidden sm:inline">View Analysis</span>
+                                                <span className="sm:hidden">View</span>
                                             </button>
                                         )}
                                     </div>

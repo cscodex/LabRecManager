@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { ArrowLeft, Award, Clock, BookOpen, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Award, Clock, BookOpen, TrendingUp, TrendingDown, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 interface ExamStats {
     totalExams: number;
@@ -103,6 +104,68 @@ export default function PerformanceAnalysisPage() {
                         <p className="text-sm text-gray-500 mt-1">Best Score</p>
                     </div>
                 </div>
+
+                {/* Pie Chart - Section Performance Distribution */}
+                {sectionPerformance.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <PieChartIcon className="w-6 h-6 text-purple-600" />
+                            <h2 className="text-xl font-bold text-gray-900">Section Performance Distribution</h2>
+                        </div>
+                        <div className="h-64 sm:h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={sectionPerformance.map((s, i) => ({
+                                            name: getText(s.sectionName, language),
+                                            value: s.percentage,
+                                            marks: `${s.marksEarned.toFixed(1)}/${s.totalPossibleMarks.toFixed(1)}`
+                                        }))}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={40}
+                                        outerRadius={80}
+                                        paddingAngle={2}
+                                        dataKey="value"
+                                        label={({ name, value }) => `${name}: ${value.toFixed(0)}%`}
+                                        labelLine={{ stroke: '#6B7280', strokeWidth: 1 }}
+                                    >
+                                        {sectionPerformance.map((_, index) => {
+                                            const colors = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+                                            return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                                        })}
+                                    </Pie>
+                                    <Tooltip
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length > 0) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-3">
+                                                        <p className="font-semibold text-gray-900">{data.name}</p>
+                                                        <p className="text-sm text-gray-600">Score: {data.value.toFixed(1)}%</p>
+                                                        <p className="text-sm text-gray-500">Marks: {data.marks}</p>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Legend
+                                        layout="horizontal"
+                                        verticalAlign="bottom"
+                                        align="center"
+                                        wrapperStyle={{ paddingTop: '20px' }}
+                                        formatter={(value, entry: any) => (
+                                            <span className="text-sm text-gray-700">
+                                                {value} ({entry.payload?.value?.toFixed(0)}%)
+                                            </span>
+                                        )}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
 
                 {/* Section-wise Performance */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
