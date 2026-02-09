@@ -18,8 +18,7 @@ export async function GET() {
         const studentInfo = await sql`
             SELECT 
                 id, roll_number, name, name_regional, email, phone, 
-                photo_url, class, school, is_active, created_at,
-                phone_verified, preferred_language
+                photo_url, class, school, is_active, created_at
             FROM students 
             WHERE id = ${studentId}
         `;
@@ -91,9 +90,7 @@ export async function GET() {
                 class: student.class,
                 school: student.school,
                 isActive: student.is_active,
-                createdAt: student.created_at,
-                phoneVerified: student.phone_verified,
-                preferredLanguage: student.preferred_language
+                createdAt: student.created_at
             },
             examStats: {
                 totalExams: parseInt(examStats[0]?.total_exams) || 0,

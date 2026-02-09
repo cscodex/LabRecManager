@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { User, Mail, Phone, ArrowLeft, Globe, Calendar, GraduationCap, CheckCircle, Building2, IdCard } from 'lucide-react';
-import toast from 'react-hot-toast';
-import PhoneVerification from '@/components/auth/PhoneVerification';
 import Link from 'next/link';
 
 interface StudentData {
@@ -20,8 +18,6 @@ interface StudentData {
     school?: string;
     isActive: boolean;
     createdAt: string;
-    phoneVerified?: boolean;
-    preferredLanguage?: string;
 }
 
 export default function StudentProfile() {
@@ -159,11 +155,8 @@ export default function StudentProfile() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</p>
-                                <p className="text-gray-900 font-medium flex items-center gap-1">
+                                <p className="text-gray-900 font-medium">
                                     {studentData?.phone || 'Not provided'}
-                                    {studentData?.phoneVerified && (
-                                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                    )}
                                 </p>
                             </div>
                         </div>
@@ -211,18 +204,6 @@ export default function StudentProfile() {
                     </div>
                 </div>
 
-                {/* Phone Verification */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Phone Verification</h3>
-                    <PhoneVerification
-                        currentPhone={studentData?.phone || ''}
-                        isVerified={studentData?.phoneVerified}
-                        onVerificationComplete={(phone) => {
-                            setStudentData(prev => prev ? { ...prev, phone, phoneVerified: true } : null);
-                            toast.success('Phone verified successfully');
-                        }}
-                    />
-                </div>
 
                 {/* Language Settings */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
@@ -234,8 +215,8 @@ export default function StudentProfile() {
                         <button
                             onClick={() => setLanguage('en')}
                             className={`px-5 py-2.5 rounded-xl font-medium transition-all ${language === 'en'
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             English
@@ -243,8 +224,8 @@ export default function StudentProfile() {
                         <button
                             onClick={() => setLanguage('pa')}
                             className={`px-5 py-2.5 rounded-xl font-medium transition-all ${language === 'pa'
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             ਪੰਜਾਬੀ (Punjabi)
