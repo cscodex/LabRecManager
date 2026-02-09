@@ -200,6 +200,48 @@ export default function ExamAssignPage() {
         }
     };
 
+    // Update attempts only - for already assigned students
+    const handleUpdateAttempts = async () => {
+        if (selectedIds.size === 0) {
+            toast.error('No students selected');
+            return;
+        }
+
+        // Only allow updating for students who are already assigned
+        const selectedAssigned = Array.from(selectedIds).filter(id =>
+            assignments.some(a => a.student_id === id)
+        );
+
+        if (selectedAssigned.length === 0) {
+            toast.error('None of the selected students are currently assigned to this exam');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/admin/exams/${examId}/assign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    studentIds: selectedAssigned,
+                    mode: 'append',
+                    maxAttempts,
+                    updateAttemptsOnly: true, // This skips the overlap check
+                }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                toast.success(`Updated attempts to ${maxAttempts} for ${data.count} students`);
+                loadData();
+                setSelectedIds(new Set());
+            } else {
+                toast.error(data.error || 'Failed to update attempts');
+            }
+        } catch (error) {
+            toast.error('Failed to update attempts');
+        }
+    };
+
     const filteredStudents = allStudents.filter(s => {
         const matchesSearch =
             s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -367,6 +409,19 @@ export default function ExamAssignPage() {
                                     />
                                     <span className="text-sm text-gray-500">attempts per student</span>
                                 </div>
+
+                                {/* Update Attempts Button - for already assigned students */}
+                                {selectedIds.size > 0 && assignments.some(a => selectedIds.has(a.student_id)) && (
+                                    <button
+                                        onClick={handleUpdateAttempts}
+                                        className="w-full mt-3 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-sm font-medium hover:bg-orange-100 transition"
+                                    >
+                                        Update Attempts for {Array.from(selectedIds).filter(id => assignments.some(a => a.student_id === id)).length} Assigned
+                                    </button>
+                                )}
+                                <p className="text-xs text-gray-500 mt-2 italic">
+                                    Use "Update Attempts" if a student has exhausted their attempts and needs more.
+                                </p>
                             </div>
                         </div>
 

@@ -79,7 +79,8 @@ export async function POST(
             scheduleType = 'none', // 'none' | 'existing' | 'new'
             scheduleId: providedScheduleId,
             startTime,
-            endTime
+            endTime,
+            updateAttemptsOnly = false // When true, skip overlap check and just update max_attempts for existing assignments
         } = body;
 
         if (!studentIds || !Array.isArray(studentIds)) {
@@ -105,8 +106,8 @@ export async function POST(
         }
         // If scheduleType is 'none', both are null (Always Open)
 
-        // 2. Validation for 'append' mode
-        if (mode === 'append') {
+        // 2. Validation for 'append' mode (skip if updateAttemptsOnly is true)
+        if (mode === 'append' && !updateAttemptsOnly) {
             const existingAssignments = await sql`
                 SELECT ea.student_id, ea.schedule_id, es.start_time, es.end_time, s.name, s.roll_number
                 FROM exam_assignments ea
@@ -127,7 +128,7 @@ export async function POST(
 
                     if (newIsAlwaysOpen || existIsAlwaysOpen) {
                         return NextResponse.json({
-                            error: `Schedule Conflict: Student ${exist.name} (${exist.roll_number}) already has an assignment. "Always Open" exams cannot strictly overlap with other schedules.`
+                            error: `Schedule Conflict: Student ${exist.name} (${exist.roll_number}) already has an assignment. \"Always Open\" exams cannot strictly overlap with other schedules.`
                         }, { status: 409 });
                     }
 
