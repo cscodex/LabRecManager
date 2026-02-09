@@ -224,7 +224,7 @@ export default function ExamHistoryPage() {
                             <div className="h-72 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={chartData} margin={{ top: 25, right: 10, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#3B82F6" strokeOpacity={0.3} />
                                         <XAxis
                                             dataKey="uniqueKey"
                                             tickFormatter={(value, index) => chartData[index]?.name || ''}
