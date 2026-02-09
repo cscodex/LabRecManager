@@ -45,6 +45,7 @@ export async function GET(
         s."order",
         s.duration,
         (SELECT COUNT(*) FROM questions WHERE section_id = s.id) as question_count,
+        (SELECT COALESCE(SUM(marks), 0) FROM questions WHERE section_id = s.id) as section_marks,
         (
             SELECT COALESCE(AVG(difficulty), 1.0) 
             FROM questions 

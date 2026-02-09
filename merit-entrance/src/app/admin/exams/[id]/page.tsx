@@ -21,6 +21,7 @@ interface Section {
     order: number;
     duration: number | null;
     question_count: number;
+    section_marks?: number;
     avg_difficulty?: number;
 }
 
@@ -99,7 +100,7 @@ export default function EditExamPage() {
                     instructionsEn: e.instructions?.en || '',
                     instructionsPa: e.instructions?.pa || '',
                     duration: e.duration,
-                    totalMarks: e.total_marks,
+                    totalMarks: e.sections?.reduce((sum: number, sec: any) => sum + (Number(sec.section_marks) || 0), 0) || e.total_marks,
                     passingMarks: e.passing_marks || 0,
                     negativeMarking: e.negative_marking || 0,
                     shuffleQuestions: e.shuffle_questions,
@@ -158,7 +159,7 @@ export default function EditExamPage() {
                             ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
                             : null,
                         duration: formData.duration,
-                        totalMarks: formData.totalMarks,
+                        totalMarks: sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0),
                         passingMarks: formData.passingMarks,
                         negativeMarking: formData.negativeMarking || null,
                         shuffleQuestions: formData.shuffleQuestions,
@@ -223,7 +224,7 @@ export default function EditExamPage() {
                         ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
                         : null,
                     duration: formData.duration,
-                    totalMarks: formData.totalMarks,
+                    totalMarks: sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0),
                     passingMarks: formData.passingMarks,
                     negativeMarking: formData.negativeMarking || null,
                     shuffleQuestions: formData.shuffleQuestions,
@@ -430,7 +431,14 @@ export default function EditExamPage() {
     }
 
     const sortedSections = [...sections].sort((a, b) => a.order - b.order);
-    const totalQuestions = sections.reduce((a, s) => a + s.question_count, 0);
+    const totalQuestions = sections.reduce((a, s) => a + (Number(s.question_count) || 0), 0);
+    const calculatedTotalMarks = sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0);
+
+    // Update formData total marks if different (useEffect might be better but this works for render)
+    if (formData.totalMarks !== calculatedTotalMarks && calculatedTotalMarks > 0) {
+        // We can't set state during render. 
+        // Instead, rely on loadExam or rely on calculated value for display
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -624,9 +632,9 @@ export default function EditExamPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
                                 <input
                                     type="number"
-                                    value={formData.totalMarks}
-                                    onChange={(e) => setFormData({ ...formData, totalMarks: parseInt(e.target.value) })}
-                                    className="w-full px-4 py-2 border rounded-lg"
+                                    value={sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0)}
+                                    readOnly
+                                    className="w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                                 />
                             </div>
                             <div>

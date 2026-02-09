@@ -85,7 +85,7 @@ export async function GET(
                 startedAt: attempt.started_at,
                 remainingSeconds,
                 answeredCount: parseInt(attempt.answered_count || '0'),
-                currentQuestionId: attempt.current_question_id,
+                currentQuestionId: attempt.current_question_id || null, // Ensure explicit null if undefined
                 totalQuestions
             };
         });
