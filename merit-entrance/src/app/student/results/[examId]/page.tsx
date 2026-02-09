@@ -58,6 +58,7 @@ export default function ResultsPage() {
     const [result, setResult] = useState<ExamResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
+    const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -81,6 +82,9 @@ export default function ResultsPage() {
             }
 
             setResult(data.result);
+            if (data.result.sections && data.result.sections.length > 0) {
+                setActiveSectionId(data.result.sections[0].id);
+            }
         } catch (error) {
             toast.error('Failed to load results');
         } finally {
@@ -200,119 +204,151 @@ export default function ResultsPage() {
                 </div>
 
                 {/* Questions Review */}
-                <div className="bg-white rounded-xl shadow-sm">
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                     <div className="p-4 border-b">
                         <h2 className="font-semibold text-gray-900">Detailed Review</h2>
                     </div>
 
-                    {sections.map(section => {
-                        // Filter out paragraph type questions - they are containers, not answerable
-                        const sectionQuestions = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+                    {/* Tabs */}
+                    <div className="flex overflow-x-auto border-b bg-gray-50 no-scrollbar">
+                        {sections.map((section) => (
+                            <button
+                                key={section.id}
+                                onClick={() => setActiveSectionId(section.id)}
+                                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeSectionId === section.id
+                                    ? 'border-blue-600 text-blue-600 bg-white'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                    }`}
+                            >
+                                {getText(section.name, language)}
+                            </button>
+                        ))}
+                    </div>
 
-                        // Helper to get parent paragraph text
-                        const getParentParagraphText = (q: ExamResult['questions'][0]) => {
-                            if (!q.parentId) return null;
-                            const parent = questions.find(p => p.id === q.parentId);
-                            return parent?.paragraphText || null;
-                        };
+                    {/* Active Section Content */}
+                    <div>
+                        {sections.map(section => {
+                            if (section.id !== activeSectionId) return null;
 
-                        return (
-                            <div key={section.id} className="border-b last:border-b-0">
-                                <div className="px-4 py-3 bg-gray-50">
-                                    <h3 className="font-medium text-gray-700">{getText(section.name, language)}</h3>
+                            // Filter out paragraph type questions - they are containers, not answerable
+                            const sectionQuestions = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+
+                            // Helper to get parent paragraph text
+                            const getParentParagraphText = (q: ExamResult['questions'][0]) => {
+                                if (!q.parentId) return null;
+                                const parent = questions.find(p => p.id === q.parentId);
+                                return parent?.paragraphText || null;
+                            };
+
+                            if (sectionQuestions.length === 0) {
+                                return (
+                                    <div key={section.id} className="p-8 text-center text-gray-500">
+                                        No answerable questions in this section.
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div key={section.id}>
+                                    {sectionQuestions.map((q, idx) => {
+                                        const isExpanded = expandedQuestions.has(q.id);
+                                        const parentParagraph = getParentParagraphText(q);
+
+                                        return (
+                                            <div key={q.id} className="border-b last:border-b-0">
+                                                <button
+                                                    onClick={() => toggleQuestion(q.id)}
+                                                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left transition-colors"
+                                                >
+                                                    <span className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium ${q.isCorrect === true ? 'bg-green-100 text-green-700' :
+                                                        q.isCorrect === false ? 'bg-red-100 text-red-700' :
+                                                            'bg-gray-100 text-gray-500'
+                                                        }`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="flex-1 text-gray-800 line-clamp-2 md:line-clamp-1">
+                                                        {getText(q.text, language)}
+                                                    </span>
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        {q.isCorrect === true && <CheckCircle className="w-5 h-5 text-green-500" />}
+                                                        {q.isCorrect === false && <XCircle className="w-5 h-5 text-red-500" />}
+                                                        {q.isCorrect === null && <MinusCircle className="w-5 h-5 text-gray-400" />}
+                                                        <span className={`text-sm font-medium min-w-[30px] text-right ${q.marksAwarded > 0 ? 'text-green-600' :
+                                                            q.marksAwarded < 0 ? 'text-red-600' :
+                                                                'text-gray-400'
+                                                            }`}>
+                                                            {q.marksAwarded > 0 ? '+' : ''}{q.marksAwarded}
+                                                        </span>
+                                                        {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                                    </div>
+                                                </button>
+
+                                                {isExpanded && (
+                                                    <div className="px-4 pb-4 pt-1 bg-gray-50">
+                                                        {/* Parent paragraph text for sub-questions */}
+                                                        {parentParagraph && (
+                                                            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
+                                                                <div
+                                                                    className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
+                                                                    dangerouslySetInnerHTML={{ __html: getText(parentParagraph, language) }}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <div className="ml-11">
+                                                            {/* Render HTML content for question text if needed, or just text */}
+                                                            <div className="text-gray-900 font-medium mb-3" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
+
+                                                            {q.options && (
+                                                                <div className="space-y-2 mb-4">
+                                                                    {q.options.map(opt => {
+                                                                        const isCorrect = q.correctAnswer.includes(opt.id);
+                                                                        const wasSelected = q.studentAnswer?.includes(opt.id);
+
+                                                                        return (
+                                                                            <div
+                                                                                key={opt.id}
+                                                                                className={`flex items-start gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-300' :
+                                                                                    wasSelected && !isCorrect ? 'bg-red-50 border-red-300' :
+                                                                                        'bg-white border-gray-200'
+                                                                                    }`}
+                                                                            >
+                                                                                <span className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center text-xs font-medium mt-0.5 ${isCorrect ? 'bg-green-500 border-green-500 text-white' :
+                                                                                    wasSelected ? 'bg-red-500 border-red-500 text-white' :
+                                                                                        'border-gray-300 text-gray-500'
+                                                                                    }`}>
+                                                                                    {opt.id.toUpperCase()}
+                                                                                </span>
+                                                                                <span className="flex-1 text-gray-700">
+                                                                                    {getText(opt.text, language)}
+                                                                                </span>
+                                                                                {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
+                                                                                {wasSelected && !isCorrect && <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+
+                                                            {q.explanation && (
+                                                                <div className="bg-blue-50 border border-t-4 border-blue-500 rounded-r-lg rounded-b-lg p-4 shadow-sm">
+                                                                    <p className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
+                                                                        <span>💡 Explanation</span>
+                                                                    </p>
+                                                                    <div className="text-sm text-blue-800 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: getText(q.explanation, language) }} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-
-                                {sectionQuestions.map((q, idx) => {
-                                    const isExpanded = expandedQuestions.has(q.id);
-                                    const parentParagraph = getParentParagraphText(q);
-
-                                    return (
-                                        <div key={q.id} className="border-t">
-                                            <button
-                                                onClick={() => toggleQuestion(q.id)}
-                                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50"
-                                            >
-                                                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${q.isCorrect === true ? 'bg-green-100 text-green-700' :
-                                                    q.isCorrect === false ? 'bg-red-100 text-red-700' :
-                                                        'bg-gray-100 text-gray-500'
-                                                    }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <span className="flex-1 text-left text-gray-800 line-clamp-1">
-                                                    {getText(q.text, language)}
-                                                </span>
-                                                {q.isCorrect === true && <CheckCircle className="w-5 h-5 text-green-500" />}
-                                                {q.isCorrect === false && <XCircle className="w-5 h-5 text-red-500" />}
-                                                {q.isCorrect === null && <MinusCircle className="w-5 h-5 text-gray-400" />}
-                                                <span className={`text-sm font-medium ${q.marksAwarded > 0 ? 'text-green-600' :
-                                                    q.marksAwarded < 0 ? 'text-red-600' :
-                                                        'text-gray-400'
-                                                    }`}>
-                                                    {q.marksAwarded > 0 ? '+' : ''}{q.marksAwarded}
-                                                </span>
-                                                {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                                            </button>
-
-                                            {isExpanded && (
-                                                <div className="px-4 pb-4 bg-gray-50">
-                                                    {/* Parent paragraph text for sub-questions */}
-                                                    {parentParagraph && (
-                                                        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                                            <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
-                                                            <div
-                                                                className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
-                                                                dangerouslySetInnerHTML={{ __html: getText(parentParagraph, language) }}
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    <p className="text-gray-800 mb-3">{getText(q.text, language)}</p>
-
-                                                    {q.options && (
-                                                        <div className="space-y-2 mb-4">
-                                                            {q.options.map(opt => {
-                                                                const isCorrect = q.correctAnswer.includes(opt.id);
-                                                                const wasSelected = q.studentAnswer?.includes(opt.id);
-
-                                                                return (
-                                                                    <div
-                                                                        key={opt.id}
-                                                                        className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-300' :
-                                                                            wasSelected && !isCorrect ? 'bg-red-50 border-red-300' :
-                                                                                'bg-white border-gray-200'
-                                                                            }`}
-                                                                    >
-                                                                        <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${isCorrect ? 'bg-green-500 border-green-500 text-white' :
-                                                                            wasSelected ? 'bg-red-500 border-red-500 text-white' :
-                                                                                'border-gray-300 text-gray-500'
-                                                                            }`}>
-                                                                            {opt.id.toUpperCase()}
-                                                                        </span>
-                                                                        <span className="flex-1 text-gray-700">
-                                                                            {getText(opt.text, language)}
-                                                                        </span>
-                                                                        {isCorrect && <CheckCircle className="w-4 h-4 text-green-500" />}
-                                                                        {wasSelected && !isCorrect && <XCircle className="w-4 h-4 text-red-500" />}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-
-                                                    {q.explanation && (
-                                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                                            <p className="text-sm font-medium text-blue-800 mb-1">Explanation:</p>
-                                                            <p className="text-sm text-blue-700 whitespace-pre-wrap">{getText(q.explanation, language)}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Back Button */}
