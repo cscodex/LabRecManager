@@ -236,6 +236,8 @@ export default function ExamHistoryPage() {
                                             tick={{ fontSize: 12, fill: '#6B7280' }}
                                             axisLine={false}
                                             tickLine={false}
+                                            domain={[0, 100]}
+                                            ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
                                         />
                                         <Tooltip
                                             content={({ active, payload }) => {
@@ -263,22 +265,37 @@ export default function ExamHistoryPage() {
                                             }}
                                             cursor={{ fill: '#F3F4F6' }}
                                         />
-                                        <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={60} label={({ x, y, width, index }) => {
+                                        <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={60} label={({ x, y, width, index, value }) => {
                                             if (index === undefined || x === undefined || y === undefined || width === undefined) return null;
                                             if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number') return null;
                                             const item = chartData[index];
-                                            if (!item?.changeLabel) return null;
                                             return (
-                                                <text
-                                                    x={x + width / 2}
-                                                    y={y - 8}
-                                                    textAnchor="middle"
-                                                    fontSize={11}
-                                                    fontWeight="bold"
-                                                    fill={item.change >= 0 ? '#16A34A' : '#DC2626'}
-                                                >
-                                                    {item.changeLabel}
-                                                </text>
+                                                <>
+                                                    {/* Score label on bar */}
+                                                    <text
+                                                        x={x + width / 2}
+                                                        y={y + 18}
+                                                        textAnchor="middle"
+                                                        fontSize={12}
+                                                        fontWeight="bold"
+                                                        fill="white"
+                                                    >
+                                                        {item?.score}
+                                                    </text>
+                                                    {/* Rise/dip label above bar */}
+                                                    {item?.changeLabel && (
+                                                        <text
+                                                            x={x + width / 2}
+                                                            y={y - 8}
+                                                            textAnchor="middle"
+                                                            fontSize={11}
+                                                            fontWeight="bold"
+                                                            fill={item.change >= 0 ? '#16A34A' : '#DC2626'}
+                                                        >
+                                                            {item.changeLabel}
+                                                        </text>
+                                                    )}
+                                                </>
                                             );
                                         }}>
                                             {chartData.map((entry, index) => (
