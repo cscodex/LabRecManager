@@ -111,8 +111,28 @@ model Question {
   parent        Question? @relation("QuestionToQuestion", fields: [parentId], references: [id])
   subQuestions  Question[] @relation("QuestionToQuestion")
   responses QuestionResponse[]
+  tags      QuestionTag[]
   
   @@map("questions")
+}
+
+model Tag {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String        @unique
+  createdAt DateTime      @default(now()) @map("created_at")
+  questions QuestionTag[]
+
+  @@map("tags")
+}
+
+model QuestionTag {
+  questionId String   @map("question_id") @db.Uuid
+  tagId      String   @map("tag_id") @db.Uuid
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+  @@map("question_tags")
 }
 
 model Paragraph {

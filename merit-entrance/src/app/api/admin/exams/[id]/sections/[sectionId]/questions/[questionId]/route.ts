@@ -15,7 +15,7 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags } = body;
 
         // 1. Handle Paragraph Content Update
         const [existingQ] = await sql`SELECT paragraph_id FROM questions WHERE id = ${params.questionId}`;
@@ -45,6 +45,20 @@ export async function PUT(
         parent_id = ${parentId || null}
       WHERE id = ${params.questionId} AND section_id = ${params.sectionId}
     `;
+
+        if (tags && Array.isArray(tags)) {
+            // Replace tags: delete existing and insert new
+            await sql`DELETE FROM question_tags WHERE question_id = ${params.questionId}`;
+            if (tags.length > 0) {
+                for (const tagId of tags) {
+                    await sql`
+                        INSERT INTO question_tags (question_id, tag_id)
+                        VALUES (${params.questionId}, ${tagId})
+                        ON CONFLICT (question_id, tag_id) DO NOTHING
+                    `;
+                }
+            }
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

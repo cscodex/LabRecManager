@@ -39,7 +39,7 @@ interface Question {
     image_url?: string;
     parent_id?: string | null;
     paragraph_text?: Record<string, string> | null;
-    tag_id?: string | null;
+    tags?: { id: string; name: string }[];
 }
 
 interface Section {
@@ -131,7 +131,7 @@ export default function ManageQuestionsPage() {
         paragraphTextEn: '', // For paragraph type
         paragraphTextPa: '', // For paragraph type
         parentId: '', // For sub-questions linked to paragraphs
-        tagId: '',
+        tags: [] as string[],
     });
 
     const [formData, setFormData] = useState(createEmptyQuestion());
@@ -286,7 +286,8 @@ export default function ManageQuestionsPage() {
                 marks: sq.marks,
                 negativeMarks: sq.negativeMarks,
                 difficulty: sq.difficulty || 1,
-            }))
+            })),
+            tags: formData.tags
         };
 
         try {
@@ -417,7 +418,7 @@ export default function ManageQuestionsPage() {
             if (formData.parentId) body.parentId = formData.parentId;
         }
 
-        if (formData.tagId) body.tagId = formData.tagId;
+        if (formData.tags) body.tags = formData.tags;
 
         try {
             // First, shift others if needed (Bulk Reorder via API or sequential updates? 
@@ -520,7 +521,7 @@ export default function ManageQuestionsPage() {
             body.parentId = formData.parentId || null;
         }
 
-        if (formData.tagId) body.tagId = formData.tagId;
+        if (formData.tags) body.tags = formData.tags;
 
         try {
             // If moving to a new group, we might need to shift others to make space
@@ -710,7 +711,7 @@ export default function ManageQuestionsPage() {
                 paragraphTextEn: question.paragraph_text?.en || '',
                 paragraphTextPa: question.paragraph_text?.pa || '',
                 parentId: '',
-                tagId: question.tag_id || ''
+                tags: question.tags ? question.tags.map(t => t.id) : []
             });
 
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -744,7 +745,7 @@ export default function ManageQuestionsPage() {
             paragraphTextEn: question.paragraph_text?.en || '',
             paragraphTextPa: question.paragraph_text?.pa || '',
             parentId: question.parent_id || '',
-            tagId: question.tag_id || ''
+            tags: question.tags ? question.tags.map(t => t.id) : []
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -1329,14 +1330,35 @@ export default function ManageQuestionsPage() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tag (Optional)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                        <div className="flex flex-wrap gap-2 mb-2 min-h-[32px]">
+                            {formData.tags?.map(tagId => {
+                                const tag = tags.find(t => t.id === tagId);
+                                return (
+                                    <span key={tagId} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium flex items-center gap-1 transition-all animate-in fade-in zoom-in duration-200">
+                                        {tag?.name}
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, tags: formData.tags.filter(id => id !== tagId) })}
+                                            className="hover:text-purple-900 focus:outline-none"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </span>
+                                );
+                            })}
+                        </div>
                         <select
-                            value={formData.tagId || ''}
-                            onChange={(e) => setFormData({ ...formData, tagId: e.target.value })}
-                            className="w-full px-3 py-2 border rounded-lg bg-white"
+                            value=""
+                            onChange={(e) => {
+                                if (e.target.value && !formData.tags.includes(e.target.value)) {
+                                    setFormData({ ...formData, tags: [...formData.tags, e.target.value] });
+                                }
+                            }}
+                            className="w-full px-3 py-2 border rounded-lg bg-white text-sm focus:ring-2 focus:ring-purple-200 outline-none transition-all"
                         >
-                            <option value="">-- No Tag --</option>
-                            {tags.map((tag) => (
+                            <option value="">+ Add Tag</option>
+                            {tags.filter(t => !formData.tags?.includes(t.id)).map((tag) => (
                                 <option key={tag.id} value={tag.id}>
                                     {tag.name}
                                 </option>

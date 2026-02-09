@@ -15,10 +15,20 @@ export async function GET(
         }
 
         const questions = await sql`
-      SELECT q.*, p.content as paragraph_text, t.name as tag_name
+      SELECT 
+        q.*, 
+        p.content as paragraph_text,
+        COALESCE(
+          (
+            SELECT jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name))
+            FROM question_tags qt
+            JOIN tags t ON qt.tag_id = t.id
+            WHERE qt.question_id = q.id
+          ), 
+          '[]'::jsonb
+        ) as tags
       FROM questions q
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
-      LEFT JOIN tags t ON q.tag_id = t.id
       WHERE q.section_id = ${params.sectionId}
       ORDER BY q."order"
     `;
@@ -32,8 +42,7 @@ export async function GET(
                 correct_answer: typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : q.correct_answer,
                 explanation: q.explanation ? (typeof q.explanation === 'string' ? JSON.parse(q.explanation) : q.explanation) : null,
                 paragraph_text: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
-                tag_id: q.tag_id,
-                tag_name: q.tag_name,
+                tags: q.tags || [],
             })),
         });
     } catch (error) {
@@ -53,7 +62,7 @@ export async function POST(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tagId } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags } = body;
 
         // For paragraph type, paragraph_text is required; for sub-questions, parent_id is required
         if (type === 'paragraph') {
@@ -78,7 +87,7 @@ export async function POST(
         }
 
         const result = await sql`
-      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id, tag_id)
+      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id)
       VALUES (
         ${params.sectionId},
         ${type || 'mcq_single'},
@@ -92,15 +101,27 @@ export async function POST(
         ${imageUrl || null},
         ${order || 1},
         ${parentId || null},
-        ${paragraphId},
-        ${tagId || null}
+        ${paragraphId}
       )
       RETURNING id
     `;
 
+        const questionId = result[0].id;
+
+        // Insert tags if present
+        if (tags && Array.isArray(tags) && tags.length > 0) {
+            for (const tagId of tags) {
+                await sql`
+                    INSERT INTO question_tags (question_id, tag_id)
+                    VALUES (${questionId}, ${tagId})
+                    ON CONFLICT (question_id, tag_id) DO NOTHING
+                `;
+            }
+        }
+
         return NextResponse.json({
             success: true,
-            questionId: result[0].id,
+            questionId: questionId,
         });
     } catch (error) {
         console.error('Error creating question:', error);

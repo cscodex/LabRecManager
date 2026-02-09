@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { ArrowLeft, Tag, Plus, Trash2, Search, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Tag, Plus, Trash2, Search, AlertCircle, FileDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface TagItem {
@@ -43,6 +43,17 @@ export default function TagsManagementPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleDownloadTemplate = () => {
+        const csvContent = "data:text/csv;charset=utf-8,name\nScience\nMathematics\nReasoning";
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "tags_import_template.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const handleAddTag = async () => {
@@ -122,6 +133,13 @@ export default function TagsManagementPage() {
                         <Tag className="w-6 h-6 text-purple-600" />
                         <h1 className="text-xl font-bold text-gray-900">Tag Management</h1>
                     </div>
+                    <button
+                        onClick={handleDownloadTemplate}
+                        className="ml-auto px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                        <FileDown className="w-4 h-4" />
+                        Download Template
+                    </button>
                 </div>
             </header>
 
