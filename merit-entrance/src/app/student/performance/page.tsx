@@ -1,0 +1,193 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/lib/store';
+import { ArrowLeft, Award, Clock, BookOpen, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+
+interface ExamStats {
+    totalExams: number;
+    averagePercentage: number;
+    bestPercentage: number;
+}
+
+interface SectionPerformance {
+    sectionName: string | Record<string, string>;
+    questionsAttempted: number;
+    correctAnswers: number;
+    marksEarned: number;
+    totalPossibleMarks: number;
+    percentage: number;
+}
+
+export default function PerformanceAnalysisPage() {
+    const router = useRouter();
+    const { user, language, isAuthenticated, _hasHydrated } = useAuthStore();
+    const [examStats, setExamStats] = useState<ExamStats>({ totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
+    const [sectionPerformance, setSectionPerformance] = useState<SectionPerformance[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!_hasHydrated) return;
+        if (!isAuthenticated || user?.role !== 'student') {
+            router.push('/');
+            return;
+        }
+        loadPerformance();
+    }, [_hasHydrated, isAuthenticated, user, router]);
+
+    const loadPerformance = async () => {
+        try {
+            const response = await fetch('/api/student/profile');
+            const data = await response.json();
+            if (data.success) {
+                setExamStats(data.examStats || { totalExams: 0, averagePercentage: 0, bestPercentage: 0 });
+                setSectionPerformance(data.sectionPerformance || []);
+            }
+        } catch (error) {
+            console.error('Failed to load performance data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getText = (obj: string | Record<string, string>, lang: string): string => {
+        if (typeof obj === 'string') return obj;
+        return obj?.[lang] || obj?.en || '';
+    };
+
+    if (!_hasHydrated || loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <header className="bg-white shadow-sm sticky top-0 z-40">
+                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center gap-3">
+                    <button
+                        onClick={() => router.back()}
+                        className="p-2 hover:bg-gray-100 rounded-lg"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <BarChart3 className="w-6 h-6 text-blue-600" />
+                        <h1 className="text-lg font-bold text-gray-900">Performance Analysis</h1>
+                    </div>
+                </div>
+            </header>
+
+            <main className="max-w-4xl mx-auto px-3 sm:px-4 py-6 space-y-6">
+                {/* Exam Stats Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-xl shadow-sm p-6 text-center border-l-4 border-green-500">
+                        <Award className="w-8 h-8 text-green-600 mx-auto mb-3" />
+                        <p className="text-3xl font-bold text-gray-900">{examStats.totalExams}</p>
+                        <p className="text-sm text-gray-500 mt-1">Exams Completed</p>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm p-6 text-center border-l-4 border-blue-500">
+                        <Clock className="w-8 h-8 text-blue-600 mx-auto mb-3" />
+                        <p className="text-3xl font-bold text-gray-900">{examStats.averagePercentage.toFixed(1)}%</p>
+                        <p className="text-sm text-gray-500 mt-1">Average Score</p>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm p-6 text-center border-l-4 border-purple-500">
+                        <BookOpen className="w-8 h-8 text-purple-600 mx-auto mb-3" />
+                        <p className="text-3xl font-bold text-gray-900">{examStats.bestPercentage.toFixed(1)}%</p>
+                        <p className="text-sm text-gray-500 mt-1">Best Score</p>
+                    </div>
+                </div>
+
+                {/* Section-wise Performance */}
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                    <div className="flex items-center gap-2 mb-6">
+                        <TrendingUp className="w-6 h-6 text-green-600" />
+                        <h2 className="text-xl font-bold text-gray-900">Section-wise Performance</h2>
+                        <span className="text-sm text-gray-500 ml-2">(Strongest → Weakest)</span>
+                    </div>
+
+                    {sectionPerformance.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                            <BarChart3 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                            <p className="text-lg font-medium">No performance data yet</p>
+                            <p className="text-sm mt-1">Complete some exams to see your section-wise analysis</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {sectionPerformance.map((section, index) => {
+                                const isStrong = section.percentage >= 70;
+                                const isWeak = section.percentage < 40;
+                                return (
+                                    <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                                        {/* Rank */}
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${isStrong ? 'bg-green-100 text-green-700' :
+                                                isWeak ? 'bg-red-100 text-red-700' :
+                                                    'bg-yellow-100 text-yellow-700'
+                                            }`}>
+                                            #{index + 1}
+                                        </div>
+
+                                        {/* Section Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="font-semibold text-gray-900 truncate">
+                                                    {getText(section.sectionName, language)}
+                                                </span>
+                                                <span className={`font-bold text-lg ${isStrong ? 'text-green-600' :
+                                                        isWeak ? 'text-red-600' :
+                                                            'text-yellow-600'
+                                                    }`}>
+                                                    {section.percentage.toFixed(1)}%
+                                                </span>
+                                            </div>
+
+                                            {/* Progress Bar */}
+                                            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${isStrong ? 'bg-green-500' :
+                                                            isWeak ? 'bg-red-500' :
+                                                                'bg-yellow-500'
+                                                        }`}
+                                                    style={{ width: `${Math.min(section.percentage, 100)}%` }}
+                                                />
+                                            </div>
+
+                                            {/* Stats */}
+                                            <div className="flex justify-between text-xs text-gray-500 mt-2">
+                                                <span>✓ {section.correctAnswers}/{section.questionsAttempted} correct</span>
+                                                <span>{section.marksEarned.toFixed(1)}/{section.totalPossibleMarks.toFixed(1)} marks</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Trend Icon */}
+                                        <div className="flex-shrink-0">
+                                            {isStrong && <TrendingUp className="w-6 h-6 text-green-500" />}
+                                            {isWeak && <TrendingDown className="w-6 h-6 text-red-500" />}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Tips Section */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                    <h3 className="font-bold text-gray-900 mb-3">💡 Tips for Improvement</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                        {sectionPerformance.length > 0 && sectionPerformance[sectionPerformance.length - 1].percentage < 50 && (
+                            <li>• Focus more on <strong>{getText(sectionPerformance[sectionPerformance.length - 1].sectionName, language)}</strong> - it&apos;s your weakest section</li>
+                        )}
+                        <li>• Practice regularly to maintain consistency</li>
+                        <li>• Review incorrect answers to understand your mistakes</li>
+                        <li>• Time management is key during exams</li>
+                    </ul>
+                </div>
+            </main>
+        </div>
+    );
+}
