@@ -420,7 +420,7 @@ export default function ExamAssignPage() {
                                     </button>
                                 )}
                                 <p className="text-xs text-gray-500 mt-2 italic">
-                                    Use "Update Attempts" if a student has exhausted their attempts and needs more.
+                                    Use &quot;Update Attempts&quot; if a student has exhausted their attempts and needs more.
                                 </p>
                             </div>
                         </div>
