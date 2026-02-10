@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
                         SUM(q.marks) as total_possible_marks
                     FROM question_responses qr
                     JOIN questions q ON qr.question_id = q.id
-                    LEFT JOIN tags t ON q.tag_id = t.id
+                    LEFT JOIN question_tags qt ON q.id = qt.question_id
+                    LEFT JOIN tags t ON qt.tag_id = t.id
                     WHERE qr.attempt_id = ${latestAttemptId}
                     GROUP BY t.id, t.name
                     ORDER BY 
@@ -73,8 +74,9 @@ export async function GET(request: NextRequest) {
                         SUM(q.marks) as total_possible_marks
                     FROM question_responses qr
                     JOIN questions q ON qr.question_id = q.id
-                    LEFT JOIN tags t ON q.tag_id = t.id
                     JOIN exam_attempts ea ON qr.attempt_id = ea.id
+                    LEFT JOIN question_tags qt ON q.id = qt.question_id
+                    LEFT JOIN tags t ON qt.tag_id = t.id
                     WHERE ea.student_id = ${studentId}
                       AND ea.status = 'submitted'
                     GROUP BY t.id, t.name

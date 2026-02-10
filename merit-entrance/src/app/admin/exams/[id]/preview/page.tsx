@@ -29,6 +29,7 @@ interface Question {
     image_url?: string;
     paragraph_text?: Record<string, string> | null;
     parent_id?: string | null;
+    tags?: { id: string; name: string }[];
 }
 
 interface Section {
@@ -514,6 +515,15 @@ export default function ExamPreviewPage() {
                                                 </>
                                             )}
                                         </div>
+                                        {currentQuestion.tags && currentQuestion.tags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {currentQuestion.tags.map(tag => (
+                                                    <span key={tag.id} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] border border-blue-100 font-medium">
+                                                        {tag.name}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentQuestion.type === 'mcq_single' ? 'bg-blue-100 text-blue-700' :

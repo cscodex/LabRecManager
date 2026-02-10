@@ -30,6 +30,7 @@ interface Question {
     image_url?: string;
     paragraph_text?: Record<string, string> | null;
     parent_id?: string | null;
+    tags?: { id: string; name: string }[];
 }
 
 interface Section {
@@ -331,6 +332,15 @@ export default function ViewExamPage() {
                                                                 <span className="text-red-500 ml-1">-{question.negative_marks}</span>
                                                             )}
                                                         </span>
+                                                        {question.tags && question.tags.length > 0 && (
+                                                            <div className="flex items-center gap-1 ml-2">
+                                                                {question.tags.map(tag => (
+                                                                    <span key={tag.id} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] border border-gray-200">
+                                                                        {tag.name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <p className="text-gray-900">{getText(question.text, language)}</p>
 

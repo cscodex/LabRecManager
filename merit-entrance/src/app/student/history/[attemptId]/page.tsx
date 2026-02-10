@@ -23,6 +23,7 @@ interface DetailedQuestion {
     passageContent?: Record<string, string>;
     passageTitle?: Record<string, string>;
     passageId?: string;
+    tags?: { id: string; name: string }[];
 }
 
 interface ExamDetails {
@@ -226,7 +227,18 @@ export default function DetailedResultPage({ params }: { params: { attemptId: st
                                     <div key={q.id} className={`bg-white rounded-xl border ${borderColor} shadow-sm overflow-hidden`}>
                                         {/* Question Header */}
                                         <div className="bg-gray-50/50 px-4 py-2 border-b flex items-center justify-between text-xs sm:text-sm">
-                                            <span className="font-semibold text-gray-700">Question</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-semibold text-gray-700">Question</span>
+                                                {q.tags && q.tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {q.tags.map(tag => (
+                                                            <span key={tag.id} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-[10px] border border-gray-200">
+                                                                {tag.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="flex items-center gap-3">
                                                 <span className="text-gray-500 font-medium">{q.marks} Marks</span>
                                                 <span className={`flex items-center gap-1 font-bold ${statusColor}`}>
