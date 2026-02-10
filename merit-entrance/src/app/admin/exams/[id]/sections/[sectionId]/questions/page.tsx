@@ -39,6 +39,7 @@ interface Question {
     image_url?: string;
     parent_id?: string | null;
     paragraph_text?: Record<string, string> | null;
+
     tags?: { id: string; name: string }[];
 }
 
@@ -74,6 +75,7 @@ export default function ManageQuestionsPage() {
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [isParaMode, setIsParaMode] = useState(false);
     const [editingParagraphId, setEditingParagraphId] = useState<string | null>(null);
+    const [tagSearch, setTagSearch] = useState('');
 
     // Sub-questions for paragraph mode
     type SubQuestionForm = {
@@ -418,7 +420,7 @@ export default function ManageQuestionsPage() {
             if (formData.parentId) body.parentId = formData.parentId;
         }
 
-        if (formData.tags) body.tags = formData.tags;
+        if (formData.tags && formData.tags.length > 0) body.tags = formData.tags;
 
         try {
             // First, shift others if needed (Bulk Reorder via API or sequential updates? 
@@ -521,7 +523,7 @@ export default function ManageQuestionsPage() {
             body.parentId = formData.parentId || null;
         }
 
-        if (formData.tags) body.tags = formData.tags;
+        if (formData.tags && formData.tags.length > 0) body.tags = formData.tags;
 
         try {
             // If moving to a new group, we might need to shift others to make space
@@ -1479,6 +1481,46 @@ export default function ManageQuestionsPage() {
                     </div>
                 )}
 
+                {/* Tag Selector (Multi-select) */}
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        🏷️ Tags (Optional)
+                    </label>
+                    <input
+                        type="text"
+                        value={tagSearch}
+                        onChange={(e) => setTagSearch(e.target.value)}
+                        placeholder="Search tags..."
+                        className="w-full px-3 py-2 border rounded-lg mb-2 text-sm"
+                    />
+                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1 bg-white border rounded pr-2">
+                        {tags.filter(t => t.name.toLowerCase().includes(tagSearch.toLowerCase())).map((tag) => {
+                            const isSelected = formData.tags.includes(tag.id);
+                            return (
+                                <button
+                                    key={tag.id}
+                                    type="button"
+                                    onClick={() => {
+                                        const newTags = isSelected
+                                            ? formData.tags.filter(id => id !== tag.id)
+                                            : [...formData.tags, tag.id];
+                                        setFormData({ ...formData, tags: newTags });
+                                    }}
+                                    className={`px-3 py-1 text-sm rounded-full border transition-colors ${isSelected
+                                        ? 'bg-blue-100 border-blue-500 text-blue-700 font-medium'
+                                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                        }`}
+                                >
+                                    {tag.name}
+                                    {isSelected && <span className="ml-1 text-blue-600">✓</span>}
+                                </button>
+                            );
+                        })}
+                        {tags.length === 0 && <span className="text-sm text-gray-500 italic p-2">No tags available. Add them in settings logic (coming soon).</span>}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Click to toggle tags for this question.</p>
+                </div>
+
                 {/* Fill in the Blank Answers / MCQ Options - hidden for paragraph type */}
                 {formData.type !== 'paragraph' && (formData.type === 'fill_blank' ? (
                     <div>
@@ -1773,6 +1815,17 @@ export default function ManageQuestionsPage() {
                                                 )}
                                             </div>
                                             <div className="text-gray-900 font-medium mb-2 prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
+
+                                            {/* Tags Display */}
+                                            {q.tags && q.tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mb-2">
+                                                    {q.tags.map(tag => (
+                                                        <span key={tag.id} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded-full border border-blue-100">
+                                                            #{tag.name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
 
                                             {/* Paragraph text for paragraph type */}
                                             {q.type === 'paragraph' && q.paragraph_text && (

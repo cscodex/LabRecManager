@@ -108,9 +108,10 @@ export async function POST(
 
         const questionId = result[0].id;
 
-        // Insert tags if present
+        // Insert tags if present (Multi-tag)
         if (tags && Array.isArray(tags) && tags.length > 0) {
             for (const tagId of tags) {
+                // Ensure tags exist? Or just insert.
                 await sql`
                     INSERT INTO question_tags (question_id, tag_id)
                     VALUES (${questionId}, ${tagId})
