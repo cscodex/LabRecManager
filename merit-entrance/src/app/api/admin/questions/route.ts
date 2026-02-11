@@ -21,47 +21,22 @@ export async function GET(req: NextRequest) {
 
         const offset = (page - 1) * limit;
 
-        let whereConditions = ['parent_id IS NULL']; // Filter by parent_id IS NULL directly on table, alias q used later
-
-        const params: any[] = [];
-        let paramIndex = 1;
-
-        if (search) {
-            whereConditions.push(`(text->>'en' ILIKE $${paramIndex} OR text->>'pa' ILIKE $${paramIndex})`);
-            params.push(`%${search}%`);
-            paramIndex++;
-        }
-
-        if (type && type !== 'all') {
-            whereConditions.push(`type = $${paramIndex}`);
-            params.push(type);
-            paramIndex++;
-        }
-
-        if (difficulty && difficulty !== 'all') {
-            whereConditions.push(`difficulty = $${paramIndex}`);
-            params.push(parseInt(difficulty));
-            paramIndex++;
-        }
-
-        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        const searchPattern = `%${search}%`;
+        const diffValue = difficulty === 'all' ? 0 : parseInt(difficulty);
 
         // Count query
-        const countQueryParts = [`SELECT COUNT(*) as total FROM questions`];
-        if (whereClause) countQueryParts.push(whereClause);
-
-        const countQuery = countQueryParts.join(' ');
-        const totalResult = await sql(countQuery, params);
+        const totalResult = await sql`
+            SELECT COUNT(*) as total FROM questions q
+            WHERE 
+                q.parent_id IS NULL
+                AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
+                AND (${type} = 'all' OR q.type = ${type})
+                AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+        `;
         const total = parseInt(totalResult[0].total);
 
         // Fetch Query
-        // We use alias q here, so we need to adjust where clause if we used it in count. 
-        // But count used no alias.
-        // Let's consistently use alias q in main query and adjust where clause for it.
-
-        const whereClauseWithAlias = whereConditions.length > 0 ? `WHERE ${whereConditions.map(c => c.replace(/parent_id/g, 'q.parent_id').replace(/^text/, 'q.text').replace(/^type/, 'q.type').replace(/^difficulty/, 'q.difficulty')).join(' AND ')}` : '';
-
-        const queryParts = [`
+        const questions = await sql`
             SELECT 
                 q.*, 
                 s.name as section_name,
@@ -75,14 +50,14 @@ export async function GET(req: NextRequest) {
             FROM questions q
             LEFT JOIN sections s ON q.section_id = s.id
             LEFT JOIN exams e ON s.exam_id = e.id
-        `];
-
-        if (whereClauseWithAlias) queryParts.push(whereClauseWithAlias);
-
-        queryParts.push(`ORDER BY q.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`);
-        params.push(limit, offset);
-
-        const questions = await sql(queryParts.join(' '), params);
+            WHERE 
+                q.parent_id IS NULL
+                AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
+                AND (${type} = 'all' OR q.type = ${type})
+                AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+            ORDER BY q.created_at DESC 
+            LIMIT ${limit} OFFSET ${offset}
+        `;
 
         return NextResponse.json({
             success: true,
@@ -130,16 +105,6 @@ export async function POST(req: NextRequest) {
             order
         } = body;
 
-        const insertQuery = `
-            INSERT INTO questions (
-                type, text, options, correct_answer, explanation, 
-                marks, negative_marks, difficulty, image_url, "order", paragraph_text, parent_id
-            ) VALUES (
-                $1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, 
-                $6, $7, $8, $9, $10, $11::jsonb, $12
-            ) RETURNING id
-        `;
-
         // Handle paragraph text
         let pText = null;
         if (type === 'paragraph' && body.paragraph) {
@@ -150,27 +115,32 @@ export async function POST(req: NextRequest) {
             pText = body.paragraph_text;
         }
 
-        const result = await sql(insertQuery, [
-            type,
-            JSON.stringify(text),
-            options ? JSON.stringify(options) : null,
-            correct_answer ? (Array.isArray(correct_answer) ? JSON.stringify(correct_answer) : JSON.stringify([correct_answer])) : '[]',
-            explanation ? JSON.stringify(explanation) : null,
-            marks,
-            negative_marks || 0,
-            difficulty || 1,
-            image_url || null,
-            order || 0,
-            pText ? JSON.stringify(pText) : null,
-            null // parent_id is null for top level
-        ]);
+        const result = await sql`
+            INSERT INTO questions (
+                type, text, options, correct_answer, explanation, 
+                marks, negative_marks, difficulty, image_url, "order", paragraph_text, parent_id
+            ) VALUES (
+                ${type}, 
+                ${JSON.stringify(text)}::jsonb, 
+                ${options ? JSON.stringify(options) : null}::jsonb, 
+                ${correct_answer ? (Array.isArray(correct_answer) ? JSON.stringify(correct_answer) : JSON.stringify([correct_answer])) : '[]'}::jsonb, 
+                ${explanation ? JSON.stringify(explanation) : null}::jsonb, 
+                ${marks}, 
+                ${negative_marks || 0}, 
+                ${difficulty || 1}, 
+                ${image_url || null}, 
+                ${order || 0}, 
+                ${pText ? JSON.stringify(pText) : null}::jsonb, 
+                NULL
+            ) RETURNING id
+        `;
 
         const questionId = result[0].id;
 
         // Insert Tags
         if (tags && tags.length > 0) {
             for (const tagId of tags) {
-                await sql('INSERT INTO question_tags (question_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [questionId, tagId]);
+                await sql`INSERT INTO question_tags (question_id, tag_id) VALUES (${questionId}, ${tagId}) ON CONFLICT DO NOTHING`;
             }
         }
 
@@ -180,49 +150,24 @@ export async function POST(req: NextRequest) {
         if (type === 'paragraph' && subQuestions && Array.isArray(subQuestions)) {
             let subOrder = 1;
             for (const sq of subQuestions) {
-                // Ensure options format
-                const sqText = sq.text || sq.textEn; // Fallback mapping
-                // Assuming QuestionEditor sends `text: {en...}` correctly or `textEn` if not mapped.
-                // QuestionEditor onSave mapped it to `text: {en...}` but subQuestions array has `textEn` usage in `new/page.tsx` batch logic?
-                // `new/page.tsx` does a mapping for batch endpoint.
-                // But for this unified endpoint, `QuestionEditor` calls with body structure.
-                // `new/page.tsx` `handleSave` creates `body` and calls POST.
-
-                // We should ensure `new/page.tsx` sends `subQuestions` with correct structure:
-                /*
-                    subQuestions: [{
-                        type: ...,
-                        text: { en: ... },
-                        options: [ ... ],
-                        correctAnswer: [...],
-                        ...
-                    }]
-                */
-
-                // `new/page.tsx` does NOT map `subQuestions` for the standard POST currently. 
-                // I need to update `new/page.tsx` to map `subQuestions` correctly in `body` for `type === 'paragraph'`.
-
-                await sql(`
+                await sql`
                     INSERT INTO questions (
                         type, text, options, correct_answer, explanation, 
                         marks, negative_marks, difficulty, "order", parent_id, image_url
                     ) VALUES (
-                        $1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, 
-                        $6, $7, $8, $9, $10, $11
+                        ${sq.type}, 
+                        ${JSON.stringify(sq.text || sq.textEn)}::jsonb, 
+                        ${JSON.stringify(sq.options)}::jsonb, 
+                        ${JSON.stringify(sq.correctAnswer || [])}::jsonb, 
+                        ${sq.explanation ? JSON.stringify(sq.explanation) : null}::jsonb, 
+                        ${sq.marks}, 
+                        ${sq.negativeMarks}, 
+                        ${sq.difficulty}, 
+                        ${subOrder++}, 
+                        ${questionId}, 
+                        ${sq.imageUrl || null}
                     )
-                `, [
-                    sq.type,
-                    JSON.stringify(sq.text),
-                    JSON.stringify(sq.options),
-                    JSON.stringify(sq.correctAnswer || []),
-                    sq.explanation ? JSON.stringify(sq.explanation) : null,
-                    sq.marks,
-                    sq.negativeMarks,
-                    sq.difficulty,
-                    subOrder++,
-                    questionId,
-                    sq.imageUrl || null
-                ]);
+                `;
             }
         }
 
