@@ -35,7 +35,13 @@ interface ImportedQuestion {
     explanationEn?: string;
     explanationPa?: string;
     parentRow?: number;
+    tags?: string[];
     error?: string;
+}
+
+interface RowError {
+    row: number;
+    error: string;
 }
 
 export default function ImportQuestionsPage() {
@@ -51,6 +57,7 @@ export default function ImportQuestionsPage() {
     const [parsedQuestions, setParsedQuestions] = useState<ImportedQuestion[]>([]);
     const [showPreview, setShowPreview] = useState(false);
     const [importLanguage, setImportLanguage] = useState<'both' | 'en' | 'pa'>('both');
+    const [importErrors, setImportErrors] = useState<RowError[]>([]);
 
     useEffect(() => {
         loadSection();
@@ -90,7 +97,8 @@ export default function ImportQuestionsPage() {
             'NegativeMarks',
             'Explanation_EN',
             'Explanation_PA',
-            'ParentRow'
+            'ParentRow',
+            'Tags (comma separated)'
         ];
 
         const sampleRow = [
@@ -110,7 +118,8 @@ export default function ImportQuestionsPage() {
             '1',
             'The sum of 2 and 2 is 4',
             '2 ਅਤੇ 2 ਦਾ ਜੋੜ 4 ਹੈ',
-            '' // ParentRow - empty for standalone questions
+            '', // ParentRow
+            'Math,Addition,Basic'
         ];
 
         const sampleParagraph = [
@@ -119,7 +128,8 @@ export default function ImportQuestionsPage() {
             'ਹੇਠਾਂ ਦਿੱਤੇ ਪੈਰੇ ਨੂੰ ਪੜ੍ਹੋ ਅਤੇ ਸਵਾਲਾਂ ਦੇ ਜਵਾਬ ਦਿਓ...',
             '', '', '', '', '', '', '', '',
             '', '0', '0', '', '',
-            '' // ParentRow empty for paragraphs
+            '', // ParentRow
+            'Reading,Comprehension'
         ];
 
         const sampleSubQuestion = [
@@ -131,7 +141,8 @@ export default function ImportQuestionsPage() {
             'Option C', 'ਵਿਕਲਪ C',
             'Option D', 'ਵਿਕਲਪ D',
             'a', '4', '1', '', '',
-            '3' // ParentRow = 3 (row of the paragraph)
+            '3', // ParentRow
+            ''
         ];
 
         // Quote all cells to avoid comma issues
@@ -163,26 +174,17 @@ export default function ImportQuestionsPage() {
     };
 
     // Convert math notation: a^2 → a<sup>2</sup>, a^{10} → a<sup>10</sup>
-    // Also handles chemistry subscripts: H_2O → H₂O or H<sub>2</sub>O
     const formatMathText = (text: string | undefined): string => {
         if (!text) return '';
 
         let result = text
-            // Handle curly brace notation for superscripts: x^{10} → x<sup>10</sup>
             .replace(/\^{([^}]+)}/g, '<sup>$1</sup>')
-            // Handle curly brace notation for subscripts: H_{2} → H<sub>2</sub>
             .replace(/_{([^}]+)}/g, '<sub>$1</sub>')
-            // Handle parentheses notation for superscripts: x^(2n) → x<sup>2n</sup>
             .replace(/\^\(([^)]+)\)/g, '<sup>$1</sup>')
-            // Handle parentheses notation for subscripts: H_(2) → H<sub>2</sub>
             .replace(/_\(([^)]+)\)/g, '<sub>$1</sub>')
-            // Handle multi-digit superscripts: x^12 → x<sup>12</sup>
             .replace(/\^(\d+)/g, '<sup>$1</sup>')
-            // Handle single letter superscripts: x^n → x<sup>n</sup>
             .replace(/\^([a-zA-Z])/g, '<sup>$1</sup>')
-            // Handle subscript with digits: H_2 → H<sub>2</sub>
             .replace(/_(\d+)/g, '<sub>$1</sub>')
-            // Handle subscript with single letter: a_n → a<sub>n</sub>
             .replace(/_([a-zA-Z])/g, '<sub>$1</sub>');
 
         return result;
@@ -195,7 +197,6 @@ export default function ImportQuestionsPage() {
             return;
         }
 
-        // Auto-detect delimiter: check if first line has more tabs than commas
         const firstLine = lines[0];
         const tabCount = (firstLine.match(/\t/g) || []).length;
         const commaCount = (firstLine.match(/,/g) || []).length;
@@ -210,10 +211,8 @@ export default function ImportQuestionsPage() {
             let cells: string[] = [];
 
             if (delimiter === '\t') {
-                // Tab-separated: simple split
                 cells = line.split('\t').map(c => c.trim());
             } else {
-                // Comma-separated: handle quoted fields
                 let currentCell = '';
                 let inQuotes = false;
 
@@ -231,11 +230,8 @@ export default function ImportQuestionsPage() {
                 cells.push(currentCell.trim());
             }
 
-            // Smart column detection: check if there's an extra empty column after correct answer
-            // This handles old CSV files that had the comma in "Correct Answer (a/b/c/d or a,b for multiple)"
             let offset = 0;
             if (cells[12] === '' && cells.length > 16) {
-                // Extra empty column detected, shift indexes for remaining columns
                 offset = 1;
                 console.log(`Row ${index + 2}: Detected extra empty column, applying offset`);
             }
@@ -259,6 +255,7 @@ export default function ImportQuestionsPage() {
                 explanationEn: formatMathText(cells[14 + offset]),
                 explanationPa: formatMathText(cells[15 + offset]),
                 parentRow: cells[16 + offset] ? parseInt(cells[16 + offset]) : undefined,
+                tags: cells[17 + offset] ? cells[17 + offset].split(',').map(t => t.trim()).filter(Boolean) : []
             };
 
             if (!question.textEn && !question.textPa) {
@@ -297,13 +294,24 @@ export default function ImportQuestionsPage() {
             const data = await response.json();
             if (data.success) {
                 toast.success(`Successfully imported ${data.imported} questions!`);
-                setParsedQuestions([]);
-                setShowPreview(false);
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
+                if (data.errors && data.errors.length > 0) {
+                    setImportErrors(data.errors);
+                    toast('Some rows failed to import', { icon: '⚠️' });
+                } else {
+                    setParsedQuestions([]);
+                    setImportErrors([]);
+                    setShowPreview(false);
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                    }
                 }
             } else {
-                toast.error(data.error || 'Import failed');
+                if (data.errors && Array.isArray(data.errors)) {
+                    setImportErrors(data.errors);
+                    toast.error('Import failed with errors');
+                } else {
+                    toast.error(data.error || 'Import failed');
+                }
             }
         } catch (error) {
             toast.error('Failed to import questions');
@@ -452,6 +460,22 @@ export default function ImportQuestionsPage() {
                             </div>
                         </div>
 
+                        {importErrors.length > 0 && (
+                            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                                <h4 className="text-red-800 font-semibold mb-2 flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4" /> Import Errors
+                                </h4>
+                                <div className="max-h-32 overflow-y-auto text-sm text-red-700 space-y-1">
+                                    {importErrors.map((err, idx) => (
+                                        <div key={idx} className="flex gap-2">
+                                            <span className="font-mono bg-red-100 px-1 rounded">Row {err.row}</span>
+                                            <span>{err.error}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="overflow-x-auto max-h-96 overflow-y-auto">
                             <table className="w-full text-xs">
                                 <thead className="bg-gray-50 sticky top-0">
@@ -473,6 +497,7 @@ export default function ImportQuestionsPage() {
                                         <th className="px-2 py-2 text-left">-Mrk</th>
                                         <th className="px-2 py-2 text-left">Expl_EN</th>
                                         <th className="px-2 py-2 text-left">Expl_PA</th>
+                                        <th className="px-2 py-2 text-left">Tags</th>
                                         <th className="px-2 py-2 text-left">Status</th>
                                         <th className="px-2 py-2"></th>
                                     </tr>
@@ -501,6 +526,18 @@ export default function ImportQuestionsPage() {
                                             <td className="px-2 py-1">{q.negativeMarks}</td>
                                             <td className="px-2 py-1 max-w-[100px] truncate" title={q.explanationEn}>{q.explanationEn || '-'}</td>
                                             <td className="px-2 py-1 max-w-[100px] truncate" title={q.explanationPa}>{q.explanationPa || '-'}</td>
+                                            <td className="px-2 py-1 max-w-[80px]">
+                                                {q.tags && q.tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {q.tags.slice(0, 2).map(tag => (
+                                                            <span key={tag} className="px-1 py-0.5 bg-gray-100 rounded text-[10px] border">
+                                                                {tag}
+                                                            </span>
+                                                        ))}
+                                                        {q.tags.length > 2 && <span className="text-[10px] text-gray-500">+{q.tags.length - 2}</span>}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-2 py-1">
                                                 {q.error ? (
                                                     <span className="text-red-600 text-xs" title={q.error}>❌</span>
@@ -526,6 +563,7 @@ export default function ImportQuestionsPage() {
                             <button
                                 onClick={() => {
                                     setParsedQuestions([]);
+                                    setImportErrors([]);
                                     setShowPreview(false);
                                     if (fileInputRef.current) fileInputRef.current.value = '';
                                 }}

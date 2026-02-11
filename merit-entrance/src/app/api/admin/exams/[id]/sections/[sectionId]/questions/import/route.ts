@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 interface ImportedQuestion {
-    row?: number;
+    row: number;
     type: string;
     textEn: string;
     textPa: string;
@@ -24,7 +24,12 @@ interface ImportedQuestion {
     explanationEn?: string;
     explanationPa?: string;
     parentRow?: number; // For sub-questions linked to paragraphs
-    tag?: string;
+    tags?: string[];
+}
+
+interface RowError {
+    row: number;
+    error: string;
 }
 
 export async function POST(
@@ -64,43 +69,10 @@ export async function POST(
         let currentOrder = (maxOrderResult[0]?.max_order || 0) + 1;
 
         let importedCount = 0;
+        const errors: RowError[] = [];
 
         // Track paragraph IDs by row for linking sub-questions
         const paragraphIdByRow: Record<number, string> = {};
-
-        // Pre-process tags: Collect all unique tags and upsert them
-        const uniqueTags = new Set<string>();
-        questions.forEach(q => {
-            if (q.tag && q.tag.trim()) {
-                uniqueTags.add(q.tag.trim());
-            }
-        });
-
-        const tagMap: Record<string, string> = {}; // Name -> ID
-
-        if (uniqueTags.size > 0) {
-            for (const tagName of Array.from(uniqueTags)) {
-                try {
-                    // Try to find existing tag
-                    const existingTag = await sql`SELECT id FROM tags WHERE name = ${tagName}`;
-                    if (existingTag.length > 0) {
-                        tagMap[tagName] = existingTag[0].id;
-                    } else {
-                        // Create new tag
-                        const newTag = await sql`
-                            INSERT INTO tags (name) VALUES (${tagName})
-                            ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-                            RETURNING id
-                        `;
-                        if (newTag.length > 0) {
-                            tagMap[tagName] = newTag[0].id;
-                        }
-                    }
-                } catch (error) {
-                    console.error(`Error processing tag "${tagName}":`, error);
-                }
-            }
-        }
 
         // First pass: import paragraph questions
         for (const q of questions) {
@@ -117,7 +89,7 @@ export async function POST(
                         paragraphText.pa = q.textPa || '';
                     }
 
-                    // We need the ID to allow re-use if we wanted, but here we just create one entry per paragraph question.
+                    // Create paragraph entry
                     const paragraphEntryId = randomUUID();
                     await sql`
                         INSERT INTO paragraphs (id, text, content)
@@ -128,10 +100,11 @@ export async function POST(
                         )
                     `;
 
+                    // Create paragraph question
                     await sql`
                         INSERT INTO questions (
                             id, section_id, type, text, paragraph_id, options, correct_answer, 
-                            marks, difficulty, negative_marks, "order", tag_id
+                            marks, difficulty, negative_marks, "order"
                         ) VALUES (
                             ${questionId},
                             ${sectionId},
@@ -143,15 +116,38 @@ export async function POST(
                             ${0},
                             ${1},
                             ${0},
-                            ${0},
-                            ${currentOrder},
-                            ${q.tag && tagMap[q.tag.trim()] ? tagMap[q.tag.trim()] : null}
+                            ${currentOrder}
                         )
                     `;
+
+                    // Handle Tags for Paragraph
+                    if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
+                        for (const tagName of q.tags) {
+                            if (!tagName) continue;
+                            const cleanTagName = tagName.trim();
+
+                            // Find or create tag
+                            const existingTag = await sql`SELECT id FROM tags WHERE name = ${cleanTagName}`;
+                            let tagId;
+                            if (existingTag.length > 0) {
+                                tagId = existingTag[0].id;
+                            } else {
+                                const newTag = await sql`INSERT INTO tags (name) VALUES (${cleanTagName}) RETURNING id`;
+                                tagId = newTag[0].id;
+                            }
+
+                            await sql`
+                                 INSERT INTO question_tags (question_id, tag_id)
+                                 VALUES (${questionId}, ${tagId})
+                                 ON CONFLICT DO NOTHING
+                             `;
+                        }
+                    }
+
                     currentOrder++;
                     importedCount++;
                 } catch (error: any) {
-                    console.error('Error importing paragraph:', error?.message);
+                    errors.push({ row: q.row, error: error.message || 'Failed to import paragraph' });
                 }
             }
         }
@@ -236,21 +232,19 @@ export async function POST(
                 const explanationJson = explanation ? JSON.stringify(explanation) : null;
 
                 // Determine parent_id if this is a sub-question
-                const parentId = q.parentRow ? paragraphIdByRow[q.parentRow] || null : null;
-
-                console.log('Inserting question:', {
-                    questionId,
-                    sectionId,
-                    type: q.type,
-                    marks: q.marks,
-                    parentId,
-                    parentRow: q.parentRow
-                });
+                let parentId = null;
+                if (q.parentRow) {
+                    if (paragraphIdByRow[q.parentRow]) {
+                        parentId = paragraphIdByRow[q.parentRow];
+                    } else {
+                        throw new Error(`Parent paragraph at row ${q.parentRow} not found (or failed to import).`);
+                    }
+                }
 
                 await sql`
                     INSERT INTO questions (
                         id, section_id, type, text, options, correct_answer, 
-                        explanation, marks, difficulty, negative_marks, "order", parent_id, tag_id
+                        explanation, marks, difficulty, negative_marks, "order", parent_id
                     ) VALUES (
                         ${questionId},
                         ${sectionId},
@@ -259,37 +253,50 @@ export async function POST(
                         ${optionsJson}::jsonb,
                         ${correctAnswerJson}::jsonb,
                         ${explanationJson}::jsonb,
-                        ${q.marks || 4},
+                        ${q.marks || 1},
                         ${1},
                         ${q.negativeMarks || 0},
                         ${currentOrder},
-                        ${parentId},
-                        ${q.tag && tagMap[q.tag.trim()] ? tagMap[q.tag.trim()] : null}
+                        ${parentId}
                     )
                 `;
+
+                // Handle Tags
+                if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
+                    for (const tagName of q.tags) {
+                        if (!tagName) continue;
+                        const cleanTagName = tagName.trim();
+
+                        // Find or create tag
+                        const existingTag = await sql`SELECT id FROM tags WHERE name = ${cleanTagName}`;
+                        let tagId;
+                        if (existingTag.length > 0) {
+                            tagId = existingTag[0].id;
+                        } else {
+                            const newTag = await sql`INSERT INTO tags (name) VALUES (${cleanTagName}) RETURNING id`;
+                            tagId = newTag[0].id;
+                        }
+
+                        await sql`
+                                INSERT INTO question_tags (question_id, tag_id)
+                                VALUES (${questionId}, ${tagId})
+                                ON CONFLICT DO NOTHING
+                            `;
+                    }
+                }
 
                 currentOrder++;
                 importedCount++;
             } catch (error: any) {
-                console.error('Error importing question row:', {
-                    error: error?.message || error,
-                    stack: error?.stack,
-                    questionData: {
-                        type: q.type,
-                        textEn: q.textEn?.substring(0, 50),
-                        marks: q.marks
-                    }
-                });
-                // Continue with next question
+                errors.push({ row: q.row, error: error.message || 'Failed to import question' });
             }
         }
-
-        console.log(`Import complete: ${importedCount}/${questions.length} questions imported`);
 
         return NextResponse.json({
             success: true,
             imported: importedCount,
             total: questions.length,
+            errors
         });
     } catch (error: any) {
         console.error('Error in bulk import:', {

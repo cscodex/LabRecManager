@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import SessionWrapper from '@/components/SessionWrapper';
+import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -53,7 +54,9 @@ export default function RootLayout({
 
       <body className={inter.className}>
         <SessionWrapper>
-          {children}
+          <MathJaxProvider>
+            {children}
+          </MathJaxProvider>
         </SessionWrapper>
         <Toaster
           position="top-right"

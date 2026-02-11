@@ -120,6 +120,33 @@ export async function POST(
             }
         }
 
+        // Handle Sub-Questions for Paragraph
+        if (type === 'paragraph' && body.subQuestions && Array.isArray(body.subQuestions)) {
+            let subOrder = 1;
+            for (const sq of body.subQuestions) {
+                await sql`
+                    INSERT INTO questions (
+                        section_id, type, text, options, correct_answer, explanation, 
+                        marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id
+                    ) VALUES (
+                        ${params.sectionId},
+                        ${sq.type},
+                        ${sq.text ? JSON.stringify(sq.text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
+                        ${sq.options ? JSON.stringify(sq.options) : null}::jsonb,
+                        ${sq.correctAnswer ? JSON.stringify(sq.correctAnswer) : '[]'}::jsonb,
+                        ${sq.explanation ? JSON.stringify(sq.explanation) : null}::jsonb,
+                        ${sq.marks || 1},
+                        ${sq.difficulty || 1},
+                        ${sq.negativeMarks || null},
+                        ${sq.imageUrl || null},
+                        ${subOrder++},
+                        ${questionId},
+                        ${paragraphId}
+                    )
+                `;
+            }
+        }
+
         return NextResponse.json({
             success: true,
             questionId: questionId,

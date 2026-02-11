@@ -92,7 +92,7 @@ model Section {
 
 model Question {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sectionId     String   @map("section_id") @db.Uuid
+  sectionId     String?  @map("section_id") @db.Uuid
   type          String   // mcq_single, mcq_multiple, fill_blank, numerical
   text          Json     // { "en": "...", "pa": "..." }
   options       Json?    // [{ "id": "a", "text": {"en": "...", "pa": "..."} }]
@@ -107,7 +107,7 @@ model Question {
   parentId      String?  @map("parent_id") @db.Uuid
   order         Int
   
-  section       Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section       Section? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   parent        Question? @relation("QuestionToQuestion", fields: [parentId], references: [id])
   subQuestions  Question[] @relation("QuestionToQuestion")
   responses QuestionResponse[]

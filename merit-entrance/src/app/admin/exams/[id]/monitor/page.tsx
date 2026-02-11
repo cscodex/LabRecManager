@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import { ArrowLeft, RefreshCw, Users, Clock, CheckCircle } from 'lucide-react';
@@ -25,8 +25,9 @@ interface MonitorData {
     students: ActiveStudent[];
 }
 
-export default function ExamMonitorPage({ params }: { params: Promise<{ id: string }> }) {
-    const resolvedParams = use(params);
+export default function ExamMonitorPage() {
+    const params = useParams();
+    const { id } = params as { id: string };
     const router = useRouter();
     const { language } = useAuthStore();
     const [data, setData] = useState<MonitorData | null>(null);
@@ -36,7 +37,7 @@ export default function ExamMonitorPage({ params }: { params: Promise<{ id: stri
 
     const fetchData = async () => {
         try {
-            const response = await fetch(`/api/admin/exams/${resolvedParams.id}/monitor`);
+            const response = await fetch(`/api/admin/exams/${id}/monitor`);
             if (!response.ok) throw new Error('Failed to fetch');
             const result = await response.json();
             setData(result);
@@ -49,15 +50,15 @@ export default function ExamMonitorPage({ params }: { params: Promise<{ id: stri
     };
 
     useEffect(() => {
-        fetchData();
-    }, [resolvedParams.id]);
+        if (id) fetchData();
+    }, [id]);
 
     // Auto-refresh every 5 seconds
     useEffect(() => {
-        if (!autoRefresh) return;
+        if (!autoRefresh || !id) return;
         const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
-    }, [autoRefresh, resolvedParams.id]);
+    }, [autoRefresh, id]);
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -246,3 +247,4 @@ export default function ExamMonitorPage({ params }: { params: Promise<{ id: stri
         </div>
     );
 }
+

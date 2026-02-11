@@ -31,11 +31,15 @@ export async function POST(
 
         // 2. Process questions
         let importedCount = 0;
+        const errors: { row: number, error: string }[] = [];
 
         // Group questions by section
         const questionsBySection: Record<string, any[]> = {};
         for (const q of questions) {
-            if (!sectionMap.has(q.section)) continue;
+            if (!sectionMap.has(q.section)) {
+                errors.push({ row: q.row, error: `Section ID ${q.section} not found` });
+                continue;
+            }
             if (!questionsBySection[q.section]) questionsBySection[q.section] = [];
             questionsBySection[q.section].push(q);
         }
@@ -60,91 +64,119 @@ export async function POST(
             sectionQuestions.sort((a, b) => a.row - b.row);
 
             for (const q of sectionQuestions) {
-                currentOrder++;
+                try {
+                    currentOrder++;
 
-                // Parent ID logic
-                let parentId: string | null = null;
-                if (q.parentRow) {
-                    if (rowToIdMap.has(q.parentRow)) {
-                        parentId = rowToIdMap.get(q.parentRow)!;
-                    } else {
-                        throw new Error(`Parent question at row ${q.parentRow} not found for question at row ${q.row}. Ensure parent appears before child in the CSV.`);
+                    // Parent ID logic
+                    let parentId: string | null = null;
+                    if (q.parentRow) {
+                        if (rowToIdMap.has(q.parentRow)) {
+                            parentId = rowToIdMap.get(q.parentRow)!;
+                        } else {
+                            throw new Error(`Parent question at row ${q.parentRow} not found (or failed to import).`);
+                        }
                     }
-                }
 
-                // JSON fields
-                const textJson = JSON.stringify({
-                    en: (language === 'both' || language === 'en') ? q.textEn : '',
-                    pa: (language === 'both' || language === 'pa') ? q.textPa : ''
-                });
-
-                const explanationJson = (q.explanationEn || q.explanationPa) ? JSON.stringify({
-                    en: (language === 'both' || language === 'en') ? q.explanationEn : '',
-                    pa: (language === 'both' || language === 'pa') ? q.explanationPa : ''
-                }) : null;
-
-                // Handle Paragraph Creation
-                let paragraphId: string | null = null;
-                if (q.type === 'paragraph') {
-                    const paragraphContent = JSON.stringify({
+                    // JSON fields
+                    const textJson = JSON.stringify({
                         en: (language === 'both' || language === 'en') ? q.textEn : '',
                         pa: (language === 'both' || language === 'pa') ? q.textPa : ''
                     });
 
-                    const [pEntry] = await sql`
-                        INSERT INTO paragraphs (text, content)
-                        VALUES (
-                            ${textJson}::jsonb,
-                            ${paragraphContent}::jsonb
-                        ) RETURNING id
-                    `;
-                    paragraphId = pEntry.id;
-                }
+                    const explanationJson = (q.explanationEn || q.explanationPa) ? JSON.stringify({
+                        en: (language === 'both' || language === 'en') ? q.explanationEn : '',
+                        pa: (language === 'both' || language === 'pa') ? q.explanationPa : ''
+                    }) : null;
 
-                // Handle Options (Construct JSON)
-                let optionsJson = null;
-                if (['mcq_single', 'mcq_multiple'].includes(q.type)) {
-                    const options = [
-                        { id: 'a', text: { en: q.optionAEn || '', pa: q.optionAPa || '' } },
-                        { id: 'b', text: { en: q.optionBEn || '', pa: q.optionBPa || '' } },
-                        { id: 'c', text: { en: q.optionCEn || '', pa: q.optionCPa || '' } },
-                        { id: 'd', text: { en: q.optionDEn || '', pa: q.optionDPa || '' } },
-                    ].filter(o => o.text.en || o.text.pa);
+                    // Handle Paragraph Creation
+                    let paragraphId: string | null = null;
+                    if (q.type === 'paragraph') {
+                        const paragraphContent = JSON.stringify({
+                            en: (language === 'both' || language === 'en') ? q.textEn : '',
+                            pa: (language === 'both' || language === 'pa') ? q.textPa : ''
+                        });
 
-                    if (options.length > 0) {
-                        optionsJson = JSON.stringify(options);
+                        const [pEntry] = await sql`
+                            INSERT INTO paragraphs (text, content)
+                            VALUES (
+                                ${textJson}::jsonb,
+                                ${paragraphContent}::jsonb
+                            ) RETURNING id
+                        `;
+                        paragraphId = pEntry.id;
                     }
+
+                    // Handle Options (Construct JSON)
+                    let optionsJson = null;
+                    if (['mcq_single', 'mcq_multiple'].includes(q.type)) {
+                        const options = [
+                            { id: 'a', text: { en: q.optionAEn || '', pa: q.optionAPa || '' } },
+                            { id: 'b', text: { en: q.optionBEn || '', pa: q.optionBPa || '' } },
+                            { id: 'c', text: { en: q.optionCEn || '', pa: q.optionCPa || '' } },
+                            { id: 'd', text: { en: q.optionDEn || '', pa: q.optionDPa || '' } },
+                        ].filter(o => o.text.en || o.text.pa);
+
+                        if (options.length > 0) {
+                            optionsJson = JSON.stringify(options);
+                        }
+                    }
+
+                    // Insert Question
+                    const [insertedQuestion] = await sql`
+                        INSERT INTO questions (
+                            section_id, type, text, marks, negative_marks, "order", explanation, parent_id, paragraph_id, correct_answer, options
+                        ) VALUES (
+                            ${sectionId},
+                            ${q.type},
+                            ${textJson}::jsonb,
+                            ${q.marks},
+                            ${q.negativeMarks},
+                            ${currentOrder},
+                            ${explanationJson}::jsonb,
+                            ${parentId},
+                            ${paragraphId},
+                            ${q.correctAnswer ? JSON.stringify([q.correctAnswer]) : '[]'}::jsonb,
+                            ${optionsJson}::jsonb
+                        )
+                        RETURNING id
+                    `;
+
+                    const questionId = insertedQuestion.id;
+                    rowToIdMap.set(q.row, questionId);
+
+                    // Handle Tags
+                    if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
+                        for (const tagName of q.tags) {
+                            if (!tagName) continue;
+                            const cleanTagName = tagName.trim();
+
+                            // Find or create tag
+                            // Note: We could optimize this by caching tags, but for import safely 1-by-1 is okay or valid
+                            const existingTag = await sql`SELECT id FROM tags WHERE name = ${cleanTagName}`;
+                            let tagId;
+                            if (existingTag.length > 0) {
+                                tagId = existingTag[0].id;
+                            } else {
+                                const newTag = await sql`INSERT INTO tags (name) VALUES (${cleanTagName}) RETURNING id`;
+                                tagId = newTag[0].id;
+                            }
+
+                            await sql`
+                                 INSERT INTO question_tags (question_id, tag_id)
+                                 VALUES (${questionId}, ${tagId})
+                                 ON CONFLICT DO NOTHING
+                             `;
+                        }
+                    }
+
+                    importedCount++;
+                } catch (err: any) {
+                    errors.push({ row: q.row, error: err.message });
                 }
-
-                // Insert Question
-                const insertedQuestion = await sql`
-                    INSERT INTO questions (
-                        section_id, type, text, marks, negative_marks, "order", explanation, parent_id, paragraph_id, correct_answer, options
-                    ) VALUES (
-                        ${sectionId},
-                        ${q.type},
-                        ${textJson}::jsonb,
-                        ${q.marks},
-                        ${q.negativeMarks},
-                        ${currentOrder},
-                        ${explanationJson}::jsonb,
-                        ${parentId},
-                        ${paragraphId},
-                        ${q.correctAnswer ? JSON.stringify([q.correctAnswer]) : '[]'}::jsonb,
-                        ${optionsJson}::jsonb
-                    )
-                    RETURNING id
-                `;
-
-                const questionId = insertedQuestion[0].id;
-                rowToIdMap.set(q.row, questionId);
-                importedCount++;
-
-                // No need to insert into 'options' table as it doesn't exist. Options are stored in 'questions' table as JSON.
             }
         }
 
-        return NextResponse.json({ success: true, imported: importedCount });
+        return NextResponse.json({ success: true, imported: importedCount, errors });
     } catch (error: any) {
         console.error('Master Import error details:', error);
         return NextResponse.json({

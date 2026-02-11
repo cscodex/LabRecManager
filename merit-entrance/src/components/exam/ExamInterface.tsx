@@ -11,6 +11,7 @@ import ActionButtons from './ActionButtons';
 import Timer from './Timer';
 import { User, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LoadingOverlay from '../ui/LoadingOverlay';
 
 interface Section {
     id: string;
@@ -292,6 +293,9 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
                     </div>
                 </div>
             )}
+
+
+            <LoadingOverlay isVisible={isSubmitting} message="Submitting your exam..." />
         </div>
     );
 }

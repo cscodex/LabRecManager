@@ -10,6 +10,8 @@ import {
     Flag, RotateCcw, Save, Send, AlertCircle, Maximize, AlertTriangle, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
+import { MathText } from '@/components/MathText';
 
 interface Section {
     id: string;
@@ -56,6 +58,7 @@ export default function ExamAttemptPage() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [responses, setResponses] = useState<Record<string, { answer: string[]; markedForReview: boolean }>>({});
     const [visitedQuestions, setVisitedQuestions] = useState<Set<string>>(new Set());
+    const [showInstructions, setShowInstructions] = useState(false);
 
     const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -684,562 +687,564 @@ export default function ExamAttemptPage() {
     const unansweredCount = answerableQuestions.length - answeredCount;
 
     return (
-        <div className="min-h-screen bg-gray-100 flex flex-col relative">
-            {/* Device Conflict Modal */}
-            {showDeviceConflict && (
-                <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                    <div className="bg-white rounded-xl p-8 max-w-md w-full text-center shadow-2xl">
-                        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <AlertTriangle className="w-8 h-8 text-yellow-600" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Active on Another Device</h2>
-                        <p className="text-gray-600 mb-6">
-                            This exam is currently active on another device or browser.
-                            Would you like to continue here? This will log you out from the other device.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => router.push('/student/dashboard')}
-                                className="flex-1 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition"
-                            >
-                                Go Back
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowDeviceConflict(false);
-                                    setLoading(true);
-                                    loadExamData(true); // Force login
-                                }}
-                                className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                            >
-                                Continue Here
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Top Header */}
-            <header className="bg-blue-900 text-white px-4 py-2 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <h1 className="font-bold text-lg">{getText(examData.title, language)}</h1>
-                </div>
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => setLanguage(language === 'en' ? 'pa' : 'en')}
-                        className="flex items-center gap-1 px-2 py-1 bg-blue-800 rounded text-sm hover:bg-blue-700"
-                    >
-                        <Globe className="w-4 h-4" />
-                        {language === 'en' ? 'English' : 'ਪੰਜਾਬੀ'}
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        <span className="text-sm">{user?.name}</span>
-                    </div>
-                </div>
-            </header>
-
-            {/* Section Tabs */}
-            <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto">
-                {sections.map((section, idx) => (
-                    <button
-                        key={section.id}
-                        onClick={() => {
-                            setCurrentSectionIndex(idx);
-                            setCurrentQuestionIndex(0);
-                            const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
-                            if (sectionQs[0]) markAsVisited(sectionQs[0].id);
-                        }}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${currentSectionIndex === idx
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                    >
-                        {getText(section.name, language)}
-                    </button>
-                ))}
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col lg:flex-row">
-                {/* Question Area */}
-                <div className="flex-1 p-2 sm:p-4 overflow-y-auto pb-20 lg:pb-4">
-                    <div className="bg-white rounded-xl shadow-sm p-6 max-w-4xl mx-auto">
-                        {hasEmptySection ? (
-                            /* Empty Section Message */
-                            <div className="text-center py-12">
-                                <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                                <h3 className="text-lg font-medium text-gray-700 mb-2">No Questions in This Section</h3>
-                                <p className="text-gray-500 mb-6">This section does not have any questions yet. Please select another section to continue.</p>
-                                <div className="flex justify-center gap-3">
-                                    {sections.filter((_, i) => i !== currentSectionIndex && questions.filter(q => q.sectionId === sections[i]?.id && q.type !== 'paragraph').length > 0).length > 0 && (
-                                        <button
-                                            onClick={() => {
-                                                // Find next section with questions
-                                                for (let i = currentSectionIndex + 1; i < sections.length; i++) {
-                                                    if (questions.filter(q => q.sectionId === sections[i].id && q.type !== 'paragraph').length > 0) {
-                                                        setCurrentSectionIndex(i);
-                                                        setCurrentQuestionIndex(0);
-                                                        return;
-                                                    }
-                                                }
-                                                // Or go to previous section with questions
-                                                for (let i = currentSectionIndex - 1; i >= 0; i--) {
-                                                    if (questions.filter(q => q.sectionId === sections[i].id && q.type !== 'paragraph').length > 0) {
-                                                        setCurrentSectionIndex(i);
-                                                        setCurrentQuestionIndex(0);
-                                                        return;
-                                                    }
-                                                }
-                                            }}
-                                            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                        >
-                                            Go to Next Section
-                                        </button>
-                                    )}
-                                </div>
+        <MathJaxProvider>
+            <div className="min-h-screen bg-gray-100 flex flex-col relative h-screen overflow-hidden">
+                {/* Device Conflict Modal */}
+                {showDeviceConflict && (
+                    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                        <div className="bg-white rounded-xl p-8 max-w-md w-full text-center shadow-2xl">
+                            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <AlertTriangle className="w-8 h-8 text-yellow-600" />
                             </div>
-                        ) : currentQuestion ? (
-                            <>
-                                {/* Parent Paragraph Text (for sub-questions) */}
-                                {getParentParagraphText(currentQuestion) && getParentParagraphText(currentQuestion)?.text && (
-                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 max-h-60 sm:max-h-96 overflow-y-auto">
-                                        <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">
-                                            {getParentParagraphText(currentQuestion)?.title ? getText(getParentParagraphText(currentQuestion)!.title!, language) : '📖 Reading Passage'}
-                                        </p>
-                                        <div
-                                            className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
-                                            dangerouslySetInnerHTML={{ __html: getText(getParentParagraphText(currentQuestion)!.text!, language) }}
-                                        />
-                                    </div>
-                                )}
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Active on Another Device</h2>
+                            <p className="text-gray-600 mb-6">
+                                This exam is currently active on another device or browser.
+                                Would you like to continue here? This will log you out from the other device.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => router.push('/student/dashboard')}
+                                    className="flex-1 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition"
+                                >
+                                    Go Back
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowDeviceConflict(false);
+                                        setLoading(true);
+                                        loadExamData(true); // Force login
+                                    }}
+                                    className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                                >
+                                    Continue Here
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-                                {/* Question Header */}
-                                <div className="flex items-center justify-between mb-4 pb-4 border-b">
-                                    <span className="text-sm text-gray-500">
-                                        Question {currentQuestionIndex + 1} of {sectionQuestions.length}
-                                    </span>
-                                    <span className="text-sm font-medium text-blue-600">
-                                        +{currentQuestion.marks} marks
-                                        {currentQuestion.negativeMarks && (
-                                            <span className="text-red-500 ml-2">-{currentQuestion.negativeMarks}</span>
+                {/* Top Header */}
+                <header className="bg-blue-900 text-white px-4 py-2 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <h1 className="font-bold text-lg">{getText(examData.title, language)}</h1>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setLanguage(language === 'en' ? 'pa' : 'en')}
+                            className="flex items-center gap-1 px-2 py-1 bg-blue-800 rounded text-sm hover:bg-blue-700"
+                        >
+                            <Globe className="w-4 h-4" />
+                            {language === 'en' ? 'English' : 'ਪੰਜਾਬੀ'}
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            <span className="text-sm">{user?.name}</span>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Section Tabs */}
+                <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto">
+                    {sections.map((section, idx) => (
+                        <button
+                            key={section.id}
+                            onClick={() => {
+                                setCurrentSectionIndex(idx);
+                                setCurrentQuestionIndex(0);
+                                const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+                                if (sectionQs[0]) markAsVisited(sectionQs[0].id);
+                            }}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${currentSectionIndex === idx
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                        >
+                            {getText(section.name, language)}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Main Content */}
+                <div className="flex-1 flex flex-col lg:flex-row">
+                    {/* Question Area */}
+                    <div className="flex-1 p-2 sm:p-4 overflow-y-auto pb-20 lg:pb-4">
+                        <div className="bg-white rounded-xl shadow-sm p-6 max-w-4xl mx-auto">
+                            {hasEmptySection ? (
+                                /* Empty Section Message */
+                                <div className="text-center py-12">
+                                    <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-700 mb-2">No Questions in This Section</h3>
+                                    <p className="text-gray-500 mb-6">This section does not have any questions yet. Please select another section to continue.</p>
+                                    <div className="flex justify-center gap-3">
+                                        {sections.filter((_, i) => i !== currentSectionIndex && questions.filter(q => q.sectionId === sections[i]?.id && q.type !== 'paragraph').length > 0).length > 0 && (
+                                            <button
+                                                onClick={() => {
+                                                    // Find next section with questions
+                                                    for (let i = currentSectionIndex + 1; i < sections.length; i++) {
+                                                        if (questions.filter(q => q.sectionId === sections[i].id && q.type !== 'paragraph').length > 0) {
+                                                            setCurrentSectionIndex(i);
+                                                            setCurrentQuestionIndex(0);
+                                                            return;
+                                                        }
+                                                    }
+                                                    // Or go to previous section with questions
+                                                    for (let i = currentSectionIndex - 1; i >= 0; i--) {
+                                                        if (questions.filter(q => q.sectionId === sections[i].id && q.type !== 'paragraph').length > 0) {
+                                                            setCurrentSectionIndex(i);
+                                                            setCurrentQuestionIndex(0);
+                                                            return;
+                                                        }
+                                                    }
+                                                }}
+                                                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                            >
+                                                Go to Next Section
+                                            </button>
                                         )}
-                                    </span>
+                                    </div>
                                 </div>
-
-                                {/* Question Text */}
-                                <div className="mb-6">
-                                    <p className="text-lg text-gray-900 leading-relaxed">
-                                        {getText(currentQuestion.text, language)}
-                                    </p>
-                                    {currentQuestion.imageUrl && (
-                                        <div className="relative h-64 w-full mt-4 max-w-md">
-                                            {imageLoading && (
-                                                <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center">
-                                                    <div className="text-center">
-                                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                                                        <p className="text-sm text-gray-500">Loading image...</p>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <Image
-                                                src={currentQuestion.imageUrl}
-                                                alt="Question"
-                                                fill
-                                                className={`object-contain rounded-lg transition-opacity ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-                                                onLoad={() => setImageLoading(false)}
-                                                onLoadStart={() => setImageLoading(true)}
+                            ) : currentQuestion ? (
+                                <>
+                                    {/* Parent Paragraph Text (for sub-questions) */}
+                                    {getParentParagraphText(currentQuestion) && getParentParagraphText(currentQuestion)?.text && (
+                                        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 max-h-60 sm:max-h-96 overflow-y-auto">
+                                            <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">
+                                                {getParentParagraphText(currentQuestion)?.title ? getText(getParentParagraphText(currentQuestion)!.title!, language) : '📖 Reading Passage'}
+                                            </p>
+                                            <div
+                                                className="text-gray-700 text-base leading-relaxed prose prose-sm max-w-none whitespace-pre-wrap break-words"
+                                                dangerouslySetInnerHTML={{ __html: getText(getParentParagraphText(currentQuestion)!.text!, language) }}
                                             />
                                         </div>
                                     )}
-                                </div>
 
-                                {/* Options */}
-                                {currentQuestion.options && (
-                                    <div className="space-y-3">
-                                        {currentQuestion.options.map((option) => {
-                                            const isSelected = responses[currentQuestion.id]?.answer?.includes(option.id);
-                                            return (
-                                                <button
-                                                    key={option.id}
-                                                    onClick={() => handleOptionSelect(option.id)}
-                                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition ${isSelected
-                                                        ? 'border-blue-600 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-gray-300'
-                                                        }`}
-                                                >
-                                                    <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${isSelected
-                                                        ? 'bg-blue-600 border-blue-600 text-white'
-                                                        : 'border-gray-400 text-gray-600'
-                                                        }`}>
-                                                        {option.id.toUpperCase()}
-                                                    </span>
-                                                    <span className="flex-1 text-gray-800">
-                                                        {getText(option.text, language)}
-                                                    </span>
-                                                </button>
-                                            );
-                                        })}
+                                    {/* Question Header */}
+                                    <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                                        <span className="text-sm text-gray-500">
+                                            Question {currentQuestionIndex + 1} of {sectionQuestions.length}
+                                        </span>
+                                        <span className="text-sm font-medium text-blue-600">
+                                            +{currentQuestion.marks} marks
+                                            {currentQuestion.negativeMarks && (
+                                                <span className="text-red-500 ml-2">-{currentQuestion.negativeMarks}</span>
+                                            )}
+                                        </span>
                                     </div>
-                                )}
 
-                                {/* Action Buttons */}
-                                <div className="flex flex-wrap gap-2 mt-8 pt-4 border-t">
-                                    <button
-                                        onClick={handleMarkForReview}
-                                        title={responses[currentQuestion.id]?.markedForReview ? 'Unmark' : 'Mark for Review'}
-                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition ${responses[currentQuestion.id]?.markedForReview
-                                            ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                            : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                                            }`}
-                                    >
-                                        <Flag className="w-4 h-4" />
-                                        <span className="hidden sm:inline">{responses[currentQuestion.id]?.markedForReview ? 'Unmark' : 'Mark'}</span>
-                                    </button>
-                                    {responses[currentQuestion.id]?.answer?.length > 0 && (
-                                        <button
-                                            onClick={handleClearResponse}
-                                            title="Clear Response"
-                                            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
-                                        >
-                                            <RotateCcw className="w-4 h-4" />
-                                            <span className="hidden sm:inline">Clear</span>
-                                        </button>
+                                    {/* Question Text */}
+                                    <div className="mb-6">
+                                        <p className="text-lg text-gray-900 leading-relaxed">
+                                            {getText(currentQuestion.text, language)}
+                                        </p>
+                                        {currentQuestion.imageUrl && (
+                                            <div className="relative h-64 w-full mt-4 max-w-md">
+                                                {imageLoading && (
+                                                    <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                        <div className="text-center">
+                                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                                            <p className="text-sm text-gray-500">Loading image...</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <Image
+                                                    src={currentQuestion.imageUrl}
+                                                    alt="Question"
+                                                    fill
+                                                    className={`object-contain rounded-lg transition-opacity ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                                                    onLoad={() => setImageLoading(false)}
+                                                    onLoadStart={() => setImageLoading(true)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Options */}
+                                    {currentQuestion.options && (
+                                        <div className="space-y-3">
+                                            {currentQuestion.options.map((option) => {
+                                                const isSelected = responses[currentQuestion.id]?.answer?.includes(option.id);
+                                                return (
+                                                    <button
+                                                        key={option.id}
+                                                        onClick={() => handleOptionSelect(option.id)}
+                                                        className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition ${isSelected
+                                                            ? 'border-blue-600 bg-blue-50'
+                                                            : 'border-gray-200 hover:border-gray-300'
+                                                            }`}
+                                                    >
+                                                        <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-medium ${isSelected
+                                                            ? 'bg-blue-600 border-blue-600 text-white'
+                                                            : 'border-gray-400 text-gray-600'
+                                                            }`}>
+                                                            {option.id.toUpperCase()}
+                                                        </span>
+                                                        <span className="flex-1 text-gray-800">
+                                                            {getText(option.text, language)}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     )}
-                                    <div className="flex-1"></div>
-                                    <button
-                                        onClick={moveToPrev}
-                                        disabled={currentSectionIndex === 0 && currentQuestionIndex === 0}
-                                        title="Previous"
-                                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Prev</span>
-                                    </button>
 
-                                    {/* Smart Logic for Next/Save Button */}
-                                    {(() => {
-                                        const hasResponse = responses[currentQuestion.id]?.answer?.length > 0;
-                                        const isLastQuestion =
-                                            currentSectionIndex === sections.length - 1 &&
-                                            currentQuestionIndex === sectionQuestions.length - 1;
+                                    {/* Action Buttons */}
+                                    <div className="flex flex-wrap gap-2 mt-8 pt-4 border-t">
+                                        <button
+                                            onClick={handleMarkForReview}
+                                            title={responses[currentQuestion.id]?.markedForReview ? 'Unmark' : 'Mark for Review'}
+                                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition ${responses[currentQuestion.id]?.markedForReview
+                                                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                                }`}
+                                        >
+                                            <Flag className="w-4 h-4" />
+                                            <span className="hidden sm:inline">{responses[currentQuestion.id]?.markedForReview ? 'Unmark' : 'Mark'}</span>
+                                        </button>
+                                        {responses[currentQuestion.id]?.answer?.length > 0 && (
+                                            <button
+                                                onClick={handleClearResponse}
+                                                title="Clear Response"
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                                <span className="hidden sm:inline">Clear</span>
+                                            </button>
+                                        )}
+                                        <div className="flex-1"></div>
+                                        <button
+                                            onClick={moveToPrev}
+                                            disabled={currentSectionIndex === 0 && currentQuestionIndex === 0}
+                                            title="Previous"
+                                            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Prev</span>
+                                        </button>
 
-                                        if (isLastQuestion && hasResponse) {
+                                        {/* Smart Logic for Next/Save Button */}
+                                        {(() => {
+                                            const hasResponse = responses[currentQuestion.id]?.answer?.length > 0;
+                                            const isLastQuestion =
+                                                currentSectionIndex === sections.length - 1 &&
+                                                currentQuestionIndex === sectionQuestions.length - 1;
+
+                                            if (isLastQuestion && hasResponse) {
+                                                return (
+                                                    <button
+                                                        onClick={handleSaveAndNext}
+                                                        title="Save"
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                                                    >
+                                                        <Save className="w-4 h-4" />
+                                                        <span className="hidden sm:inline">Save</span>
+                                                    </button>
+                                                );
+                                            }
+
+                                            if (hasResponse) {
+                                                return (
+                                                    <button
+                                                        onClick={handleSaveAndNext}
+                                                        title="Save & Next"
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                                                    >
+                                                        <Save className="w-4 h-4" />
+                                                        <span className="hidden sm:inline">Save</span>
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    </button>
+                                                );
+                                            }
+
+                                            // Skip / Next (if no response)
                                             return (
                                                 <button
-                                                    onClick={handleSaveAndNext}
-                                                    title="Save"
-                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                                                    onClick={moveToNext}
+                                                    title="Next"
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                                                 >
-                                                    <Save className="w-4 h-4" />
-                                                    <span className="hidden sm:inline">Save</span>
-                                                </button>
-                                            );
-                                        }
-
-                                        if (hasResponse) {
-                                            return (
-                                                <button
-                                                    onClick={handleSaveAndNext}
-                                                    title="Save & Next"
-                                                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-                                                >
-                                                    <Save className="w-4 h-4" />
-                                                    <span className="hidden sm:inline">Save</span>
+                                                    <span className="hidden sm:inline">Next</span>
                                                     <ChevronRight className="w-4 h-4" />
                                                 </button>
                                             );
-                                        }
-
-                                        // Skip / Next (if no response)
-                                        return (
-                                            <button
-                                                onClick={moveToNext}
-                                                title="Next"
-                                                className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-                                            >
-                                                <span className="hidden sm:inline">Next</span>
-                                                <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        );
-                                    })()}
-                                </div>
-                            </>
-                        ) : null}
-                    </div>
-                </div>
-
-                {/* Right Panel - Timer & Navigation (Hidden on mobile, shown on desktop) */}
-                <div className="hidden lg:flex w-72 bg-white border-l flex-col h-full max-h-screen overflow-hidden">
-                    {/* Timer */}
-                    <div className={`p-4 text-center border-b shrink-0 ${timeRemaining < 300 ? 'bg-red-50' : 'bg-blue-50'}`}>
-                        <div className="flex items-center justify-center gap-2 mb-1">
-                            <Clock className={`w-5 h-5 ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`} />
-                            <span className="text-sm text-gray-600">Time Remaining</span>
-                        </div>
-                        <p className={`text-3xl font-mono font-bold ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`}>
-                            {formatTimer(timeRemaining)}
-                        </p>
-                    </div>
-
-                    {/* Submit Button - Moved to top */}
-                    <div className="p-3 border-b shrink-0">
-                        <button
-                            onClick={() => setShowSubmitConfirm(true)}
-                            disabled={submitting}
-                            className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
-                        >
-                            <Send className="w-4 h-4" />
-                            Submit Exam
-                        </button>
-                    </div>
-
-                    {/* Stats - Compact */}
-                    <div className="grid grid-cols-4 gap-1 p-2 text-xs border-b shrink-0 bg-gray-50">
-                        <div className="flex flex-col items-center">
-                            <span className="w-4 h-4 rounded bg-green-500"></span>
-                            <span className="text-gray-500">{answeredCount}</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="w-4 h-4 rounded bg-red-500"></span>
-                            <span className="text-gray-500">{unansweredCount}</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="w-4 h-4 rounded bg-purple-500"></span>
-                            <span className="text-gray-500">{markedCount}</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="w-4 h-4 rounded bg-gray-300"></span>
-                            <span className="text-gray-500">{answerableQuestions.length - visitedQuestions.size}</span>
+                                        })()}
+                                    </div>
+                                </>
+                            ) : null}
                         </div>
                     </div>
 
-                    {/* Question Navigation - Scrollable */}
-                    <div className="flex-1 overflow-y-auto p-3 min-h-0">
-                        {sections.map((section, sIdx) => {
-                            const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
-                            const isCollapsed = collapsedSections.has(section.id);
-                            const sectionAnswered = sectionQs.filter(q => responses[q.id]?.answer?.length > 0).length;
-                            return (
-                                <div key={section.id} className="mb-3">
-                                    <button
-                                        onClick={() => toggleSectionCollapse(section.id)}
-                                        className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition"
-                                    >
-                                        <span className="flex items-center gap-1">
-                                            {getText(section.name, language)}
-                                            <span className="text-gray-400">({sectionAnswered}/{sectionQs.length})</span>
-                                        </span>
-                                        {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-                                    </button>
-                                    {!isCollapsed && (
-                                        <div className="grid grid-cols-5 gap-1 mt-2">
-                                            {sectionQs.map((q, qIdx) => {
-                                                const status = getQuestionStatus(q.id);
-                                                const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
-                                                return (
-                                                    <button
-                                                        key={q.id}
-                                                        onClick={() => goToQuestion(sIdx, qIdx)}
-                                                        className={`w-9 h-9 rounded text-sm font-medium transition ${isActive ? 'ring-2 ring-blue-600 ring-offset-1' : ''
-                                                            } ${getQuestionStatusColor(status)}`}
-                                                    >
-                                                        {qIdx + 1}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
+                    {/* Right Panel - Timer & Navigation (Hidden on mobile, shown on desktop) */}
+                    <div className="hidden lg:flex w-72 bg-white border-l flex-col h-full max-h-screen overflow-hidden">
+                        {/* Timer */}
+                        <div className={`p-4 text-center border-b shrink-0 ${timeRemaining < 300 ? 'bg-red-50' : 'bg-blue-50'}`}>
+                            <div className="flex items-center justify-center gap-2 mb-1">
+                                <Clock className={`w-5 h-5 ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`} />
+                                <span className="text-sm text-gray-600">Time Remaining</span>
+                            </div>
+                            <p className={`text-3xl font-mono font-bold ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`}>
+                                {formatTimer(timeRemaining)}
+                            </p>
+                        </div>
 
-            {/* Mobile Bottom Bar - Only visible on mobile */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
-                <div className="flex items-center justify-between px-4 py-2">
-                    {/* Timer */}
-                    <div className={`flex items-center gap-2 ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`}>
-                        <Clock className="w-5 h-5" />
-                        <span className="font-mono font-bold text-lg">{formatTimer(timeRemaining)}</span>
-                    </div>
-
-                    {/* Question Palette Toggle */}
-                    <button
-                        onClick={() => setShowMobileNav(!showMobileNav)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm"
-                    >
-                        <span className="text-green-600 font-medium">{answeredCount}</span>/
-                        <span>{answerableQuestions.length}</span>
-                        <ChevronUp className={`w-4 h-4 transition ${showMobileNav ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {/* Submit Button */}
-                    <button
-                        onClick={() => setShowSubmitConfirm(true)}
-                        disabled={submitting}
-                        className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg"
-                    >
-                        Submit
-                    </button>
-                </div>
-            </div>
-
-            {/* Mobile Question Navigation Drawer */}
-            {showMobileNav && (
-                <div className="lg:hidden fixed inset-0 z-50" onClick={() => setShowMobileNav(false)}>
-                    <div className="absolute inset-0 bg-black/50" />
-                    <div
-                        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
-                            <h3 className="font-semibold">Question Navigation</h3>
-                            <button onClick={() => setShowMobileNav(false)} className="p-1">
-                                <ChevronDown className="w-5 h-5" />
+                        {/* Submit Button - Moved to top */}
+                        <div className="p-3 border-b shrink-0">
+                            <button
+                                onClick={() => setShowSubmitConfirm(true)}
+                                disabled={submitting}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
+                            >
+                                <Send className="w-4 h-4" />
+                                Submit Exam
                             </button>
                         </div>
 
-                        {/* Stats */}
-                        <div className="grid grid-cols-4 gap-2 p-3 text-xs border-b">
-                            <div className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded bg-green-500"></span>
-                                <span>{answeredCount}</span>
+                        {/* Stats - Compact */}
+                        <div className="grid grid-cols-4 gap-1 p-2 text-xs border-b shrink-0 bg-gray-50">
+                            <div className="flex flex-col items-center">
+                                <span className="w-4 h-4 rounded bg-green-500"></span>
+                                <span className="text-gray-500">{answeredCount}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded bg-red-500"></span>
-                                <span>{unansweredCount}</span>
+                            <div className="flex flex-col items-center">
+                                <span className="w-4 h-4 rounded bg-red-500"></span>
+                                <span className="text-gray-500">{unansweredCount}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded bg-purple-500"></span>
-                                <span>{markedCount}</span>
+                            <div className="flex flex-col items-center">
+                                <span className="w-4 h-4 rounded bg-purple-500"></span>
+                                <span className="text-gray-500">{markedCount}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <span className="w-3 h-3 rounded bg-gray-300"></span>
-                                <span>{answerableQuestions.length - visitedQuestions.size}</span>
+                            <div className="flex flex-col items-center">
+                                <span className="w-4 h-4 rounded bg-gray-300"></span>
+                                <span className="text-gray-500">{answerableQuestions.length - visitedQuestions.size}</span>
                             </div>
                         </div>
 
-                        {/* Question Grid */}
-                        <div className="p-4">
+                        {/* Question Navigation - Scrollable */}
+                        <div className="flex-1 overflow-y-auto p-3 min-h-0">
                             {sections.map((section, sIdx) => {
                                 const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+                                const isCollapsed = collapsedSections.has(section.id);
+                                const sectionAnswered = sectionQs.filter(q => responses[q.id]?.answer?.length > 0).length;
                                 return (
-                                    <div key={section.id} className="mb-4">
-                                        <p className="text-xs font-medium text-gray-500 mb-2">
-                                            {getText(section.name, language)}
-                                        </p>
-                                        <div className="grid grid-cols-8 gap-1">
-                                            {sectionQs.map((q, qIdx) => {
-                                                const status = getQuestionStatus(q.id);
-                                                const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
-                                                return (
-                                                    <button
-                                                        key={q.id}
-                                                        onClick={() => {
-                                                            goToQuestion(sIdx, qIdx);
-                                                            setShowMobileNav(false);
-                                                        }}
-                                                        className={`w-8 h-8 rounded text-xs font-medium ${isActive ? 'ring-2 ring-blue-600' : ''} ${getQuestionStatusColor(status)}`}
-                                                    >
-                                                        {qIdx + 1}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                                    <div key={section.id} className="mb-3">
+                                        <button
+                                            onClick={() => toggleSectionCollapse(section.id)}
+                                            className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition"
+                                        >
+                                            <span className="flex items-center gap-1">
+                                                {getText(section.name, language)}
+                                                <span className="text-gray-400">({sectionAnswered}/{sectionQs.length})</span>
+                                            </span>
+                                            {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                                        </button>
+                                        {!isCollapsed && (
+                                            <div className="grid grid-cols-5 gap-1 mt-2">
+                                                {sectionQs.map((q, qIdx) => {
+                                                    const status = getQuestionStatus(q.id);
+                                                    const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
+                                                    return (
+                                                        <button
+                                                            key={q.id}
+                                                            onClick={() => goToQuestion(sIdx, qIdx)}
+                                                            className={`w-9 h-9 rounded text-sm font-medium transition ${isActive ? 'ring-2 ring-blue-600 ring-offset-1' : ''
+                                                                } ${getQuestionStatusColor(status)}`}
+                                                        >
+                                                            {qIdx + 1}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
                 </div>
-            )}
 
-            {/* Submit Confirmation Modal */}
-            {showSubmitConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl max-w-md w-full p-6">
-                        <div className="flex items-start gap-3 mb-4">
-                            <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
-                            <div className="flex-1">
-                                <h3 className="font-bold text-lg text-gray-900">Submit Exam?</h3>
-                                {[
-                                    { label: 'Time Remaining', value: formatTimer(timeRemaining), color: timeRemaining < 300 ? 'text-red-600 font-bold' : 'text-blue-600 font-mono' }
-                                ].map((item, i) => (
-                                    <p key={i} className={`text-sm mt-1 ${item.color}`}>
-                                        {item.label}: {item.value}
-                                    </p>
-                                ))}
-                            </div>
+                {/* Mobile Bottom Bar - Only visible on mobile */}
+                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
+                    <div className="flex items-center justify-between px-4 py-2">
+                        {/* Timer */}
+                        <div className={`flex items-center gap-2 ${timeRemaining < 300 ? 'text-red-600' : 'text-blue-600'}`}>
+                            <Clock className="w-5 h-5" />
+                            <span className="font-mono font-bold text-lg">{formatTimer(timeRemaining)}</span>
                         </div>
 
-                        <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                    Answered
-                                </span>
-                                <span className="font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">{answeredCount}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                                    Marked for Review
-                                </span>
-                                <span className="font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{markedCount}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                    Not Answered
-                                </span>
-                                <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">{unansweredCount}</span>
-                            </div>
-                            <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                <span className="text-gray-500">Total Questions</span>
-                                <span className="font-medium">{answerableQuestions.length}</span>
-                            </div>
-                        </div>
+                        {/* Question Palette Toggle */}
+                        <button
+                            onClick={() => setShowMobileNav(!showMobileNav)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm"
+                        >
+                            <span className="text-green-600 font-medium">{answeredCount}</span>/
+                            <span>{answerableQuestions.length}</span>
+                            <ChevronUp className={`w-4 h-4 transition ${showMobileNav ? 'rotate-180' : ''}`} />
+                        </button>
 
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowSubmitConfirm(false)}
-                                className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-                            >
-                                Continue Exam
-                            </button>
-                            <button
-                                onClick={() => handleSubmit(false)}
-                                disabled={submitting}
-                                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                            >
-                                {submitting ? 'Submitting...' : 'Submit Now'}
-                            </button>
-                        </div>
+                        {/* Submit Button */}
+                        <button
+                            onClick={() => setShowSubmitConfirm(true)}
+                            disabled={submitting}
+                            className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg"
+                        >
+                            Submit
+                        </button>
                     </div>
                 </div>
-            )}
 
-            {/* Tab Switch Warning Modal */}
-            {showTabWarning && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
-                    <div className="bg-white rounded-xl max-w-md w-full p-6 text-center animate-pulse">
-                        <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Warning!</h3>
-                        <p className="text-gray-600 mb-4">
-                            You have navigated away from the exam. Return immediately or your exam will be auto-submitted.
-                        </p>
-                        <div className="text-5xl font-bold text-red-600 mb-4">
-                            {tabSwitchCountdown}
+                {/* Mobile Question Navigation Drawer */}
+                {showMobileNav && (
+                    <div className="lg:hidden fixed inset-0 z-50" onClick={() => setShowMobileNav(false)}>
+                        <div className="absolute inset-0 bg-black/50" />
+                        <div
+                            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+                                <h3 className="font-semibold">Question Navigation</h3>
+                                <button onClick={() => setShowMobileNav(false)} className="p-1">
+                                    <ChevronDown className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-4 gap-2 p-3 text-xs border-b">
+                                <div className="flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded bg-green-500"></span>
+                                    <span>{answeredCount}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded bg-red-500"></span>
+                                    <span>{unansweredCount}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded bg-purple-500"></span>
+                                    <span>{markedCount}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded bg-gray-300"></span>
+                                    <span>{answerableQuestions.length - visitedQuestions.size}</span>
+                                </div>
+                            </div>
+
+                            {/* Question Grid */}
+                            <div className="p-4">
+                                {sections.map((section, sIdx) => {
+                                    const sectionQs = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+                                    return (
+                                        <div key={section.id} className="mb-4">
+                                            <p className="text-xs font-medium text-gray-500 mb-2">
+                                                {getText(section.name, language)}
+                                            </p>
+                                            <div className="grid grid-cols-8 gap-1">
+                                                {sectionQs.map((q, qIdx) => {
+                                                    const status = getQuestionStatus(q.id);
+                                                    const isActive = currentSectionIndex === sIdx && currentQuestionIndex === qIdx;
+                                                    return (
+                                                        <button
+                                                            key={q.id}
+                                                            onClick={() => {
+                                                                goToQuestion(sIdx, qIdx);
+                                                                setShowMobileNav(false);
+                                                            }}
+                                                            className={`w-8 h-8 rounded text-xs font-medium ${isActive ? 'ring-2 ring-blue-600' : ''} ${getQuestionStatusColor(status)}`}
+                                                        >
+                                                            {qIdx + 1}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
-                        <p className="text-sm text-gray-500">
-                            Violations: {violationCount}
-                        </p>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+
+                {/* Submit Confirmation Modal */}
+                {showSubmitConfirm && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl max-w-md w-full p-6">
+                            <div className="flex items-start gap-3 mb-4">
+                                <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-lg text-gray-900">Submit Exam?</h3>
+                                    {[
+                                        { label: 'Time Remaining', value: formatTimer(timeRemaining), color: timeRemaining < 300 ? 'text-red-600 font-bold' : 'text-blue-600 font-mono' }
+                                    ].map((item, i) => (
+                                        <p key={i} className={`text-sm mt-1 ${item.color}`}>
+                                            {item.label}: {item.value}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                        Answered
+                                    </span>
+                                    <span className="font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">{answeredCount}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                                        Marked for Review
+                                    </span>
+                                    <span className="font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">{markedCount}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                        Not Answered
+                                    </span>
+                                    <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">{unansweredCount}</span>
+                                </div>
+                                <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                    <span className="text-gray-500">Total Questions</span>
+                                    <span className="font-medium">{answerableQuestions.length}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowSubmitConfirm(false)}
+                                    className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                                >
+                                    Continue Exam
+                                </button>
+                                <button
+                                    onClick={() => handleSubmit(false)}
+                                    disabled={submitting}
+                                    className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    {submitting ? 'Submitting...' : 'Submit Now'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab Switch Warning Modal */}
+                {showTabWarning && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
+                        <div className="bg-white rounded-xl max-w-md w-full p-6 text-center animate-pulse">
+                            <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Warning!</h3>
+                            <p className="text-gray-600 mb-4">
+                                You have navigated away from the exam. Return immediately or your exam will be auto-submitted.
+                            </p>
+                            <div className="text-5xl font-bold text-red-600 mb-4">
+                                {tabSwitchCountdown}
+                            </div>
+                            <p className="text-sm text-gray-500">
+                                Violations: {violationCount}
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </MathJaxProvider>
     );
 }

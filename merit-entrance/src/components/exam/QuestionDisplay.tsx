@@ -1,5 +1,6 @@
 'use client';
 
+import { MathText } from '@/components/MathText';
 import { cn, getText } from '@/lib/utils';
 import { useAuthStore, useExamStore } from '@/lib/store';
 
@@ -144,9 +145,10 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
 
             {/* Question Text */}
             <div className="mb-6">
-                <p className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">
-                    {getText(question.text, language)}
-                </p>
+                <MathText
+                    className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap"
+                    text={getText(question.text, language)}
+                />
 
                 {question.imageUrl && (
                     <div className="mt-4">
@@ -203,9 +205,11 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
                                 </span>
 
                                 {/* Option Text */}
-                                <span className={cn("flex-1 text-gray-700", language === 'pa' && "text-lg")}>
-                                    {getText(option.text, language)}
-                                </span>
+                                <MathText
+                                    className={cn("flex-1 text-gray-700", language === 'pa' && "text-lg")}
+                                    text={getText(option.text, language)}
+                                    inline
+                                />
 
                                 {/* Radio/Checkbox indicator */}
                                 {question.type === 'mcq_single' ? (

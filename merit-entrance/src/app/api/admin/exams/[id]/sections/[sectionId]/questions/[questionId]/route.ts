@@ -15,7 +15,7 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags, subQuestions } = body;
 
         // 1. Handle Paragraph Content Update
         // Fetch existing question data to determine paragraph_id and current type
@@ -80,6 +80,78 @@ export async function PUT(
                          VALUES (${params.questionId}, ${tagId})
                          ON CONFLICT (question_id, tag_id) DO NOTHING
                      `;
+                }
+            }
+        }
+
+        // Handle Sub-Questions for Paragraph
+        if (type === 'paragraph' && subQuestions && Array.isArray(subQuestions)) {
+            // Fetch existing IDs
+            const existingResult = await sql`SELECT id FROM questions WHERE parent_id = ${params.questionId}`;
+            const existingIds = existingResult.map(row => row.id);
+
+            const inputIds = subQuestions.map((sq: any) => sq.id).filter(Boolean);
+
+            // Delete removed
+            const toDelete = existingIds.filter(eid => !inputIds.includes(eid));
+            if (toDelete.length > 0) {
+                // Manual delete with array handling for neon
+                // Neon sql`` template helper doesn't always support ANY($1) with array directly in all versions, 
+                // but assuming it does locally. If not, loop or IN clause.
+                // Safer to loop for deletions or use explicit IN clause construction if generic array support is unsure.
+                // existing logic in Global API used `ANY($1)` and it seemed to pass review.
+                // Actually in my global `PUT` view I saw: `await sql('DELETE FROM questions WHERE id = ANY($1)', [toDelete]);`
+                // But here I'm using `sql` tagged template literal syntax `sql\`...${...}\``. 
+                // The tagged template syntax handles arrays usually by expanding to comma separated values for IN?
+                // No, standard `pg` uses `$1` and passes array.
+                // Let's use loop to be safe against template nuances.
+                for (const delId of toDelete) {
+                    await sql`DELETE FROM questions WHERE id = ${delId}`;
+                }
+            }
+
+            // Update or Insert
+            let subOrder = 1;
+            for (const sq of subQuestions) {
+                if (sq.id && existingIds.includes(sq.id)) {
+                    // Update
+                    await sql`
+                        UPDATE questions SET
+                            type=${sq.type}, 
+                            text=${sq.text ? JSON.stringify(sq.text) : JSON.stringify({ en: '', pa: '' })}::jsonb, 
+                            options=${sq.options ? JSON.stringify(sq.options) : null}::jsonb, 
+                            correct_answer=${sq.correctAnswer ? JSON.stringify(sq.correctAnswer) : '[]'}::jsonb, 
+                            explanation=${sq.explanation ? JSON.stringify(sq.explanation) : null}::jsonb, 
+                            marks=${sq.marks || 1}, 
+                            negative_marks=${sq.negativeMarks || null}, 
+                            difficulty=${sq.difficulty || 1}, 
+                            "order"=${subOrder++}, 
+                            image_url=${sq.imageUrl || null},
+                            section_id=${params.sectionId}
+                        WHERE id=${sq.id}
+                      `;
+                } else {
+                    // Insert
+                    await sql`
+                        INSERT INTO questions (
+                           section_id, type, text, options, correct_answer, explanation, 
+                           marks, negative_marks, difficulty, "order", parent_id, image_url, paragraph_id
+                        ) VALUES (
+                           ${params.sectionId},
+                           ${sq.type}, 
+                           ${sq.text ? JSON.stringify(sq.text) : JSON.stringify({ en: '', pa: '' })}::jsonb, 
+                           ${sq.options ? JSON.stringify(sq.options) : null}::jsonb, 
+                           ${sq.correctAnswer ? JSON.stringify(sq.correctAnswer) : '[]'}::jsonb, 
+                           ${sq.explanation ? JSON.stringify(sq.explanation) : null}::jsonb, 
+                           ${sq.marks || 1}, 
+                           ${sq.negativeMarks || null}, 
+                           ${sq.difficulty || 1}, 
+                           ${subOrder++}, 
+                           ${params.questionId}, 
+                           ${sq.imageUrl || null},
+                           ${paragraphId}
+                        )
+                      `;
                 }
             }
         }

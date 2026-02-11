@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { MathText } from '@/components/MathText';
 import { Download, Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Loader2, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -32,7 +33,13 @@ interface ImportedQuestion {
     explanationEn?: string;
     explanationPa?: string;
     parentRow?: number; // Row number of the parent paragraph
+    tags?: string[];
     error?: string;
+}
+
+interface RowError {
+    row: number;
+    error: string;
 }
 
 export default function MasterImportModal({ isOpen, onClose, examId, sections, onSuccess }: MasterImportModalProps) {
@@ -41,6 +48,7 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
     const [importing, setImporting] = useState(false);
     const [parsedQuestions, setParsedQuestions] = useState<ImportedQuestion[]>([]);
     const [importLanguage, setImportLanguage] = useState<'both' | 'en' | 'pa'>('both');
+    const [importErrors, setImportErrors] = useState<RowError[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
@@ -67,7 +75,8 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
             'NegativeMarks',
             'Explanation_EN',
             'Explanation_PA',
-            'ParentRow'
+            'ParentRow',
+            'Tags'
         ];
 
         const sampleRow = [
@@ -81,7 +90,8 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
             'Infinite', 'ਅਨੰਤ',
             'a', '4', '1',
             'Speed of light in vacuum', 'ਵੈਕਿਊਮ ਵਿੱਚ ਪ੍ਰਕਾਸ਼ ਦੀ ਗਤੀ',
-            ''
+            '',
+            'Physics,Light,2024'
         ];
 
         // Quote all cells
@@ -122,119 +132,137 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
     };
 
     const parseCSV = (text: string) => {
-        const lines = text.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
-            toast.error('File is empty');
-            return;
-        }
+        try {
+            // Remove BOM if present
+            const cleanText = text.replace(/^\ufeff/, '');
+            const lines = cleanText.split(/\r\n|\n|\r/).filter(line => line.trim());
+            if (lines.length < 2) {
+                toast.error('File is empty');
+                return;
+            }
 
+            // Detect delimiter (Tab vs Comma vs Semicolon)
+            const firstLine = lines[0];
+            const tabCount = (firstLine.match(/\t/g) || []).length;
+            const commaCount = (firstLine.match(/,/g) || []).length;
+            const semiCount = (firstLine.match(/;/g) || []).length;
 
-        // Detect delimiter (Tab vs Comma)
-        const firstLine = lines[0];
-        const tabCount = (firstLine.match(/\t/g) || []).length;
-        const commaCount = (firstLine.match(/,/g) || []).length;
-        const delimiter = tabCount > commaCount ? '\t' : ',';
+            let delimiter = ',';
+            if (tabCount > commaCount && tabCount > semiCount) delimiter = '\t';
+            else if (semiCount > commaCount && semiCount > tabCount) delimiter = ';';
 
-        const expectedHeaders = [
-            'section name', 'type', 'question_en', 'question_pa',
-            'optiona_en', 'optiona_pa', 'optionb_en', 'optionb_pa',
-            'optionc_en', 'optionc_pa', 'optiond_en', 'optiond_pa',
-            'correctanswer', 'marks', 'negativemarks',
-            'explanation_en', 'explanation_pa', 'parentrow'
-        ];
+            // Helper to parse a line respecting quotes
+            const parseLine = (line: string): string[] => {
+                if (delimiter === '\t') return line.split('\t').map(c => c.trim());
 
-        const headerRow = lines[0].toLowerCase()
-            .replace(/"/g, '') // remove quotes
-            .split(delimiter === '\t' ? '\t' : ',')
-            .map(h => h.trim());
-
-        // Basic check: Ensure 'Section Name' and 'Type' exist
-        const sectionIndex = headerRow.findIndex(h => h.includes('section'));
-        const typeIndex = headerRow.findIndex(h => h.includes('type'));
-
-        if (sectionIndex === -1 || typeIndex === -1) {
-            toast.error('Invalid CSV format. "Section Name" and "Type" columns are required.');
-            return;
-        }
-
-        const dataRows = lines.slice(1);
-        const questions: ImportedQuestion[] = [];
-
-        dataRows.forEach((line, index) => {
-            let cells: string[] = [];
-
-            if (delimiter === '\t') {
-                cells = line.split('\t').map(c => c.trim());
-            } else {
+                const cells: string[] = [];
                 let currentCell = '';
                 let inQuotes = false;
+
                 for (let i = 0; i < line.length; i++) {
                     const char = line[i];
-                    if (char === '"') inQuotes = !inQuotes;
-                    else if (char === ',' && !inQuotes) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === delimiter && !inQuotes) {
                         cells.push(currentCell.trim());
                         currentCell = '';
-                    } else currentCell += char;
+                    } else {
+                        currentCell += char;
+                    }
                 }
                 cells.push(currentCell.trim());
-            }
-
-            // Handle potential extra empty column offset
-            let offset = 0;
-            // Check if marks column (index 13) is strictly numeric? 
-            // Better heuristic: if cells[13] is empty but cells[14] is number?
-            // Since we added 'Section' at index 0, everything shifts by +1 compared to old template
-            // Old: Type=0. New: Section=0, Type=1.
-
-            // Expected indices with Section at 0:
-            // 0: Section, 1: Type, 2: Q_EN, 3: Q_PA ... 
-            // 12: D_PA, 13: Correct, 14: Marks, 15: NegMarks, 16: Expl_EN, 17: Expl_PA, 18: Parent
-
-            // Check if there's an extra empty col after expected last option?
-            if (cells[13] === '' && cells.length > 19) {
-                offset = 1;
-            }
-
-            const sectionName = cells[0]?.trim() || '';
-            const matchedSection = sections.find(s =>
-                s.name.en?.toLowerCase() === sectionName.toLowerCase() ||
-                s.name.pa === sectionName // exact match for Punjabi?
-            );
-
-            const question: ImportedQuestion = {
-                row: index + 2,
-                section: matchedSection ? matchedSection.id : '', // Store ID if found
-                type: (cells[1] || 'mcq_single').toLowerCase(),
-                textEn: formatMathText(cells[2]),
-                textPa: formatMathText(cells[3]),
-                optionAEn: formatMathText(cells[4]),
-                optionAPa: formatMathText(cells[5]),
-                optionBEn: formatMathText(cells[6]),
-                optionBPa: formatMathText(cells[7]),
-                optionCEn: formatMathText(cells[8]),
-                optionCPa: formatMathText(cells[9]),
-                optionDEn: formatMathText(cells[10]),
-                optionDPa: formatMathText(cells[11]),
-                correctAnswer: (cells[12] || '').toLowerCase(),
-                marks: parseInt(cells[13 + offset]) || 0,
-                negativeMarks: parseInt(cells[14 + offset]) || 0,
-                explanationEn: formatMathText(cells[15 + offset]),
-                explanationPa: formatMathText(cells[16 + offset]),
-                parentRow: cells[17 + offset] ? parseInt(cells[17 + offset]) : undefined,
+                return cells.map(c => c.replace(/^"|"$/g, '').trim()); // Unquote
             };
 
-            // Validation
-            if (!sectionName) question.error = 'Section name missing';
-            else if (!matchedSection) question.error = `Invalid Section: "${sectionName}"`;
-            else if (!question.textEn && !question.textPa) question.error = 'Question text missing';
-            else if (!['mcq_single', 'mcq_multiple', 'fill_blank', 'paragraph'].includes(question.type)) question.error = 'Invalid type';
-            else if (question.type !== 'paragraph' && question.type !== 'fill_blank' && !question.correctAnswer) question.error = 'Answer missing';
+            // Normalize headers
+            const headers = parseLine(lines[0].toLowerCase());
 
-            questions.push(question);
-        });
+            // Map headers to field names
+            const columnMap: Record<string, number> = {
+                section: headers.findIndex(h => h.includes('section')),
+                type: headers.findIndex(h => h.includes('type')),
+                textEn: headers.findIndex(h => h.includes('question_en') || h === 'question'),
+                textPa: headers.findIndex(h => h.includes('question_pa')),
+                optionAEn: headers.findIndex(h => h.includes('optiona_en') || h === 'optiona'),
+                optionAPa: headers.findIndex(h => h.includes('optiona_pa')),
+                optionBEn: headers.findIndex(h => h.includes('optionb_en') || h === 'optionb'),
+                optionBPa: headers.findIndex(h => h.includes('optionb_pa')),
+                optionCEn: headers.findIndex(h => h.includes('optionc_en') || h === 'optionc'),
+                optionCPa: headers.findIndex(h => h.includes('optionc_pa')),
+                optionDEn: headers.findIndex(h => h.includes('optiond_en') || h === 'optiond'),
+                optionDPa: headers.findIndex(h => h.includes('optiond_pa')),
+                correctAnswer: headers.findIndex(h => h.includes('correct') || h.includes('answer')),
+                marks: headers.findIndex(h => h.includes('marks') && !h.includes('negative')),
+                negativeMarks: headers.findIndex(h => h.includes('negative')),
+                explanationEn: headers.findIndex(h => h.includes('explanation_en') || h === 'explanation'),
+                explanationPa: headers.findIndex(h => h.includes('explanation_pa')),
+                parentRow: headers.findIndex(h => h.includes('parent')),
+                tags: headers.findIndex(h => h.includes('tag'))
+            };
 
-        setParsedQuestions(questions);
-        setStep(2); // Move to preview
+            // Validate required columns
+            if (columnMap.section === -1 || columnMap.type === -1) {
+                toast.error('Missing required columns: Section Name, Type');
+                return;
+            }
+
+            const dataRows = lines.slice(1);
+            const questions: ImportedQuestion[] = [];
+
+            dataRows.forEach((line, index) => {
+                let cells = parseLine(line);
+
+                // Clean quotes from cells
+                cells = cells.map(c => c.replace(/^"|"$/g, '').trim());
+
+                const sectionName = (columnMap.section > -1 ? cells[columnMap.section] : '') || '';
+                const matchedSection = sections.find(s =>
+                    s.name.en?.toLowerCase() === sectionName.toLowerCase() ||
+                    s.name.pa === sectionName
+                );
+
+                // Helper to safe get
+                const getCell = (idx: number) => (idx > -1 && cells[idx]) ? cells[idx] : '';
+
+                const question: ImportedQuestion = {
+                    row: index + 2,
+                    section: matchedSection ? matchedSection.id : sectionName,
+                    type: (getCell(columnMap.type) || 'mcq_single').toLowerCase(),
+                    textEn: formatMathText(getCell(columnMap.textEn)),
+                    textPa: formatMathText(getCell(columnMap.textPa)),
+                    optionAEn: formatMathText(getCell(columnMap.optionAEn)),
+                    optionAPa: formatMathText(getCell(columnMap.optionAPa)),
+                    optionBEn: formatMathText(getCell(columnMap.optionBEn)),
+                    optionBPa: formatMathText(getCell(columnMap.optionBPa)),
+                    optionCEn: formatMathText(getCell(columnMap.optionCEn)),
+                    optionCPa: formatMathText(getCell(columnMap.optionCPa)),
+                    optionDEn: formatMathText(getCell(columnMap.optionDEn)),
+                    optionDPa: formatMathText(getCell(columnMap.optionDPa)),
+                    correctAnswer: getCell(columnMap.correctAnswer).toLowerCase(),
+                    marks: parseInt(getCell(columnMap.marks)) || 0,
+                    negativeMarks: parseInt(getCell(columnMap.negativeMarks)) || 0,
+                    explanationEn: formatMathText(getCell(columnMap.explanationEn)),
+                    explanationPa: formatMathText(getCell(columnMap.explanationPa)),
+                    parentRow: getCell(columnMap.parentRow) ? parseInt(getCell(columnMap.parentRow)) : undefined,
+                    tags: getCell(columnMap.tags) ? getCell(columnMap.tags).split(',').map(t => t.trim()).filter(Boolean) : []
+                };
+
+                // Validation
+                if (!sectionName) question.error = 'Section name missing';
+                else if (!matchedSection) question.error = `Invalid Section: "${sectionName}"`;
+                else if (!question.textEn && !question.textPa) question.error = 'Question text missing';
+                else if (!['mcq_single', 'mcq_multiple', 'fill_blank', 'paragraph'].includes(question.type)) question.error = 'Invalid type';
+                else if (question.type !== 'paragraph' && question.type !== 'fill_blank' && !question.correctAnswer) question.error = 'Answer missing';
+
+                questions.push(question);
+            });
+
+            setParsedQuestions(questions);
+            setStep(2);
+        } catch (e: any) {
+            console.error('CSV Parsing Error:', e);
+            toast.error('Error parsing data: ' + e.message);
+        }
     };
 
     const handleImport = async () => {
@@ -258,13 +286,24 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
             const data = await response.json();
             if (data.success) {
                 toast.success(`Imported ${data.imported} questions!`);
-                onSuccess();
-                onClose();
+                if (data.errors && data.errors.length > 0) {
+                    setImportErrors(data.errors);
+                    toast('Some rows failed to import', { icon: '⚠️' });
+                } else {
+                    onSuccess();
+                    onClose();
+                }
             } else {
-                toast.error(data.error || 'Import failed');
+                if (data.errors && Array.isArray(data.errors)) {
+                    setImportErrors(data.errors);
+                    toast.error('Import failed with errors');
+                } else {
+                    toast.error(data.error || 'Import failed');
+                }
             }
-        } catch (error) {
-            toast.error('Failed to import');
+        } catch (error: any) {
+            console.error('Import API Error:', error);
+            toast.error('Failed to import: ' + (error.message || 'Unknown error'));
         } finally {
             setImporting(false);
         }
@@ -272,6 +311,7 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
 
     const reset = () => {
         setParsedQuestions([]);
+        setImportErrors([]);
         setStep(1);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -341,6 +381,7 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                                     <p className="text-gray-600 font-medium">Click to upload or drag & drop</p>
                                     <p className="text-xs text-gray-400 mt-1">CSV files only</p>
                                 </div>
+
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -348,6 +389,34 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                                     className="hidden"
                                     onChange={handleFileUpload}
                                 />
+                                <div className="relative mt-4">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-gray-300" />
+                                    </div>
+                                    <div className="relative flex justify-center text-sm">
+                                        <span className="bg-white px-2 text-gray-500">OR</span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Paste Data (from Apple Numbers / Excel)
+                                    </label>
+                                    <textarea
+                                        className="w-full h-32 p-3 border rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="Copy data from your spreadsheet and paste here..."
+                                        onChange={(e) => {
+                                            const text = e.target.value;
+                                            if (text.trim().length > 0) {
+                                                parseCSV(text);
+                                            }
+                                        }}
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Auto-detects Tab (Apple Numbers/Excel) or Comma delimiters.
+                                    </p>
+                                </div>
+
                             </div>
                         </div>
                     ) : (
@@ -368,6 +437,24 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                                 </div>
                             </div>
 
+
+
+                            {importErrors.length > 0 && (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                                    <h4 className="text-red-800 font-semibold mb-2 flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" /> Import Errors
+                                    </h4>
+                                    <div className="max-h-32 overflow-y-auto text-sm text-red-700 space-y-1">
+                                        {importErrors.map((err, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <span className="font-mono bg-red-100 px-1 rounded">Row {err.row}</span>
+                                                <span>{err.error}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="border rounded-xl w-full h-[500px] overflow-scroll relative">
                                 <table className="w-full text-xs text-left min-w-[2500px] table-fixed">
                                     <thead className="bg-gray-50 sticky top-0 z-20 shadow-sm">
@@ -386,7 +473,8 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                                             <th className="px-3 py-2 border-b w-16">Neg.</th>
                                             <th className="px-3 py-2 border-b w-64">Explanation</th>
                                             <th className="px-3 py-2 border-b w-16">Parent</th>
-                                            <th className="px-3 py-2 border-b w-24 sticky right-0 bg-gray-50 shadow-l">Status</th>
+                                            <th className="px-3 py-2 border-b w-32">Tags</th>
+                                            <th className="px-3 py-2 border-b w-40 sticky right-0 bg-gray-50 shadow-l">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
@@ -403,38 +491,58 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                                                             {q.type}
                                                         </span>
                                                     </td>
-                                                    <td className="px-3 py-2 whitespace-normal break-words" title={q.textEn}>{q.textEn}</td>
-                                                    <td className="px-3 py-2 whitespace-normal break-words" title={q.textPa}>{q.textPa}</td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <MathText text={q.textEn} />
+                                                    </td>
+                                                    <td className="px-3 py-2 whitespace-normal break-words">
+                                                        <MathText text={q.textPa} />
+                                                    </td>
                                                     <td className="px-3 py-2 font-mono break-all">{q.correctAnswer}</td>
                                                     <td className="px-3 py-2 whitespace-normal break-words">
-                                                        <div>{q.optionAEn}</div>
-                                                        {q.optionAPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionAPa}</div>}
+                                                        <MathText text={q.optionAEn || ''} />
+                                                        {q.optionAPa && <MathText className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic" text={q.optionAPa} />}
                                                     </td>
                                                     <td className="px-3 py-2 whitespace-normal break-words">
-                                                        <div>{q.optionBEn}</div>
-                                                        {q.optionBPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionBPa}</div>}
+                                                        <MathText text={q.optionBEn || ''} />
+                                                        {q.optionBPa && <MathText className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic" text={q.optionBPa} />}
                                                     </td>
                                                     <td className="px-3 py-2 whitespace-normal break-words">
-                                                        <div>{q.optionCEn}</div>
-                                                        {q.optionCPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionCPa}</div>}
+                                                        <MathText text={q.optionCEn || ''} />
+                                                        {q.optionCPa && <MathText className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic" text={q.optionCPa} />}
                                                     </td>
                                                     <td className="px-3 py-2 whitespace-normal break-words">
-                                                        <div>{q.optionDEn}</div>
-                                                        {q.optionDPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.optionDPa}</div>}
+                                                        <MathText text={q.optionDEn || ''} />
+                                                        {q.optionDPa && <MathText className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic" text={q.optionDPa} />}
                                                     </td>
                                                     <td className="px-3 py-2">{q.marks}</td>
                                                     <td className="px-3 py-2">{q.negativeMarks}</td>
                                                     <td className="px-3 py-2 whitespace-normal break-words">
-                                                        <div>{q.explanationEn}</div>
-                                                        {q.explanationPa && <div className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic">{q.explanationPa}</div>}
+                                                        <MathText text={q.explanationEn || ''} />
+                                                        {q.explanationPa && <MathText className="text-gray-500 mt-1 border-t pt-1 border-gray-100 italic" text={q.explanationPa} />}
                                                     </td>
-                                                    <td className="px-3 py-2 whitespace-normal break-words">{q.explanationPa}</td>
+
                                                     <td className="px-3 py-2">{q.parentRow}</td>
+                                                    <td className="px-3 py-2">
+                                                        {q.tags && q.tags.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {q.tags.map(tag => (
+                                                                    <span key={tag} className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] border">
+                                                                        {tag}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                     <td className="px-3 py-2 sticky right-0 bg-inherit shadow-l">
                                                         {q.error ? (
-                                                            <span className="text-red-600 flex items-center gap-1 font-medium" title={q.error}>
-                                                                <AlertCircle className="w-3 h-3" /> Error
-                                                            </span>
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="text-red-600 flex items-center gap-1 font-medium">
+                                                                    <AlertCircle className="w-3 h-3" /> Error
+                                                                </span>
+                                                                <span className="text-[10px] text-red-500 font-medium leading-tight max-w-[150px] whitespace-normal">
+                                                                    {q.error}
+                                                                </span>
+                                                            </div>
                                                         ) : (
                                                             <span className="text-green-600 flex items-center gap-1 font-medium">
                                                                 <CheckCircle className="w-3 h-3" /> OK
@@ -509,7 +617,7 @@ export default function MasterImportModal({ isOpen, onClose, examId, sections, o
                         )}
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
