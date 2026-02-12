@@ -6,7 +6,7 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string; sectionId: string; questionId: string } }
+    { params }: { params: Promise<{ id: string; sectionId: string; questionId: string }> }
 ) {
     try {
         const session = await getSession();
@@ -14,12 +14,13 @@ export async function PUT(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { id, sectionId, questionId } = await params;
         const body = await request.json();
         const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags, subQuestions } = body;
 
         // 1. Handle Paragraph Content Update
         // Fetch existing question data to determine paragraph_id and current type
-        const [existingQuestion] = await sql`SELECT paragraph_id, type FROM questions WHERE id = ${params.questionId}`;
+        const [existingQuestion] = await sql`SELECT paragraph_id, type FROM questions WHERE id = ${questionId}`;
 
         let paragraphId = existingQuestion?.paragraph_id;
 
@@ -66,18 +67,18 @@ export async function PUT(
         "order" = ${order || 1},
         parent_id = ${parentId || null},
         paragraph_id = ${paragraphId}
-      WHERE id = ${params.questionId} AND section_id = ${params.sectionId}
+      WHERE id = ${questionId} AND section_id = ${sectionId}
     `;
 
         // Update tags (Multi-tag)
         if (tags && Array.isArray(tags)) {
             // Replace tags: delete existing and insert new
-            await sql`DELETE FROM question_tags WHERE question_id = ${params.questionId}`;
+            await sql`DELETE FROM question_tags WHERE question_id = ${questionId}`;
             if (tags.length > 0) {
                 for (const tagId of tags) {
                     await sql`
                          INSERT INTO question_tags (question_id, tag_id)
-                         VALUES (${params.questionId}, ${tagId})
+                         VALUES (${questionId}, ${tagId})
                          ON CONFLICT (question_id, tag_id) DO NOTHING
                      `;
                 }
@@ -87,7 +88,7 @@ export async function PUT(
         // Handle Sub-Questions for Paragraph
         if (type === 'paragraph' && subQuestions && Array.isArray(subQuestions)) {
             // Fetch existing IDs
-            const existingResult = await sql`SELECT id FROM questions WHERE parent_id = ${params.questionId}`;
+            const existingResult = await sql`SELECT id FROM questions WHERE parent_id = ${questionId}`;
             const existingIds = existingResult.map(row => row.id);
 
             const inputIds = subQuestions.map((sq: any) => sq.id).filter(Boolean);
@@ -127,7 +128,7 @@ export async function PUT(
                             difficulty=${sq.difficulty || 1}, 
                             "order"=${subOrder++}, 
                             image_url=${sq.imageUrl || null},
-                            section_id=${params.sectionId}
+                            section_id=${sectionId}
                         WHERE id=${sq.id}
                       `;
                 } else {
@@ -137,7 +138,7 @@ export async function PUT(
                            section_id, type, text, options, correct_answer, explanation, 
                            marks, negative_marks, difficulty, "order", parent_id, image_url, paragraph_id
                         ) VALUES (
-                           ${params.sectionId},
+                           ${sectionId},
                            ${sq.type}, 
                            ${sq.text ? JSON.stringify(sq.text) : JSON.stringify({ en: '', pa: '' })}::jsonb, 
                            ${sq.options ? JSON.stringify(sq.options) : null}::jsonb, 
@@ -147,7 +148,7 @@ export async function PUT(
                            ${sq.negativeMarks || null}, 
                            ${sq.difficulty || 1}, 
                            ${subOrder++}, 
-                           ${params.questionId}, 
+                           ${questionId}, 
                            ${sq.imageUrl || null},
                            ${paragraphId}
                         )
@@ -165,7 +166,7 @@ export async function PUT(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string; sectionId: string; questionId: string } }
+    { params }: { params: Promise<{ id: string; sectionId: string; questionId: string }> }
 ) {
     try {
         const session = await getSession();
@@ -173,16 +174,18 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { id, sectionId, questionId } = await params;
+
         // Check if it's a paragraph question and get its dependencies
-        const [qData] = await sql`SELECT paragraph_id FROM questions WHERE id = ${params.questionId}`;
+        const [qData] = await sql`SELECT paragraph_id FROM questions WHERE id = ${questionId}`;
 
         // 1. Delete associated responses (if any) - Manual Cascade
-        await sql`DELETE FROM question_responses WHERE question_id = ${params.questionId}`;
+        await sql`DELETE FROM question_responses WHERE question_id = ${questionId}`;
 
         // 2. Delete children dependencies
         // If this is a parent, its children might have responses too!
         // We need to find children, delete THEIR responses, and then delete them.
-        const children = await sql`SELECT id FROM questions WHERE parent_id = ${params.questionId}`;
+        const children = await sql`SELECT id FROM questions WHERE parent_id = ${questionId}`;
         if (children.length > 0) {
             const childIds = children.map(c => c.id);
             // Delete responses for children
@@ -193,11 +196,11 @@ export async function DELETE(
                 await sql`DELETE FROM question_responses WHERE question_id = ${child.id}`;
             }
             // Now delete children
-            await sql`DELETE FROM questions WHERE parent_id = ${params.questionId}`;
+            await sql`DELETE FROM questions WHERE parent_id = ${questionId}`;
         }
 
         // 3. Delete the question itself
-        await sql`DELETE FROM questions WHERE id = ${params.questionId} AND section_id = ${params.sectionId}`;
+        await sql`DELETE FROM questions WHERE id = ${questionId} AND section_id = ${sectionId}`;
 
         // 4. Cleanup paragraph content if applicable
         if (qData?.paragraph_id) {

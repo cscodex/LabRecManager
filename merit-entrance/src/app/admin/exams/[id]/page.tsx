@@ -9,7 +9,7 @@ import { getDifficultyColor } from '@/lib/performance';
 import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
-    MoreVertical, Search, Filter, CheckSquare
+    MoreVertical, Search, Filter, CheckSquare, Pencil
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -366,6 +366,30 @@ export default function EditExamPage() {
         });
     };
 
+    const handleSaveSection = async () => {
+        if (!editingSection) return;
+        try {
+            const res = await fetch(`/api/admin/exams/${examId}/sections/${editingSection.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: { en: editSectionData.nameEn, pa: editSectionData.namePa || editSectionData.nameEn },
+                    order: editingSection.order,
+                    duration: editSectionData.duration ? parseInt(editSectionData.duration) : null,
+                }),
+            });
+            if (res.ok) {
+                toast.success('Section updated');
+                setEditingSection(null);
+                loadExam();
+            } else {
+                toast.error('Failed to update section');
+            }
+        } catch {
+            toast.error('Failed to update section');
+        }
+    };
+
     const handleQuestionSave = async (data: QuestionFormData) => {
         if (!activeSectionId) return;
         setIsSavingQuestion(true);
@@ -500,15 +524,15 @@ export default function EditExamPage() {
                     type: q.type,
                     text: q.text,
                     options: q.options,
-                    correct_answer: q.correct_answer,
+                    correctAnswer: q.correct_answer,
                     explanation: q.explanation,
                     marks: q.marks,
                     negativeMarks: q.negative_marks,
                     difficulty: q.difficulty,
                     imageUrl: q.image_url,
                     tags: q.tags?.map((t: any) => t.id) || [],
-                    paragraphText: q.paragraph_text, // If paragraph
-                    subQuestions: q.subQuestions // If paragraph
+                    paragraphText: q.paragraph_text,
+                    subQuestions: q.subQuestions
                 };
 
                 await fetch(`/api/admin/exams/${examId}/sections/${activeSectionId}/questions`, {
@@ -930,6 +954,23 @@ export default function EditExamPage() {
                                         <button
                                             onClick={() => {
                                                 const s = sections.find(s => s.id === activeSectionId);
+                                                if (s) {
+                                                    setEditingSection(s);
+                                                    setEditSectionData({
+                                                        nameEn: s.name?.en || '',
+                                                        namePa: s.name?.pa || '',
+                                                        duration: s.duration ? String(s.duration) : '',
+                                                    });
+                                                }
+                                            }}
+                                            className="p-2 text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100"
+                                            title="Edit Section"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const s = sections.find(s => s.id === activeSectionId);
                                                 if (s) handleDeleteSection(s.id);
                                             }}
                                             className="p-2 text-red-600 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100"
@@ -962,6 +1003,12 @@ export default function EditExamPage() {
                                             >
                                                 <CheckSquare className="w-4 h-4" /> Import from Bank
                                             </button>
+                                            <Link
+                                                href={`/admin/exams/${examId}/sections/${activeSectionId}/import`}
+                                                className="flex items-center gap-2 px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                                            >
+                                                <Upload className="w-4 h-4" /> Import CSV
+                                            </Link>
                                         </div>
                                         <div className="text-sm text-gray-500">
                                             {loadingQuestions[activeSectionId] ? 'Loading...' : `${sectionQuestions[activeSectionId]?.length || 0} Questions`}
@@ -1135,6 +1182,44 @@ export default function EditExamPage() {
                         onCancel={() => setShowPickerModal(false)}
                         excludeIds={sectionQuestions[activeSectionId || '']?.map(q => q.id) || []} // This won't exclude strict IDs if we clone them with NEW IDs, but acts as a visual filter if we imported them linked. Since we clone, maybe we ignore exclusion or exclude based on... text? For now, we don't exclude.
                     />
+                </Modal>
+
+                {/* Section Edit Modal */}
+                <Modal isOpen={!!editingSection} onClose={() => setEditingSection(null)} title="Edit Section" maxWidth="md">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Name (English) *</label>
+                            <input
+                                type="text"
+                                value={editSectionData.nameEn}
+                                onChange={(e) => setEditSectionData({ ...editSectionData, nameEn: e.target.value })}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Name (Punjabi)</label>
+                            <input
+                                type="text"
+                                value={editSectionData.namePa}
+                                onChange={(e) => setEditSectionData({ ...editSectionData, namePa: e.target.value })}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                            <input
+                                type="number"
+                                value={editSectionData.duration}
+                                onChange={(e) => setEditSectionData({ ...editSectionData, duration: e.target.value })}
+                                className="w-full px-4 py-2 border rounded-lg"
+                                placeholder="Leave blank to use exam duration"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button onClick={() => setEditingSection(null)} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50">Cancel</button>
+                            <button onClick={handleSaveSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+                        </div>
+                    </div>
                 </Modal>
 
             </div>

@@ -6,13 +6,15 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string; sectionId: string } }
+    { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
     try {
         const session = await getSession();
         if (!session || !['admin', 'superadmin'].includes(session.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const { id, sectionId } = await params;
 
         const questions = await sql`
       SELECT 
@@ -29,7 +31,7 @@ export async function GET(
         ) as tags
       FROM questions q
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
-      WHERE q.section_id = ${params.sectionId}
+      WHERE q.section_id = ${sectionId}
       ORDER BY q."order"
     `;
 
@@ -53,7 +55,7 @@ export async function GET(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string; sectionId: string } }
+    { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
     try {
         const session = await getSession();
@@ -61,6 +63,7 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { id, sectionId } = await params;
         const body = await request.json();
         const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags } = body;
 
@@ -89,7 +92,7 @@ export async function POST(
         const result = await sql`
       INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id)
       VALUES (
-        ${params.sectionId},
+        ${sectionId},
         ${type || 'mcq_single'},
         ${text ? JSON.stringify(text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
         ${options ? JSON.stringify(options) : null}::jsonb,
@@ -129,7 +132,7 @@ export async function POST(
                         section_id, type, text, options, correct_answer, explanation, 
                         marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id
                     ) VALUES (
-                        ${params.sectionId},
+                        ${sectionId},
                         ${sq.type},
                         ${sq.text ? JSON.stringify(sq.text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
                         ${sq.options ? JSON.stringify(sq.options) : null}::jsonb,

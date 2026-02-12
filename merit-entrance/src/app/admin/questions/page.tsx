@@ -39,11 +39,12 @@ interface Question {
     parent_id?: string;
     paragraph_text?: Record<string, string>;
     paragraph_id?: string;
-    paragraph?: { // Enriched from API
+    paragraph?: {
         content: Record<string, string>;
         image_url?: string;
     };
-    subQuestions?: any[]; // Enriched
+    subQuestions?: any[];
+    usage_count?: number;
 }
 
 export default function QuestionsBankPage() {
@@ -332,6 +333,30 @@ export default function QuestionsBankPage() {
                     </button>
                 </div>
 
+                {/* Summary Scorecard */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
+                        <p className="text-3xl font-bold text-blue-600">{totalQuestions}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Total Questions</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
+                        <p className="text-3xl font-bold text-purple-600">{tags.length}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Total Tags</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
+                        <p className="text-3xl font-bold text-green-600">{questions.filter(q => q.correct_answer && (Array.isArray(q.correct_answer) ? q.correct_answer.length > 0 : true)).length}/{questions.length}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">With Answers</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
+                        <p className="text-3xl font-bold text-amber-600">{questions.filter(q => q.explanation && (q.explanation.en || q.explanation.pa)).length}/{questions.length}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">With Explanations</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
+                        <p className="text-3xl font-bold text-rose-600">{questions.filter(q => (q.usage_count || 0) > 0).length}/{questions.length}</p>
+                        <p className="text-xs text-gray-500 uppercase mt-1">Used in Exams</p>
+                    </div>
+                </div>
+
                 {/* Stats */}
                 <QuestionStats questions={questions} />
 
@@ -392,15 +417,17 @@ export default function QuestionsBankPage() {
                                     <th className="px-6 py-3">Question</th>
                                     <th className="px-6 py-3">Type</th>
                                     <th className="px-6 py-3">Difficulty</th>
+                                    <th className="px-6 py-3">Answer</th>
+                                    <th className="px-6 py-3">Explanation</th>
                                     <th className="px-6 py-3">Marks</th>
-                                    <th className="px-6 py-3">Sections/Exams</th>
+                                    <th className="px-6 py-3">Popularity</th>
                                     <th className="px-6 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                                             <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-2"></div>
                                             Loading...
                                         </td>
@@ -443,17 +470,30 @@ export default function QuestionsBankPage() {
                                                 {question.marks}
                                             </td>
                                             <td className="px-6 py-4">
-                                                {question.section ? (
-                                                    <div className="text-xs text-gray-600">
-                                                        <div className="font-medium text-gray-900 truncate max-w-[150px]">
-                                                            {getText(question.section.exam?.title || {}, language)}
-                                                        </div>
-                                                        <div className="truncate max-w-[150px]">
-                                                            {getText(question.section.name, language)}
-                                                        </div>
-                                                    </div>
+                                                {question.correct_answer && Array.isArray(question.correct_answer) && question.correct_answer.length > 0 ? (
+                                                    <span className="text-xs font-mono bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200">
+                                                        {question.correct_answer.join(', ')}
+                                                    </span>
                                                 ) : (
-                                                    <span className="text-xs text-gray-400 italic">Global / Unassigned</span>
+                                                    <span className="text-xs text-gray-400 italic">—</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 max-w-[150px]">
+                                                {question.explanation && (question.explanation.en || question.explanation.pa) ? (
+                                                    <span className="text-xs text-gray-600 line-clamp-2" title={question.explanation.en || question.explanation.pa}>
+                                                        {getText(question.explanation, language) || '—'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 italic">—</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                {(question.usage_count || 0) > 0 ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded border border-indigo-200 font-medium">
+                                                        {question.usage_count} {(question.usage_count || 0) === 1 ? 'exam' : 'exams'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 italic">Unused</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right">

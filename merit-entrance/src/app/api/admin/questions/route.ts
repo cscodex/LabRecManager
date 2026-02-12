@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
         const search = searchParams.get('search') || '';
         const type = searchParams.get('type') || 'all';
         const difficulty = searchParams.get('difficulty') || 'all';
+        const tagId = searchParams.get('tagId') || '';
 
         const offset = (page - 1) * limit;
 
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest) {
 
         // Count query
         const totalResult = await sql`
-            SELECT COUNT(*) as total FROM questions q
+            SELECT COUNT(DISTINCT q.id) as total FROM questions q
+            ${tagId ? sql`JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}` : sql``}
             WHERE 
                 q.parent_id IS NULL
                 AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
@@ -46,10 +48,17 @@ export async function GET(req: NextRequest) {
                     FROM question_tags qt
                     JOIN tags t ON qt.tag_id = t.id
                     WHERE qt.question_id = q.id
-                ) as tags
+                ) as tags,
+                (
+                    SELECT COUNT(DISTINCT e2.id)
+                    FROM sections s2
+                    JOIN exams e2 ON s2.exam_id = e2.id
+                    WHERE s2.id = q.section_id
+                ) as usage_count
             FROM questions q
             LEFT JOIN sections s ON q.section_id = s.id
             LEFT JOIN exams e ON s.exam_id = e.id
+            ${tagId ? sql`JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}` : sql``}
             WHERE 
                 q.parent_id IS NULL
                 AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
@@ -67,7 +76,8 @@ export async function GET(req: NextRequest) {
                     name: q.section_name,
                     exam: { title: q.exam_title }
                 } : null,
-                tags: q.tags || []
+                tags: q.tags || [],
+                usage_count: parseInt(q.usage_count) || 0
             })),
             pagination: {
                 total,

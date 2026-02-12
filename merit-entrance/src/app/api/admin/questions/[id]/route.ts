@@ -7,7 +7,7 @@ const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL 
 
 export async function GET(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getSession();
@@ -15,7 +15,7 @@ export async function GET(
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         // Fetch question
         const questions = await sql`SELECT * FROM questions WHERE id = ${id}`;
@@ -61,7 +61,7 @@ export async function GET(
 
 export async function PUT(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getSession();
@@ -69,7 +69,7 @@ export async function PUT(
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
         const body = await req.json();
         const {
             type,
@@ -182,7 +182,7 @@ export async function PUT(
 
 export async function DELETE(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getSession();
@@ -190,7 +190,7 @@ export async function DELETE(
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         // Explicitly delete children first
         await sql`DELETE FROM questions WHERE parent_id = ${id}`;
