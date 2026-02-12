@@ -26,47 +26,92 @@ export async function GET(req: NextRequest) {
         const diffValue = difficulty === 'all' ? 0 : parseInt(difficulty);
 
         // Count query
-        const totalResult = await sql`
-            SELECT COUNT(DISTINCT q.id) as total FROM questions q
-            ${tagId ? sql`JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}` : sql``}
-            WHERE 
-                q.parent_id IS NULL
-                AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
-                AND (${type} = 'all' OR q.type = ${type})
-                AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
-        `;
-        const total = parseInt(totalResult[0].total);
+        let total = 0;
+        if (tagId) {
+            const totalResult = await sql`
+                SELECT COUNT(DISTINCT q.id) as total FROM questions q
+                JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}
+                WHERE 
+                    q.parent_id IS NULL
+                    AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
+                    AND (${type} = 'all' OR q.type = ${type})
+                    AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+            `;
+            total = parseInt(totalResult[0].total);
+        } else {
+            const totalResult = await sql`
+                SELECT COUNT(*) as total FROM questions q
+                WHERE 
+                    q.parent_id IS NULL
+                    AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
+                    AND (${type} = 'all' OR q.type = ${type})
+                    AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+            `;
+            total = parseInt(totalResult[0].total);
+        }
 
         // Fetch Query
-        const questions = await sql`
-            SELECT 
-                q.*, 
-                s.name as section_name,
-                e.title as exam_title,
-                (
-                    SELECT json_agg(json_build_object('id', t.id, 'name', t.name))
-                    FROM question_tags qt
-                    JOIN tags t ON qt.tag_id = t.id
-                    WHERE qt.question_id = q.id
-                ) as tags,
-                (
-                    SELECT COUNT(DISTINCT e2.id)
-                    FROM sections s2
-                    JOIN exams e2 ON s2.exam_id = e2.id
-                    WHERE s2.id = q.section_id
-                ) as usage_count
-            FROM questions q
-            LEFT JOIN sections s ON q.section_id = s.id
-            LEFT JOIN exams e ON s.exam_id = e.id
-            ${tagId ? sql`JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}` : sql``}
-            WHERE 
-                q.parent_id IS NULL
-                AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
-                AND (${type} = 'all' OR q.type = ${type})
-                AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
-            ORDER BY q.created_at DESC 
-            LIMIT ${limit} OFFSET ${offset}
-        `;
+        let questions;
+        if (tagId) {
+            questions = await sql`
+                SELECT 
+                    q.*, 
+                    s.name as section_name,
+                    e.title as exam_title,
+                    (
+                        SELECT json_agg(json_build_object('id', t.id, 'name', t.name))
+                        FROM question_tags qt
+                        JOIN tags t ON qt.tag_id = t.id
+                        WHERE qt.question_id = q.id
+                    ) as tags,
+                    (
+                        SELECT COUNT(DISTINCT e2.id)
+                        FROM sections s2
+                        JOIN exams e2 ON s2.exam_id = e2.id
+                        WHERE s2.id = q.section_id
+                    ) as usage_count
+                FROM questions q
+                LEFT JOIN sections s ON q.section_id = s.id
+                LEFT JOIN exams e ON s.exam_id = e.id
+                JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}
+                WHERE 
+                    q.parent_id IS NULL
+                    AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
+                    AND (${type} = 'all' OR q.type = ${type})
+                    AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+                ORDER BY q.created_at DESC 
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else {
+            questions = await sql`
+                SELECT 
+                    q.*, 
+                    s.name as section_name,
+                    e.title as exam_title,
+                    (
+                        SELECT json_agg(json_build_object('id', t.id, 'name', t.name))
+                        FROM question_tags qt
+                        JOIN tags t ON qt.tag_id = t.id
+                        WHERE qt.question_id = q.id
+                    ) as tags,
+                    (
+                        SELECT COUNT(DISTINCT e2.id)
+                        FROM sections s2
+                        JOIN exams e2 ON s2.exam_id = e2.id
+                        WHERE s2.id = q.section_id
+                    ) as usage_count
+                FROM questions q
+                LEFT JOIN sections s ON q.section_id = s.id
+                LEFT JOIN exams e ON s.exam_id = e.id
+                WHERE 
+                    q.parent_id IS NULL
+                    AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
+                    AND (${type} = 'all' OR q.type = ${type})
+                    AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+                ORDER BY q.created_at DESC 
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        }
 
         return NextResponse.json({
             success: true,
