@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Filter, Plus, Check } from 'lucide-react';
+import { Search, Filter, Plus, Check, CheckSquare } from 'lucide-react';
 import { MathText } from '@/components/MathText';
 import { getText } from '@/lib/utils';
 import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
@@ -14,6 +14,8 @@ interface Question {
     marks: number;
     difficulty: number;
     tags: { id: string; name: string }[];
+    options?: { id: string; text: Record<string, string> }[];
+    correct_answer?: any;
 }
 
 interface QuestionBankPickerProps {
@@ -133,13 +135,51 @@ export default function QuestionBankPicker({ onImport, excludeIds = [], onCancel
                                         <MathText text={getText(q.text, 'en')} inline />
                                     </MathJaxProvider>
                                 </div>
-                                <div className="flex gap-2 mt-2 items-center">
+                                {/* Punjabi text if available */}
+                                {q.text?.pa && (
+                                    <div className="text-sm text-gray-500 mt-0.5 line-clamp-1">
+                                        <MathJaxProvider>
+                                            <MathText text={getText(q.text, 'pa')} inline />
+                                        </MathJaxProvider>
+                                    </div>
+                                )}
+                                <div className="flex gap-2 mt-2 items-center flex-wrap">
                                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{q.type}</span>
                                     <span className={`text-xs px-2 py-0.5 rounded ${q.difficulty <= 2 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>Level {q.difficulty}</span>
+                                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{q.marks} marks</span>
                                     {q.tags.map(t => (
                                         <span key={t.id} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{t.name}</span>
                                     ))}
                                 </div>
+                                {/* Options with both languages */}
+                                {q.options && q.options.length > 0 && (
+                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                        {q.options.map((opt: any, i: number) => {
+                                            const isCorrect = Array.isArray(q.correct_answer)
+                                                ? q.correct_answer.includes(opt.id)
+                                                : q.correct_answer === opt.id;
+                                            const enText = typeof opt.text === 'object' ? (opt.text.en || '') : String(opt.text || '');
+                                            const paText = typeof opt.text === 'object' ? (opt.text.pa || '') : '';
+                                            return (
+                                                <div key={opt.id || i} className={`text-xs px-2 py-1 rounded border flex items-center gap-1.5 ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-100 text-gray-600'}`}>
+                                                    <span className="font-bold opacity-60">{String.fromCharCode(65 + i)}.</span>
+                                                    <span className="truncate">{enText}</span>
+                                                    {paText && <span className="text-gray-400 truncate">| {paText}</span>}
+                                                    {isCorrect && <CheckSquare className="w-3 h-3 ml-auto text-green-600 flex-shrink-0" />}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                                {/* Fill blank answer */}
+                                {q.type === 'fill_blank' && q.correct_answer && (
+                                    <div className="mt-2">
+                                        <span className="text-xs text-gray-500 mr-1">Answer:</span>
+                                        <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded font-medium">
+                                            {Array.isArray(q.correct_answer) ? q.correct_answer.join(', ') : String(q.correct_answer)}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                             <div className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${selectedIds.has(q.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
                                 {selectedIds.has(q.id) && <Check className="w-3 h-3 text-white" />}

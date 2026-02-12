@@ -922,6 +922,112 @@ export default function EditExamPage() {
                         </div>
                     ) : (
                         <div className="flex flex-col h-[70vh]">
+                            {/* Exam Composition Overview */}
+                            {sections.length > 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    {/* By Section */}
+                                    <div className="bg-white rounded-xl shadow-sm border p-4">
+                                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Section</h3>
+                                        <div className="flex items-center gap-4">
+                                            <div className="relative w-24 h-24 flex-shrink-0">
+                                                {(() => {
+                                                    const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                    const totalQ = sections.reduce((a, s) => a + (Number(s.question_count) || 0), 0);
+                                                    if (totalQ === 0) return <div className="w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">0</div>;
+                                                    let cumPct = 0;
+                                                    const stops = sections.map((s, i) => {
+                                                        const pct = ((Number(s.question_count) || 0) / totalQ) * 100;
+                                                        const start = cumPct;
+                                                        cumPct += pct;
+                                                        return `${colors[i % colors.length]} ${start}% ${cumPct}%`;
+                                                    });
+                                                    return (
+                                                        <>
+                                                            <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops.join(', ')})` }} />
+                                                            <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center text-sm font-bold text-gray-700">{totalQ}</div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                            <div className="flex-1 space-y-1">
+                                                {sections.map((s, i) => {
+                                                    const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                    return (
+                                                        <div key={s.id} className="flex items-center gap-2 text-xs">
+                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+                                                            <span className="truncate text-gray-700">{getText(s.name, language) || `Section ${i + 1}`}</span>
+                                                            <span className="ml-auto font-bold text-gray-900">{s.question_count}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* By Tag (from loaded questions) */}
+                                    <div className="bg-white rounded-xl shadow-sm border p-4">
+                                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Tag</h3>
+                                        <div className="flex items-center gap-4">
+                                            <div className="relative w-24 h-24 flex-shrink-0">
+                                                {(() => {
+                                                    const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                    // Aggregate tags from all loaded section questions
+                                                    const tagCounts: Record<string, number> = {};
+                                                    Object.values(sectionQuestions).forEach((qs: any[]) => {
+                                                        qs.forEach(q => {
+                                                            if (q.tags && q.tags.length > 0) {
+                                                                q.tags.forEach((t: any) => { tagCounts[t.name] = (tagCounts[t.name] || 0) + 1; });
+                                                            } else {
+                                                                tagCounts['Untagged'] = (tagCounts['Untagged'] || 0) + 1;
+                                                            }
+                                                        });
+                                                    });
+                                                    const entries = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
+                                                    const totalT = entries.reduce((a, [, c]) => a + c, 0);
+                                                    if (totalT === 0) return <div className="w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">—</div>;
+                                                    let cumPct = 0;
+                                                    const stops = entries.map(([, count], i) => {
+                                                        const pct = (count / totalT) * 100;
+                                                        const start = cumPct;
+                                                        cumPct += pct;
+                                                        return `${colors[i % colors.length]} ${start}% ${cumPct}%`;
+                                                    });
+                                                    return (
+                                                        <>
+                                                            <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops.join(', ')})` }} />
+                                                            <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center text-sm font-bold text-gray-700">{totalT}</div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                            <div className="flex-1 space-y-1">
+                                                {(() => {
+                                                    const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                    const tagCounts: Record<string, number> = {};
+                                                    Object.values(sectionQuestions).forEach((qs: any[]) => {
+                                                        qs.forEach(q => {
+                                                            if (q.tags && q.tags.length > 0) {
+                                                                q.tags.forEach((t: any) => { tagCounts[t.name] = (tagCounts[t.name] || 0) + 1; });
+                                                            } else {
+                                                                tagCounts['Untagged'] = (tagCounts['Untagged'] || 0) + 1;
+                                                            }
+                                                        });
+                                                    });
+                                                    const entries = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
+                                                    return entries.map(([name, count], i) => (
+                                                        <div key={name} className="flex items-center gap-2 text-xs">
+                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+                                                            <span className="truncate text-gray-700">{name}</span>
+                                                            <span className="ml-auto font-bold text-gray-900">{count}</span>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                                {Object.keys(sectionQuestions).length === 0 && <p className="text-xs text-gray-400 italic">Load sections to see tag data</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Section Tabs & Controls */}
                             <div className="flex justify-between items-center mb-4">
                                 <div className="flex gap-2 overflow-x-auto pb-1 max-w-[70%]">
@@ -1060,7 +1166,23 @@ export default function EditExamPage() {
                                                                         })}
                                                                     </div>
                                                                 )}
-                                                                {/* Explanation */}
+                                                                {/* Fill Blank Answer */}
+                                                                {q.type === 'fill_blank' && q.correct_answer && (
+                                                                    <div className="mt-3">
+                                                                        <span className="text-xs font-semibold text-gray-500 mr-2">Answer:</span>
+                                                                        {Array.isArray(q.correct_answer) ? (
+                                                                            q.correct_answer.map((ans: string, i: number) => (
+                                                                                <span key={i} className="inline-block text-sm px-3 py-1 bg-green-50 text-green-800 border border-green-200 rounded mr-2 mb-1 font-medium">
+                                                                                    {ans}
+                                                                                </span>
+                                                                            ))
+                                                                        ) : (
+                                                                            <span className="inline-block text-sm px-3 py-1 bg-green-50 text-green-800 border border-green-200 rounded font-medium">
+                                                                                {String(q.correct_answer)}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                                 {q.explanation && (q.explanation.en || q.explanation.pa) && (
                                                                     <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                                                         <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>

@@ -56,6 +56,7 @@ export default function QuestionsBankPage() {
     const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
     const [totalQuestions, setTotalQuestions] = useState(0);
 
@@ -71,7 +72,7 @@ export default function QuestionsBankPage() {
     const [isSaving, setIsSaving] = useState(false);
 
     // Global stats from API
-    const [globalStats, setGlobalStats] = useState({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0 });
+    const [globalStats, setGlobalStats] = useState<any>({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0, difficultyDistribution: {}, typeDistribution: {} });
 
     // Debounce search
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -93,7 +94,7 @@ export default function QuestionsBankPage() {
         try {
             const params = new URLSearchParams({
                 page: page.toString(),
-                limit: '10',
+                limit: limit === 0 ? '99999' : limit.toString(),
                 search: debouncedSearch,
                 type: typeFilter,
                 difficulty: difficultyFilter,
@@ -117,7 +118,7 @@ export default function QuestionsBankPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, debouncedSearch, typeFilter, difficultyFilter, tagFilter]);
+    }, [page, limit, debouncedSearch, typeFilter, difficultyFilter, tagFilter]);
 
     useEffect(() => {
         loadTags();
@@ -359,7 +360,7 @@ export default function QuestionsBankPage() {
                 </div>
 
                 {/* Stats */}
-                <QuestionStats questions={questions} />
+                <QuestionStats questions={questions} stats={globalStats} />
 
                 {/* Filters */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -524,9 +525,23 @@ export default function QuestionsBankPage() {
 
                     {/* Pagination */}
                     <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
-                        <p className="text-sm text-gray-600">
-                            Showing <span className="font-medium">{questions.length}</span> of <span className="font-medium">{totalQuestions}</span> questions
-                        </p>
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-600">
+                                Showing <span className="font-medium">{questions.length}</span> of <span className="font-medium">{totalQuestions}</span> questions
+                            </span>
+                            <select
+                                value={limit}
+                                onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                                className="px-2 py-1 border rounded text-sm text-gray-700"
+                            >
+                                <option value={10}>10 / page</option>
+                                <option value={50}>50 / page</option>
+                                <option value={100}>100 / page</option>
+                                <option value={500}>500 / page</option>
+                                <option value={1000}>1000 / page</option>
+                                <option value={0}>All</option>
+                            </select>
+                        </div>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}

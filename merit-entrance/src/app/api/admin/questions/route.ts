@@ -124,6 +124,24 @@ export async function GET(req: NextRequest) {
             WHERE q.parent_id IS NULL
         `;
 
+        // Difficulty distribution
+        const difficultyResult = await sql`
+            SELECT difficulty, COUNT(*) as count 
+            FROM questions WHERE parent_id IS NULL 
+            GROUP BY difficulty ORDER BY difficulty
+        `;
+        const difficultyDist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        difficultyResult.forEach((r: any) => { difficultyDist[r.difficulty] = parseInt(r.count); });
+
+        // Type distribution
+        const typeResult = await sql`
+            SELECT type, COUNT(*) as count 
+            FROM questions WHERE parent_id IS NULL 
+            GROUP BY type
+        `;
+        const typeDist: Record<string, number> = {};
+        typeResult.forEach((r: any) => { typeDist[r.type] = parseInt(r.count); });
+
         return NextResponse.json({
             success: true,
             questions: questions.map(q => ({
@@ -146,6 +164,8 @@ export async function GET(req: NextRequest) {
                 withAnswers: parseInt(statsResult[0].with_answers) || 0,
                 withExplanations: parseInt(statsResult[0].with_explanations) || 0,
                 usedInExams: parseInt(statsResult[0].used_in_exams) || 0,
+                difficultyDistribution: difficultyDist,
+                typeDistribution: typeDist,
             }
         });
 
@@ -196,7 +216,7 @@ export async function POST(req: NextRequest) {
         const result = await sql`
             INSERT INTO questions (
                 type, text, options, correct_answer, explanation, 
-                marks, negative_marks, difficulty, image_url, "order", paragraph_text, parent_id
+                marks, negative_marks, difficulty, image_url, "order", parent_id
             ) VALUES (
                 ${type}, 
                 ${JSON.stringify(text)}::jsonb, 
@@ -208,7 +228,6 @@ export async function POST(req: NextRequest) {
                 ${difficulty || 1}, 
                 ${image_url || null}, 
                 ${order || 0}, 
-                ${pText ? JSON.stringify(pText) : null}::jsonb, 
                 NULL
             ) RETURNING id
         `;
