@@ -9,7 +9,7 @@ import { getDifficultyColor } from '@/lib/performance';
 import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
-    MoreVertical, Search, Filter, CheckSquare, Pencil
+    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -77,7 +77,7 @@ export default function EditExamPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
-    const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections' | 'composition'>('details');
 
     // Section Tabs Logic
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -760,6 +760,15 @@ export default function EditExamPage() {
                             >
                                 <FileText className="w-4 h-4 inline mr-1" /> Sections & Questions
                             </button>
+                            <button
+                                onClick={() => setActiveTab('composition')}
+                                className={`px-4 py-2 rounded-t-lg text-sm font-medium ${activeTab === 'composition'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                            >
+                                <BarChart2 className="w-4 h-4 inline mr-1" /> Composition
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -920,11 +929,10 @@ export default function EditExamPage() {
                                 </div>
                             </div>
                         </div>
-                    ) : (
-                        <div className="flex flex-col h-[70vh]">
-                            {/* Exam Composition Overview */}
-                            {sections.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    ) : activeTab === 'composition' ? (
+                        <div className="space-y-6">
+                            {sections.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* By Section */}
                                     <div className="bg-white rounded-xl shadow-sm border p-4">
                                         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Section</h3>
@@ -1026,8 +1034,14 @@ export default function EditExamPage() {
                                         </div>
                                     </div>
                                 </div>
+                            ) : (
+                                <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-400">
+                                    No sections created yet. Add sections in the &ldquo;Sections &amp; Questions&rdquo; tab.
+                                </div>
                             )}
-
+                        </div>
+                    ) : activeTab === 'sections' ? (
+                        <div className="flex flex-col h-[70vh]">
                             {/* Section Tabs & Controls */}
                             <div className="flex justify-between items-center mb-4">
                                 <div className="flex gap-2 overflow-x-auto pb-1 max-w-[70%]">
@@ -1227,7 +1241,7 @@ export default function EditExamPage() {
                                 </div>
                             )}
                         </div>
-                    )}
+                    ) : null}
                 </main>
 
                 {/* Add Section Modal */}
