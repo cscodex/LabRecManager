@@ -133,8 +133,14 @@ export async function GET(req: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Error fetching questions:', error);
-        return NextResponse.json({ success: false, error: 'Failed to fetch questions' }, { status: 500 });
+        console.error('=== QUESTIONS API ERROR ===');
+        console.error('Error message:', error?.message || error);
+        console.error('Error stack:', error?.stack);
+        return NextResponse.json({
+            success: false,
+            error: 'Failed to fetch questions',
+            details: error?.message || 'Unknown error'
+        }, { status: 500 });
     }
 }
 
