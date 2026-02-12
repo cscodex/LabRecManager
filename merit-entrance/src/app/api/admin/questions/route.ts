@@ -113,6 +113,17 @@ export async function GET(req: NextRequest) {
             `;
         }
 
+        // Global stats (not affected by pagination)
+        const statsResult = await sql`
+            SELECT 
+                COUNT(*) as total_questions,
+                COUNT(CASE WHEN q.correct_answer IS NOT NULL AND q.correct_answer::text != '[]' AND q.correct_answer::text != 'null' THEN 1 END) as with_answers,
+                COUNT(CASE WHEN q.explanation IS NOT NULL AND q.explanation::text != 'null' AND q.explanation::text != '{}' THEN 1 END) as with_explanations,
+                COUNT(CASE WHEN q.section_id IS NOT NULL THEN 1 END) as used_in_exams
+            FROM questions q
+            WHERE q.parent_id IS NULL
+        `;
+
         return NextResponse.json({
             success: true,
             questions: questions.map(q => ({
@@ -129,6 +140,12 @@ export async function GET(req: NextRequest) {
                 page,
                 limit,
                 totalPages: Math.ceil(total / limit)
+            },
+            stats: {
+                totalQuestions: parseInt(statsResult[0].total_questions) || 0,
+                withAnswers: parseInt(statsResult[0].with_answers) || 0,
+                withExplanations: parseInt(statsResult[0].with_explanations) || 0,
+                usedInExams: parseInt(statsResult[0].used_in_exams) || 0,
             }
         });
 

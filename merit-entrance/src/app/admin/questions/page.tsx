@@ -70,8 +70,8 @@ export default function QuestionsBankPage() {
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Stats Data (Need to fetch all or use current? Using current page for now, ideally fetch separate stats)
-    // For better UX, we'll just show stats for the current filtered view.
+    // Global stats from API
+    const [globalStats, setGlobalStats] = useState({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0 });
 
     // Debounce search
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -107,6 +107,7 @@ export default function QuestionsBankPage() {
                 setQuestions(data.questions);
                 setTotalPages(data.pagination.totalPages);
                 setTotalQuestions(data.pagination.total);
+                if (data.stats) setGlobalStats(data.stats);
             } else {
                 toast.error(data.error || 'Failed to load questions');
             }
@@ -336,7 +337,7 @@ export default function QuestionsBankPage() {
                 {/* Summary Scorecard */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                     <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
-                        <p className="text-3xl font-bold text-blue-600">{totalQuestions}</p>
+                        <p className="text-3xl font-bold text-blue-600">{globalStats.totalQuestions}</p>
                         <p className="text-xs text-gray-500 uppercase mt-1">Total Questions</p>
                     </div>
                     <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
@@ -344,15 +345,15 @@ export default function QuestionsBankPage() {
                         <p className="text-xs text-gray-500 uppercase mt-1">Total Tags</p>
                     </div>
                     <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
-                        <p className="text-3xl font-bold text-green-600">{questions.filter(q => q.correct_answer && (Array.isArray(q.correct_answer) ? q.correct_answer.length > 0 : true)).length}/{questions.length}</p>
+                        <p className="text-3xl font-bold text-green-600">{globalStats.withAnswers}</p>
                         <p className="text-xs text-gray-500 uppercase mt-1">With Answers</p>
                     </div>
                     <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
-                        <p className="text-3xl font-bold text-amber-600">{questions.filter(q => q.explanation && (q.explanation.en || q.explanation.pa)).length}/{questions.length}</p>
+                        <p className="text-3xl font-bold text-amber-600">{globalStats.withExplanations}</p>
                         <p className="text-xs text-gray-500 uppercase mt-1">With Explanations</p>
                     </div>
                     <div className="bg-white p-4 rounded-xl shadow-sm border text-center">
-                        <p className="text-3xl font-bold text-rose-600">{questions.filter(q => (q.usage_count || 0) > 0).length}/{questions.length}</p>
+                        <p className="text-3xl font-bold text-rose-600">{globalStats.usedInExams}</p>
                         <p className="text-xs text-gray-500 uppercase mt-1">Used in Exams</p>
                     </div>
                 </div>
