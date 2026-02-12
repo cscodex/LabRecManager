@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
                     AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
                     AND (${type} = 'all' OR q.type = ${type})
                     AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
-                ORDER BY q.created_at DESC 
+                ORDER BY q.id DESC 
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else {
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
                     AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
                     AND (${type} = 'all' OR q.type = ${type})
                     AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
-                ORDER BY q.created_at DESC 
+                ORDER BY q.id DESC 
                 LIMIT ${limit} OFFSET ${offset}
             `;
         }
