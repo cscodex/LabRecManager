@@ -407,14 +407,14 @@ export default function EditExamPage() {
                     difficulty: sq.difficulty
                 }));
             } else if (data.type === 'fill_blank') {
-                body.correct_answer = data.fillBlankAnswers.split(',').map(s => s.trim()).filter(Boolean);
+                body.correctAnswer = data.fillBlankAnswers.split(',').map(s => s.trim()).filter(Boolean);
             } else {
                 body.options = data.options.map(o => ({
                     id: o.id,
                     text: { en: o.textEn, pa: o.textPa || o.textEn },
                     image_url: o.imageUrl
                 }));
-                body.correct_answer = data.correctAnswer;
+                body.correctAnswer = data.correctAnswer;
             }
 
             const res = await fetch(url, {
@@ -906,8 +906,8 @@ export default function EditExamPage() {
                                             key={section.id}
                                             onClick={() => setActiveSectionId(section.id)}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${activeSectionId === section.id
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                                                 }`}
                                         >
                                             {getText(section.name, language) || `Section ${idx + 1}`}
@@ -1011,6 +1011,15 @@ export default function EditExamPage() {
                                                                                 </div>
                                                                             )
                                                                         })}
+                                                                    </div>
+                                                                )}
+                                                                {/* Explanation */}
+                                                                {q.explanation && (q.explanation.en || q.explanation.pa) && (
+                                                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                                        <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
+                                                                        <p className="text-sm text-blue-800 whitespace-pre-wrap">
+                                                                            <MathText text={getText(q.explanation, language)} inline />
+                                                                        </p>
                                                                     </div>
                                                                 )}
                                                             </div>

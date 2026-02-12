@@ -7,7 +7,7 @@ import { useAuthStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import {
     ChevronLeft, Clock, FileText, BookOpen, Globe,
-    CheckCircle, Edit, Eye, ChevronDown, ChevronUp
+    CheckCircle, Edit, Eye
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -63,8 +63,7 @@ export default function ViewExamPage() {
 
     const [exam, setExam] = useState<Exam | null>(null);
     const [loading, setLoading] = useState(true);
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-    const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+    const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
 
 
     const loadExam = useCallback(async () => {
@@ -93,9 +92,9 @@ export default function ViewExamPage() {
                 sections: sectionsWithQuestions,
             });
 
-            // Expand first section by default
+            // Select first section by default
             if (sectionsWithQuestions.length > 0) {
-                setExpandedSections(new Set([sectionsWithQuestions[0].id]));
+                setActiveSectionId(sectionsWithQuestions[0].id);
             }
         } catch (error) {
             console.error('Error loading exam:', error);
@@ -111,29 +110,7 @@ export default function ViewExamPage() {
 
 
 
-    const toggleSection = (sectionId: string) => {
-        setExpandedSections(prev => {
-            const next = new Set(prev);
-            if (next.has(sectionId)) {
-                next.delete(sectionId);
-            } else {
-                next.add(sectionId);
-            }
-            return next;
-        });
-    };
 
-    const toggleExplanation = (questionId: string) => {
-        setExpandedExplanations(prev => {
-            const next = new Set(prev);
-            if (next.has(questionId)) {
-                next.delete(questionId);
-            } else {
-                next.add(questionId);
-            }
-            return next;
-        });
-    };
 
     const getStatusBadge = (status: string) => {
         const styles: Record<string, string> = {
@@ -280,43 +257,57 @@ export default function ViewExamPage() {
                     </div>
                 </div>
 
-                {/* Sections and Questions */}
+                {/* Section Tabs & Questions */}
                 <div className="space-y-4">
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                         <FileText className="w-5 h-5 text-blue-600" />
                         Sections & Questions
                     </h2>
 
-                    {exam.sections.sort((a, b) => a.order - b.order).map((section) => (
-                        <div key={section.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                            {/* Section Header */}
+                    {/* Tab Bar */}
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                        {exam.sections.sort((a, b) => a.order - b.order).map((section) => (
                             <button
-                                onClick={() => toggleSection(section.id)}
-                                className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition"
+                                key={section.id}
+                                onClick={() => setActiveSectionId(section.id)}
+                                className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${activeSectionId === section.id
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                    }`}
                             >
-                                <div className="flex items-center gap-3">
-                                    <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold">
-                                        {section.order}
-                                    </span>
-                                    <div className="text-left">
-                                        <h3 className="font-semibold text-gray-900">{getText(section.name, language)}</h3>
-                                        <p className="text-sm text-gray-500">
-                                            {section.questions.length} questions
-                                            {section.duration && ` • ${section.duration} min`}
-                                        </p>
+                                {getText(section.name, language)}
+                                <span className="ml-2 px-1.5 py-0.5 bg-black/10 rounded text-xs opacity-80">
+                                    {section.questions.length}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Active Section Content */}
+                    {(() => {
+                        const activeSection = exam.sections.find(s => s.id === activeSectionId);
+                        if (!activeSection) return null;
+                        return (
+                            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                {/* Section Info Bar */}
+                                <div className="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold">
+                                            {activeSection.order}
+                                        </span>
+                                        <div>
+                                            <h3 className="font-semibold text-gray-900">{getText(activeSection.name, language)}</h3>
+                                            <p className="text-xs text-gray-500">
+                                                {activeSection.questions.length} questions
+                                                {activeSection.duration && ` • ${activeSection.duration} min`}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                                {expandedSections.has(section.id) ? (
-                                    <ChevronUp className="w-5 h-5 text-gray-400" />
-                                ) : (
-                                    <ChevronDown className="w-5 h-5 text-gray-400" />
-                                )}
-                            </button>
 
-                            {/* Questions */}
-                            {expandedSections.has(section.id) && (
+                                {/* Questions List */}
                                 <div className="divide-y">
-                                    {section.questions.sort((a, b) => a.order - b.order).map((question, qIdx) => (
+                                    {activeSection.questions.sort((a, b) => a.order - b.order).map((question, qIdx) => (
                                         <div key={question.id} className="p-6">
                                             {/* Question Header */}
                                             <div className="flex items-start gap-4 mb-4">
@@ -344,7 +335,7 @@ export default function ViewExamPage() {
                                                     </div>
                                                     <p className="text-gray-900">{getText(question.text, language)}</p>
 
-                                                    {/* Paragraph content for paragraph-type questions */}
+                                                    {/* Paragraph content */}
                                                     {question.type === 'paragraph' && question.paragraph_text && (
                                                         <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg max-h-80 overflow-y-auto">
                                                             <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Passage Content</p>
@@ -416,41 +407,27 @@ export default function ViewExamPage() {
                                                 </div>
                                             )}
 
-                                            {/* Explanation */}
+                                            {/* Explanation - Always Visible */}
                                             {question.explanation && (question.explanation.en || question.explanation.pa) && (
-                                                <div className="ml-12 mt-3">
-                                                    <button
-                                                        onClick={() => toggleExplanation(question.id)}
-                                                        className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                                                    >
-                                                        {expandedExplanations.has(question.id) ? 'Hide' : 'Show'} Explanation
-                                                        {expandedExplanations.has(question.id) ? (
-                                                            <ChevronUp className="w-4 h-4" />
-                                                        ) : (
-                                                            <ChevronDown className="w-4 h-4" />
-                                                        )}
-                                                    </button>
-                                                    {expandedExplanations.has(question.id) && (
-                                                        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                            <p className="text-sm text-blue-800 italic whitespace-pre-wrap">
-                                                                {getText(question.explanation, language)}
-                                                            </p>
-                                                        </div>
-                                                    )}
+                                                <div className="ml-12 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                    <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
+                                                    <p className="text-sm text-blue-800 whitespace-pre-wrap">
+                                                        {getText(question.explanation, language)}
+                                                    </p>
                                                 </div>
                                             )}
                                         </div>
                                     ))}
 
-                                    {section.questions.length === 0 && (
+                                    {activeSection.questions.length === 0 && (
                                         <div className="p-6 text-center text-gray-400">
                                             No questions in this section
                                         </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                            </div>
+                        );
+                    })()}
                 </div>
             </main>
         </div>

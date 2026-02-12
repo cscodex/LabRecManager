@@ -596,6 +596,29 @@ export default function QuestionEditor({
                                         className="w-full px-2 py-1 border rounded text-xs text-gray-500"
                                         placeholder="Punjabi"
                                     />
+                                    {/* Option Image Upload */}
+                                    {opt.imageUrl && (
+                                        <div className="relative w-full h-16 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+                                            <Image src={opt.imageUrl} alt="" width={120} height={64} className="max-h-16 w-auto object-contain" />
+                                            <button
+                                                onClick={() => {
+                                                    const newOpts = [...formData.options];
+                                                    newOpts[idx].imageUrl = undefined;
+                                                    setFormData({ ...formData, options: newOpts });
+                                                }}
+                                                className="absolute top-0.5 right-0.5 bg-white p-0.5 rounded-full shadow"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-50 text-xs text-gray-500">
+                                        <ImageIcon className="w-3 h-3" />
+                                        {opt.imageUrl ? 'Change' : 'Image'}
+                                        <input type="file" className="hidden" accept="image/*" onChange={e => {
+                                            if (e.target.files?.[0]) handleImageUpload(e.target.files[0], 'option', idx);
+                                        }} />
+                                    </label>
                                 </div>
                             </div>
                         ))}

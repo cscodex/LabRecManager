@@ -189,14 +189,14 @@ export default function QuestionsBankPage() {
                     difficulty: sq.difficulty
                 }));
             } else if (formData.type === 'fill_blank') {
-                body.correct_answer = formData.fillBlankAnswers.split(',').map(s => s.trim()).filter(Boolean);
+                body.correctAnswer = formData.fillBlankAnswers.split(',').map(s => s.trim()).filter(Boolean);
             } else {
                 body.options = formData.options.map(o => ({
                     id: o.id,
                     text: { en: o.textEn, pa: o.textPa || o.textEn },
                     image_url: o.imageUrl
                 }));
-                body.correct_answer = formData.correctAnswer;
+                body.correctAnswer = formData.correctAnswer;
             }
 
             const res = await fetch(url, {
