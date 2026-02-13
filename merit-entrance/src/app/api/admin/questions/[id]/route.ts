@@ -71,22 +71,21 @@ export async function PUT(
 
         const { id } = await params;
         const body = await req.json();
-        const {
-            type,
-            text,
-            options,
-            correct_answer,
-            explanation,
-            marks,
-            negative_marks,
-            difficulty,
-            tags,
-            image_url,
-            paragraph_text,
-            subQuestions
-        } = body;
 
-        // Update Question
+        // Accept both camelCase (frontend) and snake_case field names
+        const type = body.type;
+        const text = body.text;
+        const options = body.options;
+        const correct_answer = body.correct_answer || body.correctAnswer;
+        const explanation = body.explanation;
+        const marks = body.marks;
+        const negative_marks = body.negative_marks ?? body.negativeMarks ?? 0;
+        const difficulty = body.difficulty || 1;
+        const tags = body.tags;
+        const image_url = body.image_url || body.imageUrl || null;
+        const subQuestions = body.subQuestions;
+
+        // Update Question (paragraph_text is NOT a column — paragraph data stored in text field)
         await sql`
             UPDATE questions SET
                 text = ${JSON.stringify(text)}::jsonb,
@@ -97,7 +96,6 @@ export async function PUT(
                 negative_marks = ${negative_marks || 0},
                 difficulty = ${difficulty || 1},
                 image_url = ${image_url || null},
-                paragraph_text = ${paragraph_text ? JSON.stringify(paragraph_text) : null}::jsonb,
                 updated_at = NOW()
             WHERE id = ${id}
         `;

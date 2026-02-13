@@ -46,7 +46,7 @@ export type SubQuestionForm = {
     id?: string;
     textEn: string;
     textPa: string;
-    type: 'mcq_single' | 'mcq_multiple';
+    type: 'mcq_single' | 'mcq_multiple' | 'fill_blank';
     options: FormOption[];
     correctAnswer: string[];
     explanationEn: string;
@@ -54,6 +54,8 @@ export type SubQuestionForm = {
     marks: number;
     negativeMarks: number;
     difficulty: number;
+    imageUrl?: string;
+    fillBlankAnswers?: string;
 };
 
 interface QuestionEditorProps {
@@ -233,6 +235,8 @@ export default function QuestionEditor({
             marks: 1,
             negativeMarks: 0,
             difficulty: 1,
+            imageUrl: '',
+            fillBlankAnswers: '',
         }]);
     };
 
@@ -378,6 +382,7 @@ export default function QuestionEditor({
                                     >
                                         <option value="mcq_single">Single Choice</option>
                                         <option value="mcq_multiple">Multiple Choice</option>
+                                        <option value="fill_blank">Fill in Blank</option>
                                     </select>
                                     <input
                                         type="number" placeholder="Marks"
@@ -400,24 +405,97 @@ export default function QuestionEditor({
                                     </select>
                                 </div>
 
-                                {/* SubQ Options */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    {sq.options.map((opt, oIdx) => (
-                                        <div key={opt.id} className="flex gap-2 items-center">
-                                            <button
-                                                onClick={() => toggleSubQuestionCorrectAnswer(idx, opt.id)}
-                                                className={`w-5 h-5 rounded border flex items-center justify-center ${sq.correctAnswer.includes(opt.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
-                                            >
-                                                {sq.correctAnswer.includes(opt.id) && <CheckCircle className="w-3 h-3" />}
+                                {/* SubQ Options or Fill Blank */}
+                                {sq.type === 'fill_blank' ? (
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Correct Answer(s) (comma separated)</label>
+                                        <input
+                                            value={sq.fillBlankAnswers || sq.correctAnswer?.join(', ') || ''}
+                                            onChange={e => {
+                                                const answers = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                                updateParaSubQuestion(idx, { fillBlankAnswers: e.target.value, correctAnswer: answers });
+                                            }}
+                                            className="w-full px-3 py-2 border rounded-lg text-sm"
+                                            placeholder="answer1, answer2"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {sq.options.map((opt, oIdx) => (
+                                            <div key={opt.id} className="flex gap-2 items-center">
+                                                <button
+                                                    onClick={() => toggleSubQuestionCorrectAnswer(idx, opt.id)}
+                                                    className={`w-5 h-5 rounded border flex items-center justify-center ${sq.correctAnswer.includes(opt.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
+                                                >
+                                                    {sq.correctAnswer.includes(opt.id) && <CheckCircle className="w-3 h-3" />}
+                                                </button>
+                                                <input
+                                                    value={opt.textEn}
+                                                    onChange={e => updateSubQuestionOption(idx, oIdx, { textEn: e.target.value })}
+                                                    className="flex-1 px-2 py-1 border rounded text-sm"
+                                                    placeholder={`Option ${opt.id}`}
+                                                />
+                                                <input
+                                                    value={opt.textPa}
+                                                    onChange={e => updateSubQuestionOption(idx, oIdx, { textPa: e.target.value })}
+                                                    className="flex-1 px-2 py-1 border rounded text-xs text-gray-500"
+                                                    placeholder="Punjabi"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* SubQ Explanation */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Explanation (En)</label>
+                                        <textarea
+                                            value={sq.explanationEn}
+                                            onChange={e => updateParaSubQuestion(idx, { explanationEn: e.target.value })}
+                                            rows={2}
+                                            className="w-full px-2 py-1 border rounded text-sm"
+                                            placeholder="Explanation in English"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Explanation (Pa)</label>
+                                        <textarea
+                                            value={sq.explanationPa}
+                                            onChange={e => updateParaSubQuestion(idx, { explanationPa: e.target.value })}
+                                            rows={2}
+                                            className="w-full px-2 py-1 border rounded text-sm"
+                                            placeholder="Explanation in Punjabi"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* SubQ Image */}
+                                <div>
+                                    {sq.imageUrl && (
+                                        <div className="relative w-full h-20 bg-gray-100 rounded flex items-center justify-center overflow-hidden mb-2">
+                                            <img src={sq.imageUrl} alt="" className="max-h-20 w-auto object-contain" />
+                                            <button onClick={() => updateParaSubQuestion(idx, { imageUrl: '' })} className="absolute top-1 right-1 bg-white p-0.5 rounded-full shadow">
+                                                <X className="w-3 h-3" />
                                             </button>
-                                            <input
-                                                value={opt.textEn}
-                                                onChange={e => updateSubQuestionOption(idx, oIdx, { textEn: e.target.value })}
-                                                className="flex-1 px-2 py-1 border rounded text-sm"
-                                                placeholder={`Option ${opt.id}`}
-                                            />
                                         </div>
-                                    ))}
+                                    )}
+                                    <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-50 text-xs text-gray-500">
+                                        <ImageIcon className="w-3 h-3" />
+                                        {sq.imageUrl ? 'Change Image' : 'Add Image'}
+                                        <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                            if (e.target.files?.[0]) {
+                                                const file = e.target.files[0];
+                                                const fd = new FormData();
+                                                fd.append('file', file);
+                                                try {
+                                                    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                                    const data = await res.json();
+                                                    if (data.url) updateParaSubQuestion(idx, { imageUrl: data.url });
+                                                } catch (err) { toast.error('Image upload failed'); }
+                                            }
+                                        }} />
+                                    </label>
                                 </div>
                             </div>
                         </div>

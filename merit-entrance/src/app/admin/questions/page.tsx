@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye,
-    ChevronLeft, ChevronRight, BookOpen, AlertCircle
+    ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/store';
@@ -70,6 +70,7 @@ export default function QuestionsBankPage() {
     const [showModal, setShowModal] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [viewingQuestion, setViewingQuestion] = useState<Question | null>(null);
 
     // Global stats from API
     const [globalStats, setGlobalStats] = useState<any>({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0, difficultyDistribution: {}, typeDistribution: {} });
@@ -131,19 +132,27 @@ export default function QuestionsBankPage() {
 
     // Handlers
 
+    const fetchQuestionDetails = async (questionId: string) => {
+        const res = await fetch(`/api/admin/questions/${questionId}`);
+        const data = await res.json();
+        if (!data.success) throw new Error('Failed to fetch details');
+        return data.question;
+    };
+
     const handleEdit = async (question: Question) => {
-        // We need full details including sub-questions if paragraph.
-        // The list API might not return sub-questions for performance.
-        // Let's fetch the single question details to be safe.
         try {
-            const res = await fetch(`/api/admin/questions/${question.id}`);
-            const data = await res.json();
-            if (data.success) {
-                setEditingQuestion(data.question);
-                setShowModal(true);
-            } else {
-                toast.error('Failed to fetch details');
-            }
+            const full = await fetchQuestionDetails(question.id);
+            setEditingQuestion(full);
+            setShowModal(true);
+        } catch (e) {
+            toast.error('Error fetching question details');
+        }
+    };
+
+    const handleView = async (question: Question) => {
+        try {
+            const full = await fetchQuestionDetails(question.id);
+            setViewingQuestion(full);
         } catch (e) {
             toast.error('Error fetching question details');
         }
@@ -180,16 +189,19 @@ export default function QuestionsBankPage() {
                     id: sq.id,
                     text: { en: sq.textEn, pa: sq.textPa || sq.textEn },
                     type: sq.type,
-                    options: sq.options.map(o => ({
+                    options: sq.type === 'fill_blank' ? [] : sq.options.map(o => ({
                         id: o.id,
                         text: { en: o.textEn, pa: o.textPa || o.textEn },
                         image_url: o.imageUrl
                     })),
-                    correctAnswer: sq.correctAnswer,
+                    correctAnswer: sq.type === 'fill_blank'
+                        ? (sq.fillBlankAnswers || '').split(',').map((s: string) => s.trim()).filter(Boolean)
+                        : sq.correctAnswer,
                     explanation: sq.explanationEn ? { en: sq.explanationEn, pa: sq.explanationPa } : null,
                     marks: sq.marks,
                     negativeMarks: sq.negativeMarks,
-                    difficulty: sq.difficulty
+                    difficulty: sq.difficulty,
+                    imageUrl: sq.imageUrl || null
                 }));
             } else if (formData.type === 'fill_blank') {
                 body.correctAnswer = formData.fillBlankAnswers.split(',').map(s => s.trim()).filter(Boolean);
@@ -296,7 +308,9 @@ export default function QuestionsBankPage() {
                 explanationPa: sq.explanation?.pa || '',
                 marks: sq.marks,
                 negativeMarks: sq.negative_marks || 0,
-                difficulty: sq.difficulty
+                difficulty: sq.difficulty,
+                imageUrl: sq.image_url || '',
+                fillBlankAnswers: sq.type === 'fill_blank' ? (sq.correct_answer?.join(', ') || '') : ''
             }))
         };
     };
@@ -501,6 +515,13 @@ export default function QuestionsBankPage() {
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
+                                                        onClick={() => handleView(question)}
+                                                        className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                                                        title="View"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleEdit(question)}
                                                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
                                                         title="Edit"
@@ -578,6 +599,132 @@ export default function QuestionsBankPage() {
                         onCancel={() => setShowModal(false)}
                         isSaving={isSaving}
                     />
+                </Modal>
+
+                {/* View Question Modal */}
+                <Modal
+                    isOpen={!!viewingQuestion}
+                    onClose={() => setViewingQuestion(null)}
+                    title="Question Preview"
+                    maxWidth="3xl"
+                >
+                    {viewingQuestion && (
+                        <div className="space-y-5">
+                            {/* Header badges */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100 font-medium">
+                                    {getTypeLabel(viewingQuestion.type)}
+                                </span>
+                                <span className={`px-2 py-1 text-xs rounded border font-medium ${getDifficultyColor(viewingQuestion.difficulty)}`}>
+                                    Level {viewingQuestion.difficulty}
+                                </span>
+                                <span className="text-sm text-gray-500">+{viewingQuestion.marks} marks</span>
+                                {(viewingQuestion.negative_marks ?? 0) > 0 && (
+                                    <span className="text-sm text-red-500">-{viewingQuestion.negative_marks}</span>
+                                )}
+                                {viewingQuestion.tags && viewingQuestion.tags.length > 0 && (
+                                    <div className="flex gap-1 ml-2">
+                                        {viewingQuestion.tags.map(tag => (
+                                            <span key={tag.id} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] border">{tag.name}</span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Question text */}
+                            <div className="text-gray-900 text-base">
+                                <MathText text={getText(viewingQuestion.text, language)} />
+                            </div>
+
+                            {/* Para content */}
+                            {viewingQuestion.type === 'paragraph' && viewingQuestion.paragraph_text && (
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs font-bold text-blue-600 mb-2 uppercase">📖 Passage</p>
+                                    <div className="text-gray-700 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: getText(viewingQuestion.paragraph_text, language) }} />
+                                </div>
+                            )}
+
+                            {/* Image */}
+                            {viewingQuestion.image_url && (
+                                <div className="relative h-48 w-full bg-gray-50 rounded-lg border overflow-hidden">
+                                    <img src={viewingQuestion.image_url} alt="Question" className="w-full h-full object-contain" />
+                                </div>
+                            )}
+
+                            {/* Options / Fill blank */}
+                            {viewingQuestion.type === 'fill_blank' ? (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                    <p className="text-sm text-green-700"><strong>Correct Answer(s):</strong> {viewingQuestion.correct_answer?.join(', ')}</p>
+                                </div>
+                            ) : viewingQuestion.options && viewingQuestion.options.length > 0 ? (
+                                <div className="space-y-2">
+                                    <p className="text-sm font-medium text-gray-700">Options</p>
+                                    {viewingQuestion.options.map((opt: any) => {
+                                        const isCorrect = viewingQuestion.correct_answer?.includes(opt.id);
+                                        return (
+                                            <div key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
+                                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                                                    {opt.id?.toUpperCase()}
+                                                </span>
+                                                <span className="flex-1 text-gray-800">
+                                                    <MathText text={getText(opt.text, language)} inline />
+                                                </span>
+                                                {opt.image_url && <img src={opt.image_url} alt="" className="h-10 w-auto rounded" />}
+                                                {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : null}
+
+                            {/* Explanation */}
+                            {viewingQuestion.explanation && (viewingQuestion.explanation.en || viewingQuestion.explanation.pa) && (
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
+                                    <div className="text-sm text-blue-800"><MathText text={getText(viewingQuestion.explanation, language)} /></div>
+                                </div>
+                            )}
+
+                            {/* Sub-questions for paragraph */}
+                            {viewingQuestion.type === 'paragraph' && viewingQuestion.subQuestions && viewingQuestion.subQuestions.length > 0 && (
+                                <div className="space-y-4 border-t pt-4">
+                                    <p className="text-sm font-semibold text-gray-700">Sub-Questions ({viewingQuestion.subQuestions.length})</p>
+                                    {viewingQuestion.subQuestions.map((sq: any, sqIdx: number) => (
+                                        <div key={sq.id || sqIdx} className="bg-gray-50 p-4 rounded-lg border space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{sqIdx + 1}</span>
+                                                <span className="px-2 py-0.5 text-xs rounded bg-blue-50 text-blue-700 border border-blue-100">{getTypeLabel(sq.type)}</span>
+                                                <span className={`px-2 py-0.5 text-xs rounded border ${getDifficultyColor(sq.difficulty)}`}>Level {sq.difficulty}</span>
+                                                <span className="text-xs text-gray-500">+{sq.marks} marks</span>
+                                            </div>
+                                            <div className="text-gray-900"><MathText text={getText(sq.text, language)} /></div>
+                                            {sq.options && sq.options.map((opt: any) => {
+                                                const isC = sq.correct_answer?.includes(opt.id);
+                                                return (
+                                                    <div key={opt.id} className={`flex items-center gap-2 p-2 rounded border ${isC ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
+                                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${isC ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{opt.id?.toUpperCase()}</span>
+                                                        <span className="text-sm"><MathText text={getText(opt.text, language)} inline /></span>
+                                                        {isC && <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />}
+                                                    </div>
+                                                );
+                                            })}
+                                            {sq.explanation && (sq.explanation.en || sq.explanation.pa) && (
+                                                <div className="p-2 bg-blue-50 rounded text-xs text-blue-800">
+                                                    <span className="font-semibold">Explanation:</span> <MathText text={getText(sq.explanation, language)} inline />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex justify-end pt-4 border-t">
+                                <button onClick={() => { setViewingQuestion(null); handleEdit(viewingQuestion); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                                    <Edit className="w-4 h-4" /> Edit Question
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </Modal>
 
                 <DialogComponent />
