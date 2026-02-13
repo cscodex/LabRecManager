@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Users, Check, X, Search, History } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Student {
     id: string;
@@ -64,6 +65,7 @@ export default function ExamAssignPage() {
     const [autoAssign, setAutoAssign] = useState(false);
     const [autoAssignAttempts, setAutoAssignAttempts] = useState(3);
     const [savingAutoAssign, setSavingAutoAssign] = useState(false);
+    const { confirm, DialogComponent } = useConfirmDialog();
 
     // Derived Statistics
     const assignedCount = assignments.length;
@@ -169,34 +171,43 @@ export default function ExamAssignPage() {
             return;
         }
 
-        if (mode === 'replace' && !confirm('WARNING: "Replace All" will REMOVE assignments for students not currently selected. Are you sure?')) {
-            return;
-        }
+        const doAssign = async () => {
+            try {
+                const response = await fetch(`/api/admin/exams/${examId}/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        studentIds: Array.from(selectedIds),
+                        mode,
+                        maxAttempts,
+                        scheduleType,
+                        startTime: scheduleType === 'new' ? new Date(startTime).toISOString() : null,
+                        endTime: scheduleType === 'new' ? new Date(endTime).toISOString() : null,
+                    }),
+                });
 
-        try {
-            const response = await fetch(`/api/admin/exams/${examId}/assign`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    studentIds: Array.from(selectedIds),
-                    mode,
-                    maxAttempts,
-                    scheduleType,
-                    startTime: scheduleType === 'new' ? new Date(startTime).toISOString() : null,
-                    endTime: scheduleType === 'new' ? new Date(endTime).toISOString() : null,
-                }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                toast.success(`Successfully assigned to ${data.count} students`);
-                loadData();
-                setSelectedIds(new Set());
-            } else {
-                toast.error(data.error || 'Failed to assign');
+                const data = await response.json();
+                if (response.ok) {
+                    toast.success(`Successfully assigned to ${data.count} students`);
+                    loadData();
+                    setSelectedIds(new Set());
+                } else {
+                    toast.error(data.error || 'Failed to assign');
+                }
+            } catch (error) {
+                toast.error('Failed to save assignments');
             }
-        } catch (error) {
-            toast.error('Failed to save assignments');
+        };
+
+        if (mode === 'replace') {
+            confirm({
+                title: 'Replace All Assignments',
+                message: 'WARNING: "Replace All" will REMOVE assignments for students not currently selected. Are you sure?',
+                variant: 'danger',
+                onConfirm: doAssign
+            });
+        } else {
+            await doAssign();
         }
     };
 
@@ -642,6 +653,7 @@ export default function ExamAssignPage() {
                     </div>
                 </div>
             )}
+            <DialogComponent />
         </div>
     );
 }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { formatDateTimeIST } from '@/lib/utils';
 import { ChevronLeft, Plus, Trash2, Calendar, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Schedule {
     id: string;
@@ -22,6 +23,7 @@ export default function ExamSchedulePage() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
+    const { confirm, DialogComponent } = useConfirmDialog();
 
 
     const loadSchedules = useCallback(async () => {
@@ -73,19 +75,24 @@ export default function ExamSchedulePage() {
     };
 
     const handleDeleteSchedule = async (scheduleId: string) => {
-        if (!confirm('Delete this schedule?')) return;
-
-        try {
-            const response = await fetch(`/api/admin/exams/${examId}/schedule?scheduleId=${scheduleId}`, {
-                method: 'DELETE',
-            });
-            if (response.ok) {
-                toast.success('Schedule deleted');
-                loadSchedules();
+        confirm({
+            title: 'Delete Schedule',
+            message: 'Are you sure you want to delete this schedule?',
+            variant: 'danger',
+            onConfirm: async () => {
+                try {
+                    const response = await fetch(`/api/admin/exams/${examId}/schedule?scheduleId=${scheduleId}`, {
+                        method: 'DELETE',
+                    });
+                    if (response.ok) {
+                        toast.success('Schedule deleted');
+                        loadSchedules();
+                    }
+                } catch (error) {
+                    toast.error('Failed to delete');
+                }
             }
-        } catch (error) {
-            toast.error('Failed to delete');
-        }
+        });
     };
 
     if (loading) {
@@ -194,6 +201,7 @@ export default function ExamSchedulePage() {
                     </div>
                 )}
             </main>
+            <DialogComponent />
         </div>
     );
 }

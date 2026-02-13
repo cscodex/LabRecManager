@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS sections (
 
 CREATE TABLE IF NOT EXISTS questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    section_id UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+    section_id UUID REFERENCES sections(id) ON DELETE SET NULL,
     type VARCHAR(50) NOT NULL,
     text JSONB NOT NULL,
     options JSONB,

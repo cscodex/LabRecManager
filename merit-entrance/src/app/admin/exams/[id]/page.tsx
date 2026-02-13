@@ -9,7 +9,7 @@ import { getDifficultyColor } from '@/lib/performance';
 import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
-    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2
+    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -113,6 +113,11 @@ export default function EditExamPage() {
     const [showPickerModal, setShowPickerModal] = useState(false);
     const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
     const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+
+    // Bulk selection
+    const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
+    const [showBulkMarksModal, setShowBulkMarksModal] = useState(false);
+    const [bulkMarks, setBulkMarks] = useState({ marks: '', negativeMarks: '' });
 
 
     // Refs for auto-save debouncing
@@ -467,8 +472,8 @@ export default function EditExamPage() {
     const handleQuestionDelete = async (questionId: string) => {
         if (!activeSectionId) return;
         confirm({
-            title: 'Delete Question',
-            message: 'Delete this question from the section?',
+            title: 'Remove Question',
+            message: 'Remove this question from the section? It will remain in the question bank for future use.',
             variant: 'danger',
             onConfirm: async () => {
                 try {
@@ -476,15 +481,95 @@ export default function EditExamPage() {
                         method: 'DELETE'
                     });
                     if (res.ok) {
-                        toast.success('Question deleted');
+                        toast.success('Question removed from section');
                         fetchSectionQuestions(activeSectionId);
                         loadExam();
                     } else {
-                        toast.error('Failed to delete');
+                        toast.error('Failed to remove');
                     }
-                } catch (e) { toast.error('Error deleting'); }
+                } catch (e) { toast.error('Error removing'); }
             }
         });
+    };
+
+    // Bulk remove selected questions
+    const handleBulkRemove = async () => {
+        if (!activeSectionId || selectedQuestions.size === 0) return;
+        confirm({
+            title: `Remove ${selectedQuestions.size} Questions`,
+            message: `Remove ${selectedQuestions.size} selected question(s) from this section? They will remain in the question bank.`,
+            variant: 'danger',
+            onConfirm: async () => {
+                try {
+                    const res = await fetch(`/api/admin/exams/${examId}/sections/${activeSectionId}/questions/bulk-delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ questionIds: Array.from(selectedQuestions) })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        toast.success(`Removed ${data.deleted} question(s)`);
+                        setSelectedQuestions(new Set());
+                        fetchSectionQuestions(activeSectionId);
+                        loadExam();
+                    } else {
+                        toast.error('Failed to remove questions');
+                    }
+                } catch (e) { toast.error('Error removing questions'); }
+            }
+        });
+    };
+
+    // Bulk update marks
+    const handleBulkMarksUpdate = async () => {
+        if (!activeSectionId || selectedQuestions.size === 0) return;
+        const marks = bulkMarks.marks ? parseInt(bulkMarks.marks) : undefined;
+        const negativeMarks = bulkMarks.negativeMarks ? parseFloat(bulkMarks.negativeMarks) : undefined;
+        if (marks === undefined && negativeMarks === undefined) {
+            toast.error('Enter marks or negative marks value');
+            return;
+        }
+        try {
+            const res = await fetch(`/api/admin/exams/${examId}/sections/${activeSectionId}/questions/bulk-update`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionIds: Array.from(selectedQuestions),
+                    marks,
+                    negativeMarks
+                })
+            });
+            if (res.ok) {
+                toast.success(`Updated marks for ${selectedQuestions.size} question(s)`);
+                setShowBulkMarksModal(false);
+                setBulkMarks({ marks: '', negativeMarks: '' });
+                setSelectedQuestions(new Set());
+                fetchSectionQuestions(activeSectionId);
+                loadExam();
+            } else {
+                toast.error('Failed to update marks');
+            }
+        } catch (e) { toast.error('Error updating marks'); }
+    };
+
+    // Toggle question selection
+    const toggleQuestionSelection = (questionId: string) => {
+        setSelectedQuestions(prev => {
+            const next = new Set(prev);
+            if (next.has(questionId)) next.delete(questionId);
+            else next.add(questionId);
+            return next;
+        });
+    };
+
+    // Toggle all questions in active section
+    const toggleAllQuestions = () => {
+        const currentQuestions = sectionQuestions[activeSectionId || ''] || [];
+        if (selectedQuestions.size === currentQuestions.length) {
+            setSelectedQuestions(new Set());
+        } else {
+            setSelectedQuestions(new Set(currentQuestions.map(q => q.id)));
+        }
     };
 
     const handleImportQuestions = async (selectedIds: string[]) => {
@@ -932,108 +1017,150 @@ export default function EditExamPage() {
                     ) : activeTab === 'composition' ? (
                         <div className="space-y-6">
                             {sections.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* By Section */}
-                                    <div className="bg-white rounded-xl shadow-sm border p-4">
-                                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Section</h3>
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative w-24 h-24 flex-shrink-0">
-                                                {(() => {
-                                                    const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
-                                                    const totalQ = sections.reduce((a, s) => a + (Number(s.question_count) || 0), 0);
-                                                    if (totalQ === 0) return <div className="w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">0</div>;
-                                                    let cumPct = 0;
-                                                    const stops = sections.map((s, i) => {
-                                                        const pct = ((Number(s.question_count) || 0) / totalQ) * 100;
-                                                        const start = cumPct;
-                                                        cumPct += pct;
-                                                        return `${colors[i % colors.length]} ${start}% ${cumPct}%`;
-                                                    });
-                                                    return (
-                                                        <>
-                                                            <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops.join(', ')})` }} />
-                                                            <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center text-sm font-bold text-gray-700">{totalQ}</div>
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                            <div className="flex-1 space-y-1">
-                                                {sections.map((s, i) => {
-                                                    const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
-                                                    return (
-                                                        <div key={s.id} className="flex items-center gap-2 text-xs">
-                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
-                                                            <span className="truncate text-gray-700">{getText(s.name, language) || `Section ${i + 1}`}</span>
-                                                            <span className="ml-auto font-bold text-gray-900">{s.question_count}</span>
-                                                        </div>
-                                                    );
-                                                })}
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* By Section */}
+                                        <div className="bg-white rounded-xl shadow-sm border p-4">
+                                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Section</h3>
+                                            <div className="flex items-center gap-4">
+                                                <div className="relative w-24 h-24 flex-shrink-0">
+                                                    {(() => {
+                                                        const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                        const totalQ = sections.reduce((a, s) => a + (Number(s.question_count) || 0), 0);
+                                                        if (totalQ === 0) return <div className="w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">0</div>;
+                                                        let cumPct = 0;
+                                                        const stops = sections.map((s, i) => {
+                                                            const pct = ((Number(s.question_count) || 0) / totalQ) * 100;
+                                                            const start = cumPct;
+                                                            cumPct += pct;
+                                                            return `${colors[i % colors.length]} ${start}% ${cumPct}%`;
+                                                        });
+                                                        return (
+                                                            <>
+                                                                <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops.join(', ')})` }} />
+                                                                <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center text-sm font-bold text-gray-700">{totalQ}</div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                                <div className="flex-1 space-y-1">
+                                                    {sections.map((s, i) => {
+                                                        const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                        return (
+                                                            <div key={s.id} className="flex items-center gap-2 text-xs">
+                                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+                                                                <span className="truncate text-gray-700">{getText(s.name, language) || `Section ${i + 1}`}</span>
+                                                                <span className="ml-auto font-bold text-gray-900">{s.question_count}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    {/* By Tag (from loaded questions) */}
-                                    <div className="bg-white rounded-xl shadow-sm border p-4">
-                                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Tag</h3>
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative w-24 h-24 flex-shrink-0">
-                                                {(() => {
-                                                    const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
-                                                    // Aggregate tags from all loaded section questions
-                                                    const tagCounts: Record<string, number> = {};
-                                                    Object.values(sectionQuestions).forEach((qs: any[]) => {
-                                                        qs.forEach(q => {
+                                        {/* By Tag (from loaded questions) — FIXED: center shows unique question count */}
+                                        <div className="bg-white rounded-xl shadow-sm border p-4">
+                                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Questions by Tag</h3>
+                                            <div className="flex items-center gap-4">
+                                                <div className="relative w-24 h-24 flex-shrink-0">
+                                                    {(() => {
+                                                        const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                        const tagCounts: Record<string, number> = {};
+                                                        const allLoadedQs = Object.values(sectionQuestions).flat();
+                                                        const uniqueQCount = allLoadedQs.length;
+                                                        allLoadedQs.forEach((q: any) => {
                                                             if (q.tags && q.tags.length > 0) {
                                                                 q.tags.forEach((t: any) => { tagCounts[t.name] = (tagCounts[t.name] || 0) + 1; });
                                                             } else {
                                                                 tagCounts['Untagged'] = (tagCounts['Untagged'] || 0) + 1;
                                                             }
                                                         });
-                                                    });
-                                                    const entries = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
-                                                    const totalT = entries.reduce((a, [, c]) => a + c, 0);
-                                                    if (totalT === 0) return <div className="w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">—</div>;
-                                                    let cumPct = 0;
-                                                    const stops = entries.map(([, count], i) => {
-                                                        const pct = (count / totalT) * 100;
-                                                        const start = cumPct;
-                                                        cumPct += pct;
-                                                        return `${colors[i % colors.length]} ${start}% ${cumPct}%`;
-                                                    });
-                                                    return (
-                                                        <>
-                                                            <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops.join(', ')})` }} />
-                                                            <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center text-sm font-bold text-gray-700">{totalT}</div>
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                            <div className="flex-1 space-y-1">
-                                                {(() => {
-                                                    const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
-                                                    const tagCounts: Record<string, number> = {};
-                                                    Object.values(sectionQuestions).forEach((qs: any[]) => {
-                                                        qs.forEach(q => {
-                                                            if (q.tags && q.tags.length > 0) {
-                                                                q.tags.forEach((t: any) => { tagCounts[t.name] = (tagCounts[t.name] || 0) + 1; });
-                                                            } else {
-                                                                tagCounts['Untagged'] = (tagCounts['Untagged'] || 0) + 1;
-                                                            }
+                                                        const entries = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
+                                                        const totalT = entries.reduce((a, [, c]) => a + c, 0);
+                                                        if (uniqueQCount === 0) return <div className="w-full h-full rounded-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">—</div>;
+                                                        let cumPct = 0;
+                                                        const stops = entries.map(([, count], i) => {
+                                                            const pct = (count / totalT) * 100;
+                                                            const start = cumPct;
+                                                            cumPct += pct;
+                                                            return `${colors[i % colors.length]} ${start}% ${cumPct}%`;
                                                         });
-                                                    });
-                                                    const entries = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
-                                                    return entries.map(([name, count], i) => (
-                                                        <div key={name} className="flex items-center gap-2 text-xs">
-                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
-                                                            <span className="truncate text-gray-700">{name}</span>
-                                                            <span className="ml-auto font-bold text-gray-900">{count}</span>
-                                                        </div>
-                                                    ));
-                                                })()}
-                                                {Object.keys(sectionQuestions).length === 0 && <p className="text-xs text-gray-400 italic">Load sections to see tag data</p>}
+                                                        return (
+                                                            <>
+                                                                <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops.join(', ')})` }} />
+                                                                <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center text-sm font-bold text-gray-700">{uniqueQCount}</div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                                <div className="flex-1 space-y-1">
+                                                    {(() => {
+                                                        const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                                        const tagCounts: Record<string, number> = {};
+                                                        Object.values(sectionQuestions).forEach((qs: any[]) => {
+                                                            qs.forEach(q => {
+                                                                if (q.tags && q.tags.length > 0) {
+                                                                    q.tags.forEach((t: any) => { tagCounts[t.name] = (tagCounts[t.name] || 0) + 1; });
+                                                                } else {
+                                                                    tagCounts['Untagged'] = (tagCounts['Untagged'] || 0) + 1;
+                                                                }
+                                                            });
+                                                        });
+                                                        const entries = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
+                                                        return entries.map(([name, count], i) => (
+                                                            <div key={name} className="flex items-center gap-2 text-xs">
+                                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[i % colors.length] }} />
+                                                                <span className="truncate text-gray-700">{name}</span>
+                                                                <span className="ml-auto font-bold text-gray-900">{count}</span>
+                                                            </div>
+                                                        ));
+                                                    })()}
+                                                    {Object.keys(sectionQuestions).length === 0 && <p className="text-xs text-gray-400 italic">Load sections to see tag data</p>}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+
+                                    {/* Section Marks Bar Chart */}
+                                    <div className="bg-white rounded-xl shadow-sm border p-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Marks by Section</h3>
+                                            <div className="text-sm font-bold text-gray-900">
+                                                Total: {sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0)} Marks
+                                            </div>
+                                        </div>
+                                        {(() => {
+                                            const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16'];
+                                            const maxMarks = Math.max(...sections.map(s => Number(s.section_marks) || 0), 1);
+                                            const totalMarks = sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0);
+                                            return (
+                                                <div className="space-y-3">
+                                                    {sections.map((s, i) => {
+                                                        const marks = Number(s.section_marks) || 0;
+                                                        const pct = totalMarks > 0 ? (marks / maxMarks) * 100 : 0;
+                                                        return (
+                                                            <div key={s.id} className="flex items-center gap-3">
+                                                                <span className="text-xs text-gray-700 w-28 truncate flex-shrink-0">
+                                                                    {getText(s.name, language) || `Section ${i + 1}`}
+                                                                </span>
+                                                                <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden relative">
+                                                                    <div
+                                                                        className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                                                                        style={{ width: `${Math.max(pct, 8)}%`, backgroundColor: colors[i % colors.length] }}
+                                                                    >
+                                                                        <span className="text-[10px] font-bold text-white drop-shadow">{marks}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <span className="text-xs font-bold text-gray-700 w-16 text-right">
+                                                                    {marks} marks
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </>
                             ) : (
                                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-400">
                                     No sections created yet. Add sections in the &ldquo;Sections &amp; Questions&rdquo; tab.
@@ -1106,33 +1233,83 @@ export default function EditExamPage() {
                             {activeSectionId ? (
                                 <div className="flex-1 bg-white rounded-xl shadow-sm border flex flex-col overflow-hidden">
                                     {/* Section Toolbar */}
-                                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setEditingQuestion(null);
-                                                    setShowQuestionModal(true);
-                                                }}
-                                                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-                                            >
-                                                <Plus className="w-4 h-4" /> Add Question
-                                            </button>
-                                            <button
-                                                onClick={() => setShowPickerModal(true)}
-                                                className="flex items-center gap-2 px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
-                                            >
-                                                <CheckSquare className="w-4 h-4" /> Import from Bank
-                                            </button>
-                                            <Link
-                                                href={`/admin/exams/${examId}/sections/${activeSectionId}/import`}
-                                                className="flex items-center gap-2 px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
-                                            >
-                                                <Upload className="w-4 h-4" /> Import CSV
-                                            </Link>
+                                    <div className="p-4 border-b flex flex-col gap-2 bg-gray-50">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingQuestion(null);
+                                                        setShowQuestionModal(true);
+                                                    }}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                                                >
+                                                    <Plus className="w-4 h-4" /> Add Question
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowPickerModal(true)}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                                                >
+                                                    <CheckSquare className="w-4 h-4" /> Import from Bank
+                                                </button>
+                                                <Link
+                                                    href={`/admin/exams/${examId}/sections/${activeSectionId}/import`}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-white border text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                                                >
+                                                    <Upload className="w-4 h-4" /> Import CSV
+                                                </Link>
+                                            </div>
+                                            <div className="text-sm text-gray-500">
+                                                {loadingQuestions[activeSectionId] ? 'Loading...' : `${sectionQuestions[activeSectionId]?.length || 0} Questions`}
+                                            </div>
                                         </div>
-                                        <div className="text-sm text-gray-500">
-                                            {loadingQuestions[activeSectionId] ? 'Loading...' : `${sectionQuestions[activeSectionId]?.length || 0} Questions`}
-                                        </div>
+
+                                        {/* Bulk Selection Bar */}
+                                        {(sectionQuestions[activeSectionId]?.length || 0) > 0 && (
+                                            <div className="flex items-center gap-3 pt-1">
+                                                <button
+                                                    onClick={toggleAllQuestions}
+                                                    className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 font-medium"
+                                                >
+                                                    {selectedQuestions.size === (sectionQuestions[activeSectionId]?.length || 0) && selectedQuestions.size > 0 ? (
+                                                        <CheckCircle className="w-4 h-4 text-blue-600" />
+                                                    ) : selectedQuestions.size > 0 ? (
+                                                        <Minus className="w-4 h-4 text-blue-600" />
+                                                    ) : (
+                                                        <Square className="w-4 h-4" />
+                                                    )}
+                                                    {selectedQuestions.size > 0
+                                                        ? `${selectedQuestions.size} selected`
+                                                        : 'Select All'}
+                                                </button>
+
+                                                {selectedQuestions.size > 0 && (
+                                                    <>
+                                                        <div className="h-4 w-px bg-gray-300" />
+                                                        <button
+                                                            onClick={handleBulkRemove}
+                                                            className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 bg-red-50 border border-red-200 rounded"
+                                                        >
+                                                            <Trash2 className="w-3 h-3" /> Remove Selected
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setBulkMarks({ marks: '', negativeMarks: '' });
+                                                                setShowBulkMarksModal(true);
+                                                            }}
+                                                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 bg-blue-50 border border-blue-200 rounded"
+                                                        >
+                                                            <Edit2 className="w-3 h-3" /> Update Marks
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setSelectedQuestions(new Set())}
+                                                            className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Questions List (Scrollable) */}
@@ -1145,9 +1322,20 @@ export default function EditExamPage() {
                                             </div>
                                         ) : (
                                             sectionQuestions[activeSectionId]?.map((q, idx) => (
-                                                <div key={q.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow group">
+                                                <div key={q.id} className={`border rounded-lg p-4 hover:shadow-md transition-shadow group ${selectedQuestions.has(q.id) ? 'bg-blue-50 border-blue-300' : 'bg-white'}`}>
                                                     <div className="flex justify-between items-start gap-4">
                                                         <div className="flex gap-3 flex-1">
+                                                            {/* Checkbox */}
+                                                            <button
+                                                                onClick={() => toggleQuestionSelection(q.id)}
+                                                                className="flex-shrink-0 mt-0.5"
+                                                            >
+                                                                {selectedQuestions.has(q.id) ? (
+                                                                    <CheckCircle className="w-5 h-5 text-blue-600" />
+                                                                ) : (
+                                                                    <Square className="w-5 h-5 text-gray-300 hover:text-gray-500" />
+                                                                )}
+                                                            </button>
                                                             <span className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 mt-0.5">
                                                                 {idx + 1}
                                                             </span>
@@ -1224,9 +1412,9 @@ export default function EditExamPage() {
                                                             <button
                                                                 onClick={() => handleQuestionDelete(q.id)}
                                                                 className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                                                title="Delete"
+                                                                title="Remove from section"
                                                             >
-                                                                <Trash2 className="w-4 h-4" />
+                                                                <Minus className="w-4 h-4" />
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1354,6 +1542,38 @@ export default function EditExamPage() {
                         <div className="flex justify-end gap-3 pt-2">
                             <button onClick={() => setEditingSection(null)} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50">Cancel</button>
                             <button onClick={handleSaveSection} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+                        </div>
+                    </div>
+                </Modal>
+
+                {/* Bulk Marks Update Modal */}
+                <Modal isOpen={showBulkMarksModal} onClose={() => setShowBulkMarksModal(false)} title={`Update Marks (${selectedQuestions.size} questions)`} maxWidth="sm">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Marks per Question</label>
+                            <input
+                                type="number"
+                                value={bulkMarks.marks}
+                                onChange={(e) => setBulkMarks({ ...bulkMarks, marks: e.target.value })}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="e.g. 4"
+                                autoFocus
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Negative Marks</label>
+                            <input
+                                type="number"
+                                step="0.25"
+                                value={bulkMarks.negativeMarks}
+                                onChange={(e) => setBulkMarks({ ...bulkMarks, negativeMarks: e.target.value })}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="e.g. 1"
+                            />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => setShowBulkMarksModal(false)} className="flex-1 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                            <button onClick={handleBulkMarksUpdate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Update Marks</button>
                         </div>
                     </div>
                 </Modal>

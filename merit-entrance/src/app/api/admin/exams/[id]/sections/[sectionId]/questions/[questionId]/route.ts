@@ -96,16 +96,6 @@ export async function PUT(
             // Delete removed
             const toDelete = existingIds.filter(eid => !inputIds.includes(eid));
             if (toDelete.length > 0) {
-                // Manual delete with array handling for neon
-                // Neon sql`` template helper doesn't always support ANY($1) with array directly in all versions, 
-                // but assuming it does locally. If not, loop or IN clause.
-                // Safer to loop for deletions or use explicit IN clause construction if generic array support is unsure.
-                // existing logic in Global API used `ANY($1)` and it seemed to pass review.
-                // Actually in my global `PUT` view I saw: `await sql('DELETE FROM questions WHERE id = ANY($1)', [toDelete]);`
-                // But here I'm using `sql` tagged template literal syntax `sql\`...${...}\``. 
-                // The tagged template syntax handles arrays usually by expanding to comma separated values for IN?
-                // No, standard `pg` uses `$1` and passes array.
-                // Let's use loop to be safe against template nuances.
                 for (const delId of toDelete) {
                     await sql`DELETE FROM questions WHERE id = ${delId}`;
                 }
@@ -176,40 +166,23 @@ export async function DELETE(
 
         const { id, sectionId, questionId } = await params;
 
-        // Check if it's a paragraph question and get its dependencies
-        const [qData] = await sql`SELECT paragraph_id FROM questions WHERE id = ${questionId}`;
+        // DELINK: Remove question from section without deleting from database
+        // This keeps the question in the question bank for future use
 
-        // 1. Delete associated responses (if any) - Manual Cascade
-        await sql`DELETE FROM question_responses WHERE question_id = ${questionId}`;
-
-        // 2. Delete children dependencies
-        // If this is a parent, its children might have responses too!
-        // We need to find children, delete THEIR responses, and then delete them.
+        // 1. Delink children (sub-questions) if this is a paragraph parent
         const children = await sql`SELECT id FROM questions WHERE parent_id = ${questionId}`;
         if (children.length > 0) {
-            const childIds = children.map(c => c.id);
-            // Delete responses for children
-            // Note: using ANY(${childIds}) might be cleaner but let's loop or simple IN clause
-            // neondatabase/serverless template literal handling for arrays can be tricky, let's use manual loop or specific strategy
-            // Using a simple loop is safe/easy for small numbers
             for (const child of children) {
-                await sql`DELETE FROM question_responses WHERE question_id = ${child.id}`;
+                await sql`UPDATE questions SET section_id = NULL WHERE id = ${child.id}`;
             }
-            // Now delete children
-            await sql`DELETE FROM questions WHERE parent_id = ${questionId}`;
         }
 
-        // 3. Delete the question itself
-        await sql`DELETE FROM questions WHERE id = ${questionId} AND section_id = ${sectionId}`;
-
-        // 4. Cleanup paragraph content if applicable
-        if (qData?.paragraph_id) {
-            await sql`DELETE FROM paragraphs WHERE id = ${qData.paragraph_id}`;
-        }
+        // 2. Delink the question itself (set section_id to NULL)
+        await sql`UPDATE questions SET section_id = NULL WHERE id = ${questionId} AND section_id = ${sectionId}`;
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting question:', error);
+        console.error('Error removing question from section:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
