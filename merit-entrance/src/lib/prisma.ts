@@ -1,6 +1,11 @@
 // Prisma Client Singleton Pattern
 import { PrismaClient } from '@prisma/client';
-import { neon } from '@neondatabase/serverless';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import { PrismaNeon } from '@prisma/adapter-neon';
+import ws from 'ws';
+
+// Required for Neon adapter in Node.js environments
+neonConfig.webSocketConstructor = ws;
 
 // Helper to get connection string
 export function getConnectionString(): string {
@@ -15,19 +20,18 @@ export function getConnectionString(): string {
     return connectionString;
 }
 
-// Create a neon SQL client
+// Create a neon SQL client (HTTP)
+import { neon } from '@neondatabase/serverless';
 export function createSqlClient() {
     return neon(getConnectionString());
 }
 
 const prismaClientSingleton = () => {
-    return new PrismaClient({
-        datasources: {
-            db: {
-                url: getConnectionString(),
-            },
-        },
-    });
+    const connectionString = getConnectionString();
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaNeon(pool);
+
+    return new PrismaClient({ adapter });
 };
 
 declare global {
