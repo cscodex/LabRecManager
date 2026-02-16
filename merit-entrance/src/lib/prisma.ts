@@ -29,6 +29,7 @@ export function createSqlClient() {
 const prismaClientSingleton = () => {
     const connectionString = getConnectionString();
     const pool = new Pool({ connectionString });
+    // @ts-ignore
     const adapter = new PrismaNeon(pool);
 
     return new PrismaClient({ adapter });
