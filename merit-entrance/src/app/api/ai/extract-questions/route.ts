@@ -223,61 +223,66 @@ export async function POST(req: NextRequest) {
 
         const basePrompt = `
             You are an expert OCR and exam digitization assistant specialized in Physics, Chemistry, and Mathematics.
-            Analyze this image of a question paper page and extract all multiple-choice questions.
-
-            STRICT MATHJAX/LATEX FORMATTING RULES:
-            1.  Convert ALL math, physics, and chemistry expressions (including subscripts and superscripts) to valid MathJax syntax.
-            2.  Inline math: Use \\( ... \\) or raw LaTeX commands (e.g., \\alpha, H_2O, x^2).
-            3.  Display math: Use \\[ ... \\] for standalone equations.
-            4.  Chemical Formulas: MUST use LaTeX subscripts/superscripts.
-                -   Correct: H_2O, CO_2, ^{14}C, SO_4^{2-}
-                -   Incorrect: H2O, CO2, 14C, SO42-
-            5.  Physics Units/Variables: Use LaTeX where appropriate (e.g., m/s^2, 10^{-6}).
-            6.  Ensure all formatting is valid for rendering in a React-KaTeX or MathJax environment.
+            Analyze this image of a question paper page.
             
-            EXTRACTION RULES:
-            -   **Classify Question Type**:
-                -   "mcq": Multiple Choice Questions with options (A, B, C, D).
-                -   "fill_blank": Single word or short phrase answers (e.g., "The capital of India is ___"). Also use this for "One Word" questions.
-                -   "short_answer": Questions requiring 1-2 sentences.
-                -   "long_answer": Questions requiring a detailed paragraph or more.
-            -   **Handling MCQs ("type": "mcq")**:
-                -   REMOVE question numbering.
-                -   Extract options list.
-                -   correctAnswer: The valid option letter (A, B, C, or D).
-            -   **Handling Non-MCQs**:
-                -   options: Return an empty array [].
-                -   correctAnswer: Provide the **Exact Answer** (for fill_blank) or **Key Points/Model Answer** (for short/long answer).
-            -   **General**:
-                -   Explanation: Detailed step-by-step logic.
-                -   Tags: 2-3 specific topics.
-                -   Marks: Extract explicit marks if available (e.g. "[2 marks]", "(4)"), otherwise default to 1. 
+            **GOAL**: Extract all questions, instructions, and paragraphs from the page.
 
-            -   **Handling Paragraph/Comprehension Questions**:
-                -   If there is a main paragraph/passage followed by questions:
-                -   Create a "Paragraph" entry in the \`paragraphs\` array with a unique ID (e.g., "p1").
-                -   For each question related to that paragraph, set \`paragraphId\` to the paragraph's ID ("p1").
-                -   Do NOT create a separate question of type "paragraph". The paragraph itself is the entity.
+            **INSTRUCTIONS EXTRACTION**:
+            -   If exam-level instructions (e.g., "All questions are compulsory", "Section A is 1 mark each") are found at the top, extract them.
+            -   Return them as an array of strings in the \`instructions\` field.
+            -   These will be appended to the exam instructions.
 
-            -   **Instructions**:
-                -   Extract any exam-level instructions found at the top of the page (e.g., "All questions are compulsory", "Section A carries 1 mark each").
-                -   Return them as an array of strings in the \`instructions\` field.
+            **QUESTION EXTRACTION RULES**:
+            1.  **Multiple Choice Questions (MCW)**:
+                -   Extract all questions with options.
+                -   **True/False Questions**: Treat these as MCQs with two options: "True" and "False".
+                -   Remove question numbering (e.g., "1.", "Q1").
+                -   Extract all options into the \`options\` array.
+                -   Identify the correct answer (Option letter or "True"/"False").
+
+            2.  **Short & Long Answer Questions**:
+                -   Extract the full question text.
+                -   Set \`options\` to [].
+                -   **Model Answer**: Generate a concise "Model Answer" or "Key Points" for grading purposes. Put this in the \`answer\` field.
+
+            **FIELDS TO EXTRACT PER QUESTION**:
+            -   **text**: The full question text. Preserve formatting.
+            -   **type**: "mcq" (includes True/False), "fill_blank", "short_answer", "long_answer".
+            -   **options**: Array of strings (e.g. ["A) ...", "B) ..."] or ["True", "False"]).
+            -   **correctAnswer**: The correct option (e.g., "A", "True") or the answer text for fill_blank.
+            -   **explanation**: Detailed explanation of the answer.
+            -   **marks**: 
+                -   Extract explicit marks if available (e.g., "[2]", "(3 marks)").
+                -   **DEFAULT MARKS IF NOT FOUND**:
+                    -   MCQ / True/False / Fill_Blank / One Word: **1 mark**
+                    -   Short Answer: **3 marks**
+                    -   Long Answer: **6 marks**
+
+            **FORMATTING RULES**:
+            -   **Math/Science**: Convert ALL expressions (Math, Physics, Chemistry) to **LaTeX**.
+                -   Inline: \\( E = mc^2 \\)
+                -   Block: \\[ \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
+                -   Chemical: \\( H_2SO_4 \\)
+            -   **Images**: If a question has a diagram/image, insert placeholder: \`[IMAGE]\` at the end of the text.
+
+            **PARAGRAPHS/COMPREHENSION**:
+            -   If a passage is provided for multiple questions:
+                -   Extract passage into \`paragraphs\` array (id, text).
+                -   Link questions to it via \`paragraphId\`.
 
             RETURN JSON ONLY using this schema:
             {
-              "instructions": ["Instruction 1", "Instruction 2"],
-              "paragraphs": [
-                { "id": "p1", "text": "Full text of the passage..." }
-              ],
+              "instructions": ["Instruction 1"],
+              "paragraphs": [{ "id": "p1", "text": "Passage text..." }],
               "questions": [
                 {
                   "type": "mcq" | "fill_blank" | "short_answer" | "long_answer",
-                  "text": "Question text...",
-                  "options": ["Option A", "Option B", "Option C", "Option D"], // Empty for non-mcq
-                  "correctAnswer": "A" | "Answer text",
-                  "explanation": "...",
-                  "marks": 2, 
-                  "paragraphId": "p1" // Optional, if linked to a paragraph
+                  "text": "Question text... [IMAGE] if needed",
+                  "options": ["A) ...", "B) ..."], 
+                  "correctAnswer": "A"Or "Model/Exact Answer",
+                  "explanation": "Explanation...",
+                  "marks": 1,
+                  "paragraphId": "p1" 
                 }
               ]
             }
@@ -328,7 +333,8 @@ export async function POST(req: NextRequest) {
                     ...q,
                     id: `page${pageIndex}_q${idx + 1}_${Date.now()}`,
                     page: pageIndex,
-                    correctAnswer: q.correctAnswer?.replace(/Option\s?/i, '').trim().toUpperCase() || ''
+                    correctAnswer: (q.correctAnswer || q.answer || '').replace(/Option\s?/i, '').trim(),
+                    marks: q.marks || (q.type === 'long_answer' ? 6 : q.type === 'short_answer' ? 3 : 1)
                 }));
 
                 extractedQuestions.push(...questionsWithMeta);

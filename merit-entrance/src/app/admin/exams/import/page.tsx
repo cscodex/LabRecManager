@@ -391,18 +391,34 @@ export default function ImportExamPage() {
                                             </label>
                                             <div className="bg-gray-100 p-3 rounded-md border text-xs text-gray-600 font-mono h-32 overflow-y-auto whitespace-pre-wrap">
                                                 {`Analyze this image of a question paper page.
-Extract all multiple-choice questions found on this page.
+            
+            **GOAL**: Extract all questions, instructions, and paragraphs from the page.
 
-For each question, extract:
-- The full question text (preserve formatting).
-- All options.
-- The correct answer if marked or visible.
-- Marks (default 4).
+            **INSTRUCTIONS EXTRACTION**:
+            -   If exam-level instructions exist, extract them.
+            **QUESTION EXTRACTION RULES**:
+            1.  **Multiple Choice Questions (MCW)**:
+                -   Extract all questions with options.
+                -   **True/False Questions**: Treat as MCQs with two options: "True" and "False".
+                -   Remove question numbering.
+                -   Identify the correct answer (Option letter or "True"/"False").
 
-IMPORTANT:
-- Output valid JSON array.
-- Format all mathematical expressions using LaTeX.
-- Insert [IMAGE] placeholder for diagrams.`}
+            2.  **Short & Long Answer Questions**:
+                -   Extract the full question text.
+                -   **Model Answer**: Generate a concise "Model Answer" or "Key Points".
+
+            **FIELDS TO EXTRACT**:
+            -   **text**: Full question text.
+            -   **type**: "mcq", "fill_blank", "short_answer", "long_answer".
+            -   **options**: Array of strings (Empty for non-MCQ).
+            -   **correctAnswer**: Correct option or Model Answer.
+            -   **explanation**: Detailed explanation.
+            -   **marks**: Default: MCQ(1), Short(3), Long(6).
+
+            **FORMATTING RULES**:
+            -   **Math/Science**: Convert ALL expressions to **LaTeX**.
+            -   **Images**: Insert placeholder: \`[IMAGE]\`.
+            -   **Instructions**: Extract exam-level instructions.`}
                                             </div>
                                         </div>
 
