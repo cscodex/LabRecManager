@@ -10,6 +10,7 @@ interface TagItem {
     id: string;
     name: string;
     created_at: string;
+    question_count: number;
 }
 
 export default function TagsManagementPage() {
@@ -20,6 +21,7 @@ export default function TagsManagementPage() {
     const [newTagName, setNewTagName] = useState('');
     const [adding, setAdding] = useState(false);
     const [search, setSearch] = useState('');
+    const [activeTab, setActiveTab] = useState<'manage' | 'stats'>('manage');
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -141,87 +143,156 @@ export default function TagsManagementPage() {
                         Download Template
                     </button>
                 </div>
+
+                {/* Tabs */}
+                <div className="max-w-4xl mx-auto px-4 flex gap-6 border-b border-gray-200">
+                    <button
+                        onClick={() => setActiveTab('manage')}
+                        className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'manage' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Manage Tags
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('stats')}
+                        className={`py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'stats' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Tag Statistics
+                    </button>
+                </div>
             </header>
 
             <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-                {/* Info Banner */}
-                <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-purple-800">
-                        <p className="font-medium">About Tags</p>
-                        <p className="mt-1">Tags help categorize questions by topic, exam type, or year (e.g., SOE2025, Botany, Physics). Each question can have one tag assigned.</p>
-                    </div>
-                </div>
-
-                {/* Add New Tag */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Add New Tag</h2>
-                    <div className="flex gap-3">
-                        <input
-                            type="text"
-                            value={newTagName}
-                            onChange={(e) => setNewTagName(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                            placeholder="Enter tag name (e.g., SOE2025, Botany, Physics)"
-                            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        />
-                        <button
-                            onClick={handleAddTag}
-                            disabled={adding || !newTagName.trim()}
-                            className="px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add
-                        </button>
-                    </div>
-                </div>
-
-                {/* Tags List */}
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">
-                            All Tags ({tags.length})
-                        </h2>
-                        <div className="relative">
-                            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search tags..."
-                                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-48 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                            />
+                {activeTab === 'manage' ? (
+                    <>
+                        {/* Info Banner */}
+                        <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm text-purple-800">
+                                <p className="font-medium">About Tags</p>
+                                <p className="mt-1">Tags help categorize questions by topic, exam type, or year (e.g., SOE2025, Botany, Physics). Each question can have one tag assigned.</p>
+                            </div>
                         </div>
-                    </div>
 
-                    {filteredTags.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">
-                            <Tag className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                            <p>{search ? 'No tags match your search' : 'No tags created yet'}</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                            {filteredTags.map((tag) => (
-                                <div
-                                    key={tag.id}
-                                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-200 transition group"
+                        {/* Add New Tag */}
+                        <div className="bg-white rounded-xl shadow-sm p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Add New Tag</h2>
+                            <div className="flex gap-3">
+                                <input
+                                    type="text"
+                                    value={newTagName}
+                                    onChange={(e) => setNewTagName(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                                    placeholder="Enter tag name (e.g., SOE2025, Botany, Physics)"
+                                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                />
+                                <button
+                                    onClick={handleAddTag}
+                                    disabled={adding || !newTagName.trim()}
+                                    className="px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
                                 >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
-                                        <span className="font-medium text-gray-900 truncate">{tag.name}</span>
-                                    </div>
-                                    <button
-                                        onClick={() => handleDeleteTag(tag.id, tag.name)}
-                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition"
-                                        title="Delete tag"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
+                                    <Plus className="w-4 h-4" />
+                                    Add
+                                </button>
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Tags List */}
+                        <div className="bg-white rounded-xl shadow-sm p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold text-gray-900">
+                                    All Tags ({tags.length})
+                                </h2>
+                                <div className="relative">
+                                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        placeholder="Search tags..."
+                                        className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-48 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+
+                            {filteredTags.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                    <Tag className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                                    <p>{search ? 'No tags match your search' : 'No tags created yet'}</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    {filteredTags.map((tag) => (
+                                        <div
+                                            key={tag.id}
+                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-purple-200 transition group"
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
+                                                <span className="font-medium text-gray-900 truncate">{tag.name}</span>
+                                                <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full ml-1" title="Question Count">
+                                                    {tag.question_count || 0}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteTag(tag.id, tag.name)}
+                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition"
+                                                title="Delete tag"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    /* Statistics View */
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                            <h2 className="text-lg font-semibold text-gray-900">Tag Statistics</h2>
+                            <p className="text-sm text-gray-500">Overview of tag usage across questions.</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-gray-50 text-gray-500 uppercase font-semibold text-xs border-b border-gray-200">
+                                    <tr>
+                                        <th className="px-6 py-3">Tag Name</th>
+                                        <th className="px-6 py-3 text-center">Question Count</th>
+                                        <th className="px-6 py-3 text-right">Created At</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {tags.map((tag) => (
+                                        <tr key={tag.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-900">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                                                    {tag.name}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                    {tag.question_count || 0}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right text-gray-500">
+                                                {new Date(tag.created_at).toLocaleDateString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {tags.length === 0 && (
+                                        <tr>
+                                            <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                                                No tags found.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );

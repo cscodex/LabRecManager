@@ -336,7 +336,8 @@ export async function POST(req: NextRequest) {
                     id: `page${pageIndex}_q${idx + 1}_${Date.now()}`,
                     page: pageIndex,
                     correctAnswer: (q.correctAnswer || q.answer || '').replace(/Option\s?/i, '').trim(),
-                    marks: q.marks || (q.type === 'long_answer' ? 6 : q.type === 'short_answer' ? 3 : 1)
+                    marks: q.marks || (q.type === 'long_answer' ? 6 : q.type === 'short_answer' ? 3 : 1),
+                    paragraphId: q.paragraphId // Explicitly preserve paragraphId
                 }));
 
                 extractedQuestions.push(...questionsWithMeta);

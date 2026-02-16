@@ -13,9 +13,11 @@ export async function GET() {
         }
 
         const tags = await sql`
-            SELECT id, name, created_at
-            FROM tags
-            ORDER BY name ASC
+            SELECT t.id, t.name, t.created_at, COUNT(qt.question_id)::int as question_count
+            FROM tags t
+            LEFT JOIN question_tags qt ON t.id = qt.tag_id
+            GROUP BY t.id, t.name, t.created_at
+            ORDER BY t.name ASC
         `;
 
         return NextResponse.json({ success: true, tags });
