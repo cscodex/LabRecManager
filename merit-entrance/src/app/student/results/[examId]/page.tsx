@@ -46,6 +46,11 @@ interface ExamResult {
         studentAnswer: string[] | null;
         isCorrect: boolean | null;
         marksAwarded: number;
+        aiFeedback?: {
+            score: number;
+            feedback: string;
+            improvements: string;
+        } | null;
     }[];
 }
 
@@ -300,7 +305,55 @@ export default function ResultsPage() {
                                                             {/* Render HTML content for question text if needed, or just text */}
                                                             <div className="text-gray-900 font-medium mb-3" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
 
-                                                            {q.options && (
+                                                            {/* Subjective Question Feedback */}
+                                                            {
+                                                                (q.type === 'short_answer' || q.type === 'long_answer' || q.type === 'fill_blank') && (
+                                                                    <div className="mb-4 space-y-4">
+                                                                        {/* Student Answer */}
+                                                                        <div className={`p-4 rounded-lg border ${q.marksAwarded > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                                                            <p className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-70">Your Answer</p>
+                                                                            <p className="text-gray-900 whitespace-pre-wrap">{(q.studentAnswer && q.studentAnswer[0]) || <span className="text-gray-400 italic">No answer provided</span>}</p>
+                                                                        </div>
+
+                                                                        {/* Model Answer (if correct answer is text) */}
+                                                                        <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                                                                            <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-blue-700">Model Answer</p>
+                                                                            <p className="text-blue-900 whitespace-pre-wrap">{q.correctAnswer}</p>
+                                                                        </div>
+
+                                                                        {/* AI Feedback */}
+                                                                        {q.aiFeedback && (
+                                                                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                                                                <div className="flex items-center justify-between mb-3">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <span className="text-lg">🤖</span>
+                                                                                        <h3 className="font-semibold text-purple-900">AI Evaluation</h3>
+                                                                                    </div>
+                                                                                    <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-sm font-bold">
+                                                                                        Score: {q.aiFeedback.score} / {q.marks}
+                                                                                    </span>
+                                                                                </div>
+
+                                                                                <div className="space-y-3 text-sm">
+                                                                                    <div>
+                                                                                        <p className="font-medium text-purple-800 mb-1">Feedback:</p>
+                                                                                        <p className="text-purple-700">{q.aiFeedback.feedback}</p>
+                                                                                    </div>
+                                                                                    {q.aiFeedback.improvements && (
+                                                                                        <div>
+                                                                                            <p className="font-medium text-purple-800 mb-1">Suggested Improvements:</p>
+                                                                                            <p className="text-purple-700 italic">{q.aiFeedback.improvements}</p>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            }
+
+                                                            {/* MCQ Options Rendering */}
+                                                            {q.options && (q.type === 'mcq_single' || q.type === 'mcq_multiple') && (
                                                                 <div className="space-y-2 mb-4">
                                                                     {q.options.map(opt => {
                                                                         const isCorrect = q.correctAnswer.includes(opt.id);

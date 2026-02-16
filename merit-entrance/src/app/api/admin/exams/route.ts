@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { title, description, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions } = body;
+        const { title, description, duration, totalMarks, gradingInstructions, passingMarks, securityMode, negativeMarking, shuffleQuestions } = body;
 
         if (!title?.en || !duration || !totalMarks) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
         const now = new Date().toISOString();
         const result = await sql`
-      INSERT INTO exams (title, description, duration, total_marks, passing_marks, negative_marking, shuffle_questions, status, security_mode, created_by, created_at, updated_at)
+      INSERT INTO exams (title, description, duration, total_marks, passing_marks, negative_marking, shuffle_questions, status, security_mode, grading_instructions, created_by, created_at, updated_at)
       VALUES (
         ${JSON.stringify(title)}::jsonb,
         ${description ? JSON.stringify(description) : null}::jsonb,
@@ -73,6 +73,13 @@ export async function POST(request: NextRequest) {
         ${shuffleQuestions || false},
         'draft',
         ${body.securityMode || false},
+        ${session.id},
+        ${now},
+        ${now}
+        ${shuffleQuestions || false},
+        'draft',
+        ${body.securityMode || false},
+        ${gradingInstructions || null},
         ${session.id},
         ${now},
         ${now}

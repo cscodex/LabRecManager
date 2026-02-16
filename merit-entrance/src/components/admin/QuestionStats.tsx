@@ -1,5 +1,7 @@
 'use client';
 
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+
 interface QuestionStatsProps {
     stats?: {
         difficultyDistribution?: Record<number, number>;
@@ -34,9 +36,26 @@ export default function QuestionStats({ stats, questions }: QuestionStatsProps) 
     });
     const sortedTags = Object.entries(tagCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
 
+    // Prepare data for charts
+    const difficultyData = [1, 2, 3, 4, 5].map(level => ({
+        name: `Level ${level}`,
+        value: difficultyCounts[level] || 0
+    })).filter(d => d.value > 0);
+
+    const typeData = Object.entries(typeCounts).map(([type, count]) => {
+        const label = type === 'mcq_single' ? 'Single Choice' :
+            type === 'mcq_multiple' ? 'Multi Choice' :
+                type === 'paragraph' ? 'Paragraph' :
+                    type === 'fill_blank' ? 'Fill Blank' : type;
+        return { name: label, value: count };
+    }).filter(d => d.value > 0);
+
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+    const DIFFICULTY_COLORS = ['#4ade80', '#4ade80', '#facc15', '#f87171', '#f87171']; // Green, Green, Yellow, Red, Red
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {/* Tag Distribution */}
+            {/* Tag Distribution (Bar Chart) */}
             <div className="bg-white p-4 rounded-xl shadow-sm border">
                 <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Questions by Tag</h3>
                 <div className="space-y-2">
@@ -58,43 +77,64 @@ export default function QuestionStats({ stats, questions }: QuestionStatsProps) 
                 </div>
             </div>
 
-            {/* Difficulty Distribution */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-                <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Difficulty Levels</h3>
-                <div className="flex items-end justify-between h-32 px-2 mt-4 space-x-2">
-                    {[1, 2, 3, 4, 5].map(level => {
-                        const count = difficultyCounts[level] || 0;
-                        const maxCount = Math.max(1, ...Object.values(difficultyCounts));
-                        const height = (count / maxCount) * 100;
-                        const color = level <= 2 ? 'bg-green-400' : level === 3 ? 'bg-yellow-400' : 'bg-red-400';
-                        return (
-                            <div key={level} className="flex flex-col items-center w-full group">
-                                <span className="text-xs text-gray-700 mb-1 font-medium">{count}</span>
-                                <div
-                                    className={`w-full rounded-t-sm ${color} transition-all duration-500`}
-                                    style={{ height: `${Math.max(4, height)}%` }}
-                                />
-                                <span className="text-xs font-bold text-gray-600 mt-2">{level}</span>
-                            </div>
-                        )
-                    })}
+            {/* Difficulty Distribution (Pie Chart) */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
+                <h3 className="text-sm font-semibold text-gray-500 mb-2 uppercase tracking-wider">Difficulty Levels</h3>
+                <div className="flex-1 w-full h-[140px] relative">
+                    {difficultyData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={difficultyData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={30}
+                                    outerRadius={50}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {difficultyData.map((entry, index) => {
+                                        const level = parseInt(entry.name.split(' ')[1]);
+                                        return <Cell key={`cell-${index}`} fill={DIFFICULTY_COLORS[level - 1] || '#8884d8'} />;
+                                    })}
+                                </Pie>
+                                <Tooltip />
+                                <Legend layout="vertical" align="right" verticalAlign="middle" iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">No data</div>
+                    )}
                 </div>
             </div>
 
-            {/* Type Distribution */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border">
-                <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Question Types</h3>
-                <div className="space-y-3 mt-2">
-                    {Object.entries(typeCounts).map(([type, count]) => {
-                        const label = type === 'mcq_single' ? 'Single Choice' : type === 'mcq_multiple' ? 'Multi Choice' : type === 'paragraph' ? 'Paragraph' : type === 'fill_blank' ? 'Fill Blank' : type;
-                        return (
-                            <div key={type} className="flex justify-between items-center text-sm">
-                                <span className="text-gray-600">{label}</span>
-                                <span className="font-bold bg-gray-100 px-2 py-0.5 rounded text-gray-800">{count}</span>
-                            </div>
-                        )
-                    })}
-                    {Object.keys(typeCounts).length === 0 && <p className="text-gray-400 text-sm italic">No data</p>}
+            {/* Type Distribution (Pie Chart) */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
+                <h3 className="text-sm font-semibold text-gray-500 mb-2 uppercase tracking-wider">Question Types</h3>
+                <div className="flex-1 w-full h-[140px] relative">
+                    {typeData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={typeData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={30}
+                                    outerRadius={50}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {typeData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend layout="vertical" align="right" verticalAlign="middle" iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">No data</div>
+                    )}
                 </div>
             </div>
         </div>

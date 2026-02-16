@@ -71,7 +71,8 @@ export async function GET(
         q.parent_id,
         qr.answer as student_answer,
         qr.is_correct,
-        qr.marks_awarded
+        qr.marks_awarded,
+        qr.ai_feedback
       FROM questions q
       JOIN sections s ON q.section_id = s.id
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
@@ -130,6 +131,7 @@ export async function GET(
                     studentAnswer: q.student_answer ? (typeof q.student_answer === 'string' ? JSON.parse(q.student_answer) : q.student_answer) : null,
                     isCorrect: q.is_correct,
                     marksAwarded: q.marks_awarded ? parseFloat(q.marks_awarded) : 0,
+                    aiFeedback: q.ai_feedback ? (typeof q.ai_feedback === 'string' ? JSON.parse(q.ai_feedback) : q.ai_feedback) : null,
                 })),
             },
         });

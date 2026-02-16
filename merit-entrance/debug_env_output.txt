@@ -1,0 +1,1 @@
+{"nodeEnv":"development","hasMeritDbUrl":true,"hasDbUrl":false,"hasDirectUrl":true,"dbUrlPrefix":"postgresql","envKeys":["MERIT_DATABASE_URL","MERIT_DIRECT_URL","NEXT_PUBLIC_APP_URL","NEXTAUTH_URL"]}

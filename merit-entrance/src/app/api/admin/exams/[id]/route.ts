@@ -98,7 +98,7 @@ export async function PUT(
 
         const { id } = await params;
         const body = await request.json();
-        const { title, description, instructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status } = body;
+        const { title, description, instructions, gradingInstructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status } = body;
 
         console.log('Updating exam:', { id, title, description: !!description, instructions: !!instructions });
 
@@ -108,6 +108,7 @@ export async function PUT(
         title = ${JSON.stringify(title)}::jsonb,
         description = ${description ? JSON.stringify(description) : null}::jsonb,
         instructions = ${instructions ? JSON.stringify(instructions) : null}::jsonb,
+        grading_instructions = ${gradingInstructions || null},
         duration = ${duration},
         total_marks = ${totalMarks},
         passing_marks = ${passingMarks || null},

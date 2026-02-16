@@ -140,21 +140,25 @@ export default function QuestionsBankPage() {
     };
 
     const handleEdit = async (question: Question) => {
+        const toastId = toast.loading('Loading details...');
         try {
             const full = await fetchQuestionDetails(question.id);
             setEditingQuestion(full);
             setShowModal(true);
+            toast.dismiss(toastId);
         } catch (e) {
-            toast.error('Error fetching question details');
+            toast.error('Error fetching question details', { id: toastId });
         }
     };
 
     const handleView = async (question: Question) => {
+        const toastId = toast.loading('Loading details...');
         try {
             const full = await fetchQuestionDetails(question.id);
             setViewingQuestion(full);
+            toast.dismiss(toastId);
         } catch (e) {
-            toast.error('Error fetching question details');
+            toast.error('Error fetching question details', { id: toastId });
         }
     };
 
@@ -179,6 +183,8 @@ export default function QuestionsBankPage() {
                 negativeMarks: formData.type === 'paragraph' ? 0 : formData.negativeMarks,
                 difficulty: formData.difficulty,
                 imageUrl: formData.imageUrl,
+                paragraph_text: formData.type === 'paragraph' ? { en: formData.paragraphTextEn, pa: formData.paragraphTextPa } : null,
+                subQuestions: formData.subQuestions,
                 tags: formData.tags,
                 parentId: formData.parentId || null
             };
@@ -434,8 +440,8 @@ export default function QuestionsBankPage() {
                                     <th className="px-6 py-3">Type</th>
                                     <th className="px-6 py-3">Difficulty</th>
                                     <th className="px-6 py-3">Answer</th>
-                                    <th className="px-6 py-3">Explanation</th>
                                     <th className="px-6 py-3">Marks</th>
+                                    <th className="px-6 py-3">Explanation</th>
                                     <th className="px-6 py-3">Popularity</th>
                                     <th className="px-6 py-3 text-right">Actions</th>
                                 </tr>
@@ -450,7 +456,7 @@ export default function QuestionsBankPage() {
                                     </tr>
                                 ) : questions.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                                             <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                                             No questions found matching your filters.
                                         </td>
@@ -482,9 +488,6 @@ export default function QuestionsBankPage() {
                                                     Level {question.difficulty}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-600">
-                                                {question.marks}
-                                            </td>
                                             <td className="px-6 py-4">
                                                 {question.correct_answer && Array.isArray(question.correct_answer) && question.correct_answer.length > 0 ? (
                                                     <span className="text-xs font-mono bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200">
@@ -494,11 +497,14 @@ export default function QuestionsBankPage() {
                                                     <span className="text-xs text-gray-400 italic">—</span>
                                                 )}
                                             </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                                {question.marks}
+                                            </td>
                                             <td className="px-6 py-4 max-w-[150px]">
                                                 {question.explanation && (question.explanation.en || question.explanation.pa) ? (
-                                                    <span className="text-xs text-gray-600 line-clamp-2" title={question.explanation.en || question.explanation.pa}>
-                                                        {getText(question.explanation, language) || '—'}
-                                                    </span>
+                                                    <div className="text-xs text-gray-600 line-clamp-2" title={question.explanation.en || question.explanation.pa}>
+                                                        <MathText text={getText(question.explanation, language)} inline />
+                                                    </div>
                                                 ) : (
                                                     <span className="text-xs text-gray-400 italic">—</span>
                                                 )}

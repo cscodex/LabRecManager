@@ -104,13 +104,22 @@ export default function AdminExamsPage() {
                             <p className="text-sm text-gray-500">{exams.length} total exams</p>
                         </div>
                     </div>
-                    <Link
-                        href="/admin/exams/create"
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create Exam
-                    </Link>
+                    <div className="flex gap-3">
+                        <Link
+                            href="/admin/exams/import"
+                            className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition shadow-sm"
+                        >
+                            <BookOpen className="w-4 h-4" />
+                            Import PDF
+                        </Link>
+                        <Link
+                            href="/admin/exams/create"
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Create Exam
+                        </Link>
+                    </div>
                 </div>
             </header>
 

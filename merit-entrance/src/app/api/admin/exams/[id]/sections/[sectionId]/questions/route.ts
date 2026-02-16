@@ -35,15 +35,32 @@ export async function GET(
       ORDER BY q."order"
     `;
 
+        const safeParse = (val: any) => {
+            if (typeof val === 'string') {
+                try {
+                    const parsed = JSON.parse(val);
+                    // If result is string again (double encoded), return it?
+                    // Usually we just want to ensure we don't crash.
+                    // But if val is "A", JSON.parse("A") crashes.
+                    // If val is '"A"', JSON.parse('"A"') -> "A".
+                    // If val is "", JSON.parse("") crashes.
+                    return parsed;
+                } catch (e) {
+                    return val;
+                }
+            }
+            return val;
+        };
+
         return NextResponse.json({
             success: true,
             questions: questions.map(q => ({
                 ...q,
-                text: typeof q.text === 'string' ? JSON.parse(q.text) : q.text,
-                options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : null,
-                correct_answer: typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : q.correct_answer,
-                explanation: q.explanation ? (typeof q.explanation === 'string' ? JSON.parse(q.explanation) : q.explanation) : null,
-                paragraph_text: q.paragraph_text ? (typeof q.paragraph_text === 'string' ? JSON.parse(q.paragraph_text) : q.paragraph_text) : null,
+                text: safeParse(q.text),
+                options: q.options ? safeParse(q.options) : null,
+                correct_answer: safeParse(q.correct_answer),
+                explanation: q.explanation ? safeParse(q.explanation) : null,
+                paragraph_text: q.paragraph_text ? safeParse(q.paragraph_text) : null,
                 tags: q.tags || [],
             })),
         });

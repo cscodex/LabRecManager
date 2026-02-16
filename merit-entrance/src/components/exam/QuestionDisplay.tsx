@@ -174,6 +174,19 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
                 </div>
             )}
 
+            {/* Short & Long Answer Input */}
+            {(question.type === 'short_answer' || question.type === 'long_answer') && (
+                <div className="mb-4">
+                    <textarea
+                        value={(selectedAnswer as string[])?.[0] || ''}
+                        onChange={(e) => handleFillBlankChange(e.target.value)}
+                        placeholder="Type your answer here..."
+                        rows={question.type === 'short_answer' ? 3 : 6}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-lg focus:border-blue-500 focus:outline-none resize-y"
+                    />
+                </div>
+            )}
+
             {/* MCQ Options */}
             {question.options && (question.type === 'mcq_single' || question.type === 'mcq_multiple') && (
                 <div className="space-y-3">

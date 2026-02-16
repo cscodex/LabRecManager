@@ -23,6 +23,7 @@ export default function CreateExamPage() {
         negativeMarking: 0,
         shuffleQuestions: false,
         securityMode: false,
+        gradingInstructions: '',
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -49,6 +50,7 @@ export default function CreateExamPage() {
                     negativeMarking: formData.negativeMarking || null,
                     shuffleQuestions: formData.shuffleQuestions,
                     securityMode: formData.securityMode,
+                    gradingInstructions: formData.gradingInstructions,
                 }),
             });
 
@@ -145,6 +147,21 @@ export default function CreateExamPage() {
                                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
+                    </div>
+
+                    {/* Grading Instructions */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            AI Grading Instructions (Optional)
+                        </label>
+                        <textarea
+                            value={formData.gradingInstructions}
+                            onChange={(e) => setFormData({ ...formData, gradingInstructions: e.target.value })}
+                            rows={3}
+                            placeholder="Custom instructions for the AI grader (e.g., 'Be lenient with spelling', 'Focus on keywords')..."
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">These instructions will be appended to the system prompt when grading subjective answers.</p>
                     </div>
 
                     {/* Settings */}

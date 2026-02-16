@@ -14,7 +14,7 @@ export async function POST(
     try {
         const { id } = await params;
         const body = await req.json();
-        const { questions, language } = body;
+        const { questions, language, instructions, paragraphs } = body;
 
         if (!Array.isArray(questions) || questions.length === 0) {
             return NextResponse.json({ error: 'No questions provided' }, { status: 400 });
@@ -26,6 +26,49 @@ export async function POST(
             FROM sections 
             WHERE exam_id = ${id}
         `;
+
+        // 1.5 Handle Instructions
+        if (instructions && Array.isArray(instructions) && instructions.length > 0) {
+            const currentExam = await sql`SELECT instructions FROM exams WHERE id = ${id}`;
+            let currentInstructions = currentExam[0]?.instructions || {};
+
+            // Allow for string instructions (legacy)
+            if (typeof currentInstructions === 'string') {
+                try { currentInstructions = JSON.parse(currentInstructions); } catch (e) { currentInstructions = { en: currentInstructions }; }
+            }
+
+            const instructionHtml = `<ul>${instructions.map((i: string) => `<li>${i}</li>`).join('')}</ul>`;
+
+            const newEn = (currentInstructions.en || '') + instructionHtml;
+            const newPa = (currentInstructions.pa || '') + instructionHtml; // Append to Punjabi too for now as fallback
+
+            await sql`
+                UPDATE exams 
+                SET instructions = ${JSON.stringify({ ...currentInstructions, en: newEn, pa: newPa })}::jsonb
+                WHERE id = ${id}
+            `;
+        }
+
+        // 1.5 Handle Paragraphs
+        const paragraphMap = new Map<string, string>(); // tempId -> realDbId
+        if (paragraphs && Array.isArray(paragraphs) && paragraphs.length > 0) {
+            for (const p of paragraphs) {
+                if (!p.id || !p.text) continue;
+
+                // Construct JSON content
+                const contentJson = JSON.stringify({
+                    en: (language === 'both' || language === 'en') ? p.text : '',
+                    pa: (language === 'both' || language === 'pa') ? p.text : '' // Naive copy if both
+                });
+
+                const [inserted] = await sql`
+                    INSERT INTO paragraphs (text)
+                    VALUES (${contentJson}::jsonb)
+                    RETURNING id
+                `;
+                paragraphMap.set(p.id, inserted.id);
+            }
+        }
 
         const sectionMap = new Map(sections.map(s => [s.id, s]));
 
@@ -88,9 +131,12 @@ export async function POST(
                         pa: (language === 'both' || language === 'pa') ? q.explanationPa : ''
                     }) : null;
 
-                    // Handle Paragraph Creation
+                    // Handle Paragraph Linking
                     let paragraphId: string | null = null;
-                    if (q.type === 'paragraph') {
+                    if (q.paragraphId && paragraphMap.has(q.paragraphId)) {
+                        paragraphId = paragraphMap.get(q.paragraphId)!;
+                    } else if (q.type === 'paragraph') {
+                        // Legacy/Direct Paragraph Type Handling
                         const paragraphContent = JSON.stringify({
                             en: (language === 'both' || language === 'en') ? q.textEn : '',
                             pa: (language === 'both' || language === 'pa') ? q.textPa : ''

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
+import { gradeSubjectiveAnswer } from '@/lib/ai-grading';
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 // Submit exam
 export async function POST(
     request: NextRequest,
-    { params }: { params: { examId: string } }
+    { params }: { params: Promise<{ examId: string }> }
 ) {
     try {
         const session = await getSession();
@@ -15,7 +16,7 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { examId } = params;
+        const { examId } = await params;
         const studentId = session.id;
 
         // Parse body safely - may be empty when called from dashboard
@@ -51,9 +52,13 @@ export async function POST(
         const attemptId = attempts[0].id;
         console.log('[Submit] Processing attempt:', attemptId, 'for student:', studentId);
 
+        // Get exam grading instructions
+        const examData = await sql`SELECT grading_instructions FROM exams WHERE id = ${examId}`;
+        const gradingInstructions = examData[0]?.grading_instructions;
+
         // Get all questions and their correct answers
         const questions = await sql`
-      SELECT q.id, q.correct_answer, q.marks, q.negative_marks
+      SELECT q.id, q.type, q.text, q.correct_answer, q.marks, q.negative_marks, q.explanation
       FROM questions q
       JOIN sections s ON q.section_id = s.id
       WHERE s.exam_id = ${examId}
@@ -88,10 +93,10 @@ export async function POST(
 
             // Normalize answers for comparison - ensure both are arrays of strings
             const normalizedStudent = Array.isArray(studentAnswer)
-                ? studentAnswer.map(a => String(a).toLowerCase().trim())
+                ? studentAnswer.map((a: any) => String(a).toLowerCase().trim())
                 : [String(studentAnswer).toLowerCase().trim()];
             const normalizedCorrect = Array.isArray(correctAnswer)
-                ? correctAnswer.map(a => String(a).toLowerCase().trim())
+                ? correctAnswer.map((a: any) => String(a).toLowerCase().trim())
                 : [String(correctAnswer).toLowerCase().trim()];
 
             const isCorrect = JSON.stringify(normalizedStudent.sort()) === JSON.stringify(normalizedCorrect.sort());
@@ -122,9 +127,63 @@ export async function POST(
             }
         }
 
-        // Execute all updates in parallel for faster submission
-        console.log('[Submit] Executing', updatePromises.length, 'response updates in parallel');
+        // --- AI GRADING FOR SUBJECTIVE QUESTIONS ---
+        const gradingPromises: Promise<any>[] = [];
+
+        for (const question of questions) {
+            if (question.type === 'short_answer' || question.type === 'long_answer' || question.type === 'fill_blank') {
+                const studentAnswer = responseMap[question.id];
+                // Skip if no answer
+                if (!studentAnswer || (Array.isArray(studentAnswer) && studentAnswer.length === 0)) continue;
+
+                const answerText = Array.isArray(studentAnswer) ? studentAnswer[0] : studentAnswer;
+                const modelAnswer = question.correct_answer || question.explanation || "No model answer provided.";
+
+                console.log(`[AI Grading] Queueing question ${question.id}`);
+
+                const gradingTask = async () => {
+                    try {
+                        const result = await gradeSubjectiveAnswer(
+                            question.text?.en || JSON.stringify(question.text),
+                            answerText,
+                            modelAnswer,
+                            question.marks,
+                            'gemini-flash-latest',
+                            gradingInstructions
+                        );
+
+                        await sql`
+                            UPDATE question_responses 
+                            SET 
+                                ai_feedback = ${JSON.stringify(result)}::jsonb,
+                                marks_awarded = ${result.score},
+                                is_correct = ${result.score > 0} 
+                            WHERE attempt_id = ${attemptId} AND question_id = ${question.id}
+                        `;
+                    } catch (err) {
+                        console.error(`[AI Grading] Failed for Q ${question.id}:`, err);
+                    }
+                };
+
+                gradingPromises.push(gradingTask());
+            }
+        }
+
+        // Execute DB updates first
         await Promise.all(updatePromises);
+
+        // Execute AI grading (Parallel)
+        // If we want the user to see the score immediately, we must await.
+        if (gradingPromises.length > 0) {
+            console.log(`[Submit] Waiting for ${gradingPromises.length} AI grading tasks...`);
+            await Promise.all(gradingPromises);
+
+            // Recalculate total score from DB to be accurate
+            const scoreResult = await sql`
+                SELECT SUM(marks_awarded) as total FROM question_responses WHERE attempt_id = ${attemptId}
+             `;
+            totalScore = parseFloat(scoreResult[0].total || '0');
+        }
 
         // Update attempt
         const now = new Date().toISOString();
@@ -144,7 +203,7 @@ export async function POST(
     } catch (error: unknown) {
         const err = error as Error;
         console.error('Error submitting exam:', {
-            examId: params.examId,
+            examId: params ? (await params).examId : 'unknown',
             error: err.message,
             stack: err.stack,
             name: err.name

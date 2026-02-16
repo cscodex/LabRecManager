@@ -18,13 +18,24 @@ export async function GET(
         const { id } = await params;
 
         // Fetch question
-        const questions = await sql`SELECT * FROM questions WHERE id = ${id}`;
+        const questions = await sql`
+            SELECT q.*, p.content as paragraph_text, p.text as paragraph_title
+            FROM questions q
+            LEFT JOIN paragraphs p ON q.paragraph_id = p.id
+            WHERE q.id = ${id}
+        `;
 
         if (questions.length === 0) {
             return NextResponse.json({ success: false, error: 'Question not found' }, { status: 404 });
         }
 
         const question = questions[0];
+
+        // Format paragraph_text if exists
+        if (question.paragraph_text) {
+            // The frontend expects paragraph_text to be the content JSON
+            // question.paragraph_text is already aliases from p.content
+        }
 
         // Fetch tags
         const tags = await sql`
@@ -85,10 +96,39 @@ export async function PUT(
         const image_url = body.image_url || body.imageUrl || null;
         const subQuestions = body.subQuestions;
 
-        // Update Question (paragraph_text is NOT a column — paragraph data stored in text field)
+        // Update Question
+        let paragraphId = null;
+
+        // If paragraph, update or insert paragraph_text into paragraphs table
+        if (type === 'paragraph' && body.paragraph_text) {
+            // Check if custom paragraph_text (content) is provided
+            const paraContent = body.paragraph_text; // { en: "...", pa: "..." }
+
+            // Check if question already has a paragraph_id
+            const existing = await sql`SELECT paragraph_id FROM questions WHERE id = ${id}`;
+            if (existing[0]?.paragraph_id) {
+                paragraphId = existing[0].paragraph_id;
+                await sql`
+                    UPDATE paragraphs SET 
+                        text = ${JSON.stringify(text)}::jsonb, 
+                        content = ${JSON.stringify(paraContent)}::jsonb 
+                    WHERE id = ${paragraphId}
+                 `;
+            } else {
+                // Insert new paragraph
+                const newPara = await sql`
+                    INSERT INTO paragraphs (text, content) 
+                    VALUES (${JSON.stringify(text)}::jsonb, ${JSON.stringify(paraContent)}::jsonb) 
+                    RETURNING id
+                 `;
+                paragraphId = newPara[0].id;
+            }
+        }
+
         await sql`
             UPDATE questions SET
                 text = ${JSON.stringify(text)}::jsonb,
+                paragraph_id = ${paragraphId ? paragraphId : null}::uuid,
                 options = ${options ? JSON.stringify(options) : null}::jsonb,
                 correct_answer = ${correct_answer ? JSON.stringify(correct_answer) : null}::jsonb,
                 explanation = ${explanation ? JSON.stringify(explanation) : null}::jsonb,

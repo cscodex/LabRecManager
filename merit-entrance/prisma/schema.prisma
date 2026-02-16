@@ -139,6 +139,9 @@ model Paragraph {
     id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
     text      Json     // Title: { "en": "...", "pa": "..." }
     content   Json?    // Body: { "en": "...", "pa": "..." }
+    imageUrl  String?  @map("image_url")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
     questions Question[]
 
     @@map("paragraphs")
@@ -225,6 +228,7 @@ model QuestionResponse {
   timeSpent       Int?     @map("time_spent") // seconds
   isCorrect       Boolean? @map("is_correct")
   marksAwarded    Decimal? @map("marks_awarded") @db.Decimal(5,2)
+  aiFeedback      Json?    @map("ai_feedback") // { score: 4, feedback: "...", improvements: "..." }
   
   attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question Question    @relation(fields: [questionId], references: [id])

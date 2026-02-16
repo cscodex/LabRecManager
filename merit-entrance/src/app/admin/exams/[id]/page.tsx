@@ -53,6 +53,7 @@ interface Exam {
     title: Record<string, string>;
     description: Record<string, string> | null;
     instructions: Record<string, string> | null;
+    grading_instructions: string | null;
     duration: number;
     total_marks: number;
     passing_marks: number | null;
@@ -94,6 +95,7 @@ export default function EditExamPage() {
         descriptionPa: '',
         instructionsEn: '',
         instructionsPa: '',
+        gradingInstructions: '',
         duration: 60,
         totalMarks: 100,
         passingMarks: 40,
@@ -148,6 +150,7 @@ export default function EditExamPage() {
                     descriptionPa: e.description?.pa || '',
                     instructionsEn: e.instructions?.en || '',
                     instructionsPa: e.instructions?.pa || '',
+                    gradingInstructions: e.grading_instructions || '',
                     duration: e.duration,
                     totalMarks: e.sections?.reduce((sum: number, sec: any) => sum + (Number(sec.section_marks) || 0), 0) || e.total_marks,
                     passingMarks: e.passing_marks || 0,
@@ -241,6 +244,7 @@ export default function EditExamPage() {
                         instructions: formData.instructionsEn
                             ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
                             : null,
+                        gradingInstructions: formData.gradingInstructions,
                         duration: formData.duration,
                         totalMarks: sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0),
                         passingMarks: formData.passingMarks,
@@ -984,6 +988,23 @@ export default function EditExamPage() {
                                     </label>
                                 </div>
                             </div>
+
+                            {/* Grading Instructions */}
+                            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+                                <label className="block text-sm font-medium text-purple-900 mb-1">
+                                    AI Grading Instructions
+                                </label>
+                                <textarea
+                                    value={formData.gradingInstructions}
+                                    onChange={(e) => setFormData({ ...formData, gradingInstructions: e.target.value })}
+                                    rows={3}
+                                    placeholder="Custom instructions for the AI grader (e.g., 'Be lenient with spelling', 'Focus on keywords', 'Award 1 mark for each step')..."
+                                    className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                                />
+                                <p className="text-xs text-purple-700 mt-1">
+                                    These instructions will be appended to the prompt sent to the AI when grading subjective answers for this exam.
+                                </p>
+                            </div>
                         </div>
                     ) : activeTab === 'instructions' ? (
                         <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
@@ -1504,7 +1525,8 @@ export default function EditExamPage() {
                     <QuestionBankPicker
                         onImport={handleImportQuestions}
                         onCancel={() => setShowPickerModal(false)}
-                        excludeIds={sectionQuestions[activeSectionId || '']?.map(q => q.id) || []} // This won't exclude strict IDs if we clone them with NEW IDs, but acts as a visual filter if we imported them linked. Since we clone, maybe we ignore exclusion or exclude based on... text? For now, we don't exclude.
+                        excludeIds={sectionQuestions[activeSectionId || '']?.map(q => q.id) || []}
+                        excludeQuestions={sectionQuestions[activeSectionId || ''] || []}
                     />
                 </Modal>
 

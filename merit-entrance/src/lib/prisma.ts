@@ -1,7 +1,5 @@
-// This file is kept for potential future use with Prisma ORM.
-// Currently, the project uses direct neon() SQL queries instead.
-// See api routes for examples of using neon().
-
+// Prisma Client Singleton Pattern
+import { PrismaClient } from '@prisma/client';
 import { neon } from '@neondatabase/serverless';
 
 // Helper to get connection string
@@ -22,7 +20,18 @@ export function createSqlClient() {
     return neon(getConnectionString());
 }
 
-// Export a shared sql client
-export const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
+const prismaClientSingleton = () => {
+    return new PrismaClient();
+};
 
+declare global {
+    var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
+}
+
+export const prisma = globalThis.prisma ?? prismaClientSingleton();
+
+if (process.env.NODE_ENV !== 'production') globalThis.prisma = prisma;
+
+// Export a shared sql client as default or named
+export const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || process.env.DATABASE_URL || '');
 export default sql;

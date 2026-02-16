@@ -204,19 +204,27 @@ export async function POST(req: NextRequest) {
         } = body;
 
         // Handle paragraph text
-        let pText = null;
-        if (type === 'paragraph' && body.paragraph) {
-            pText = body.paragraph.paragraphText;
-        } else if (type === 'paragraph' && body.paragraphText) {
-            pText = body.paragraphText; // Directly passed
-        } else if (type === 'paragraph' && body.paragraph_text) {
-            pText = body.paragraph_text;
+        let paragraphId = null;
+        if (type === 'paragraph') {
+            let pText = body.paragraph?.paragraphText || body.paragraphText || body.paragraph_text || (body.text?.en ? body.text : null);
+            // Frontend might send text as title and paragraphText as content
+            // As per QuestionEditor: textEn is Title, paragraphTextEn is Content.
+            // body.text is Title. pText should be Content.
+
+            // Insert into paragraphs
+            const newPara = await sql`
+                INSERT INTO paragraphs (text, content) 
+                VALUES (${JSON.stringify(text)}::jsonb, ${JSON.stringify(pText)}::jsonb) 
+                RETURNING id
+            `;
+            paragraphId = newPara[0].id;
         }
 
         const result = await sql`
             INSERT INTO questions (
                 type, text, options, correct_answer, explanation, 
-                marks, negative_marks, difficulty, image_url, "order", parent_id
+                marks, negative_marks, difficulty, image_url, "order", 
+                parent_id, paragraph_id
             ) VALUES (
                 ${type}, 
                 ${JSON.stringify(text)}::jsonb, 
@@ -228,7 +236,8 @@ export async function POST(req: NextRequest) {
                 ${difficulty || 1}, 
                 ${image_url || null}, 
                 ${order || 0}, 
-                NULL
+                NULL,
+                ${paragraphId}
             ) RETURNING id
         `;
 
