@@ -490,8 +490,10 @@ export default function ImportExamPage() {
                                         className="bg-white border-blue-200 text-sm rounded-md px-3 py-1.5 focus:border-blue-500 focus:ring-blue-500 text-gray-700"
                                     >
                                         <optgroup label="Google Gemini 2.0 (Preview)">
-                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (New & Fast)</option>
+                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Standard)</option>
+                                            <option value="gemini-2.0-flash-lite-preview-02-05">Gemini 2.0 Flash Lite (High Speed)</option>
                                             <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro (Experimental)</option>
+                                            <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking (Reasoning)</option>
                                         </optgroup>
                                         <optgroup label="Google Gemini 1.5 (Stable)">
                                             <option value="gemini-flash-latest">Gemini 1.5 Flash (Recommended)</option>
@@ -530,7 +532,9 @@ export default function ImportExamPage() {
                                     "OpenAI usage is billed. Check your meaningful credit balance." :
                                     (selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('meta-llama')) ?
                                         "Groq offers free tiers for Llama models. Check rate limits." :
-                                        "Tip: Gemini 1.5 Flash allows ~1,500 pages/day. Use Pro only for complex reasoning (50/day)."
+                                        selectedModel.includes('gemini-2.0') ?
+                                            "Gemini 2.0 models are currently free in public preview." :
+                                            "Tip: Gemini 1.5 Flash allows ~1,500 pages/day. Use Pro only for complex reasoning (50/day)."
                                 }
                             </div>
                         </div>
