@@ -92,11 +92,33 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
         }
     }, [currentQuestionIndex, currentQuestion]);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const handleTimeUp = useCallback(() => {
-        toast.error('Time is up! Submitting your exam...');
-        handleSubmit(true);
-    }, [handleSubmit]);
+    const handleSubmit = useCallback(async (isAutoSubmit = false) => {
+        setIsSubmitting(true);
+        try {
+            // Get latest responses from store to avoid stale closures
+            const { responses } = useExamStore.getState();
+
+            const response = await fetch(`/api/attempts/${attemptId}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    responses,
+                    autoSubmit: isAutoSubmit
+                }),
+            });
+
+            if (response.ok) {
+                clearExamState();
+                toast.success('Exam submitted successfully!');
+                router.push(`/student/results/${attemptId}`);
+            } else {
+                throw new Error('Failed to submit');
+            }
+        } catch (error) {
+            toast.error('Failed to submit exam. Please try again.');
+            setIsSubmitting(false);
+        }
+    }, [attemptId, clearExamState, router]);
 
     const handleQuestionClick = (index: number) => {
         const question = allQuestions[index];
@@ -130,33 +152,11 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
         }
     };
 
-    const handleSubmit = useCallback(async (isAutoSubmit = false) => {
-        setIsSubmitting(true);
-        try {
-            // Get latest responses from store to avoid stale closures
-            const { responses } = useExamStore.getState();
-
-            const response = await fetch(`/api/attempts/${attemptId}/submit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    responses,
-                    autoSubmit: isAutoSubmit
-                }),
-            });
-
-            if (response.ok) {
-                clearExamState();
-                toast.success('Exam submitted successfully!');
-                router.push(`/student/results/${attemptId}`);
-            } else {
-                throw new Error('Failed to submit');
-            }
-        } catch (error) {
-            toast.error('Failed to submit exam. Please try again.');
-            setIsSubmitting(false);
-        }
-    }, [attemptId, clearExamState, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const handleTimeUp = useCallback(() => {
+        toast.error('Time is up! Submitting your exam...');
+        handleSubmit(true);
+    }, [handleSubmit]);
 
     const getAnsweredCount = () => {
         return Object.values(responses).filter((r) => {
