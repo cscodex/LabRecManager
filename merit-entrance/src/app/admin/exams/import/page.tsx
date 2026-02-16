@@ -626,7 +626,7 @@ IMPORTANT:
                                                     ))}
                                                 </ul>
                                                 <p className="text-[10px] text-purple-600 mt-2 italic">
-                                                    These will be appended to the exam's existing instructions.
+                                                    These will be appended to the exam&apos;s existing instructions.
                                                 </p>
                                             </div>
                                         </div>

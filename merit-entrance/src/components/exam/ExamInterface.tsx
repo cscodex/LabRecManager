@@ -96,7 +96,7 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
     const handleTimeUp = useCallback(() => {
         toast.error('Time is up! Submitting your exam...');
         handleSubmit(true);
-    }, []);
+    }, [handleSubmit]);
 
     const handleQuestionClick = (index: number) => {
         const question = allQuestions[index];
@@ -130,9 +130,12 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
         }
     };
 
-    const handleSubmit = async (isAutoSubmit = false) => {
+    const handleSubmit = useCallback(async (isAutoSubmit = false) => {
         setIsSubmitting(true);
         try {
+            // Get latest responses from store to avoid stale closures
+            const { responses } = useExamStore.getState();
+
             const response = await fetch(`/api/attempts/${attemptId}/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -153,7 +156,7 @@ export default function ExamInterface({ exam, attemptId, initialTimeRemaining }:
             toast.error('Failed to submit exam. Please try again.');
             setIsSubmitting(false);
         }
-    };
+    }, [attemptId, clearExamState, router]);
 
     const getAnsweredCount = () => {
         return Object.values(responses).filter((r) => {
