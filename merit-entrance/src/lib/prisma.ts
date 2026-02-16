@@ -21,7 +21,13 @@ export function createSqlClient() {
 }
 
 const prismaClientSingleton = () => {
-    return new PrismaClient();
+    return new PrismaClient({
+        datasources: {
+            db: {
+                url: getConnectionString(),
+            },
+        },
+    });
 };
 
 declare global {
