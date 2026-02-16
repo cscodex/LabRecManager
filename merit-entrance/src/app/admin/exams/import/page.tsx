@@ -418,7 +418,11 @@ export default function ImportExamPage() {
             **FORMATTING RULES**:
             -   **Math/Science**: Convert ALL expressions to **LaTeX**.
             -   **Images**: Insert placeholder: \`[IMAGE]\`.
-            -   **Instructions**: Extract exam-level instructions.`}
+            -   **Instructions**: Extract exam-level instructions.
+
+            **PARAGRAPHS/COMPREHENSION / LINKED QUESTIONS**:
+            -   **Action**: Extract common text (passage, case study, problem statement) into \`paragraphs\` array.
+            -   **Linked Questions**: Treat follow-up parts (i, ii, iii) as separate questions linked to the paragraph via \`paragraphId\`.`}
                                             </div>
                                         </div>
 

@@ -265,10 +265,12 @@ export async function POST(req: NextRequest) {
                 -   Chemical: \\( H_2SO_4 \\)
             -   **Images**: If a question has a diagram/image, insert placeholder: \`[IMAGE]\` at the end of the text.
 
-            **PARAGRAPHS/COMPREHENSION**:
-            -   If a passage is provided for multiple questions:
-                -   Extract passage into \`paragraphs\` array (id, text).
-                -   Link questions to it via \`paragraphId\`.
+            **PARAGRAPHS/COMPREHENSION / LINKED QUESTIONS**:
+            -   **Definition**: Any content (passage, case study, common data problem) that applies to multiple questions.
+            -   **Action**: 
+                -   Extract the common text/data into the \`paragraphs\` array with a unique \`id\` (e.g., "p1").
+                -   **CRITICAL**: If a single problem statement has multiple follow-up parts (e.g., "(i), (ii), (iii)"), treat the main problem as a **Paragraph** and the parts as separate questions linked to it.
+                -   Link each follow-up question to the paragraph using \`paragraphId\`.
 
             RETURN JSON ONLY using this schema:
             {
