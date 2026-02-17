@@ -8,6 +8,9 @@ import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { MathText } from '@/components/MathText';
 import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+import RichTextEditor from '@/components/RichTextEditor';
 
 interface ExtractedQuestion {
     id: string;
@@ -24,7 +27,9 @@ interface ExtractedQuestion {
 
 interface ExtractedParagraph {
     id: string;
-    text: string;
+    title: string;
+    content: string;
+    text?: string;
 }
 
 interface ExamDetails {
@@ -126,7 +131,7 @@ export default function ImportExamPage() {
         console.log('Loading PDF preview...');
         try {
             const pdfjsLib = await import('pdfjs-dist');
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`;
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.mjs`;
 
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -366,14 +371,17 @@ export default function ImportExamPage() {
                 const paragraph = extractedParagraphs.find(p => p.id === q.paragraphId);
                 if (paragraph) {
                     renderedParagraphIds.add(q.paragraphId);
+                    const title = paragraph.title || paragraph.text || 'Untitled Passage';
+                    const content = paragraph.content || paragraph.text || '';
+
                     paragraphElement = (
-                        <div key={`para-${paragraph.id}-${idx}`} className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4 shadow-sm">
-                            <h4 className="font-semibold text-orange-900 text-sm mb-2 flex items-center gap-2">
-                                <FileText className="w-4 h-4" />
-                                Passage / Linked Content (ID: {paragraph.id})
+                        <div key={`para-${paragraph.id}-${idx}`} className="bg-orange-50 border border-orange-200 rounded-lg p-5 mb-4 shadow-sm">
+                            <h4 className="font-bold text-orange-900 text-base mb-3 flex items-center gap-2">
+                                <FileText className="w-5 h-5" />
+                                {title} <span className="text-xs font-normal opacity-70">(ID: {paragraph.id})</span>
                             </h4>
-                            <div className="text-sm text-gray-800 bg-white p-4 rounded border border-orange-100 leading-relaxed whitespace-pre-wrap font-serif">
-                                {paragraph.text}
+                            <div className="text-sm text-gray-800 bg-white p-4 rounded border border-orange-100 leading-relaxed font-serif">
+                                <MathText text={content} />
                             </div>
                         </div>
                     );
@@ -381,7 +389,7 @@ export default function ImportExamPage() {
             }
 
             return (
-                <div key={q.id || idx}>
+                <div key={q.id || idx} className={q.paragraphId ? "ml-6 border-l-4 border-orange-200 pl-4" : ""}>
                     {paragraphElement}
                     <div className={`border rounded-lg p-4 mb-6 transition-colors ${isSelected ? (isDuplicate ? 'border-yellow-500 bg-yellow-50/50' : 'border-blue-500 bg-blue-50/50') : 'border-gray-200 opacity-70'}`}>
                         <div className="flex justify-between mb-2">
@@ -441,19 +449,15 @@ export default function ImportExamPage() {
 
                         {/* Question Text Editor & Render */}
                         <div className="mb-3 space-y-2">
-                            <textarea
+                            <RichTextEditor
                                 value={q.text}
-                                onChange={(e) => {
+                                onChange={(val) => {
                                     const newQ = [...questions];
-                                    newQ[idx].text = e.target.value;
+                                    newQ[idx].text = val;
                                     setQuestions(newQ);
                                 }}
-                                className="w-full p-2 border rounded-lg text-sm min-h-[60px] font-mono text-xs text-gray-500 focus:text-gray-900 focus:font-sans transition-all"
-                                placeholder="Question text (LaTeX supported)..."
+                                placeholder="Question text (Supports HTML & LaTeX)..."
                             />
-                            <div className="p-3 bg-white border rounded-lg text-sm prose prose-sm max-w-none">
-                                <MathText text={q.text || 'Question Preview'} />
-                            </div>
                         </div>
 
                         <div className="space-y-2 pl-4 border-l-2 border-gray-100">
@@ -485,14 +489,16 @@ export default function ImportExamPage() {
                                                 {String.fromCharCode(65 + oIdx)}
                                             </button>
                                             <div className="flex-1">
-                                                <input
+                                                <textarea
                                                     value={opt}
                                                     onChange={(e) => {
                                                         const newQ = [...questions];
                                                         newQ[idx].options[oIdx] = e.target.value;
                                                         setQuestions(newQ);
                                                     }}
-                                                    className={`w-full px-2 py-1 border rounded text-sm mb-1 font-mono text-xs focus:text-gray-900 focus:font-sans transition-colors ${isCorrect ? 'border-green-200 bg-green-50/30' : 'border-gray-200 text-gray-500'}`}
+                                                    rows={2}
+                                                    className={`w-full px-3 py-2 border rounded text-sm mb-1 font-mono whitespace-pre-wrap focus:ring-2 focus:ring-blue-500 transition-colors ${isCorrect ? 'border-green-200 bg-green-50/30' : 'border-gray-200 text-gray-600'}`}
+                                                    placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
                                                 />
                                                 <div className="text-sm">
                                                     <MathText text={opt} inline />
@@ -542,15 +548,13 @@ export default function ImportExamPage() {
                         <div className="mt-4 grid grid-cols-1 gap-3">
                             <div>
                                 <label className="text-xs font-semibold text-gray-500 uppercase">Explanation</label>
-                                <textarea
+                                <RichTextEditor
                                     value={q.explanation || ''}
-                                    onChange={(e) => {
+                                    onChange={(val) => {
                                         const newQ = [...questions];
-                                        newQ[idx].explanation = e.target.value;
+                                        newQ[idx].explanation = val;
                                         setQuestions(newQ);
                                     }}
-                                    className="w-full mt-1 p-2 border rounded text-xs text-gray-600 focus:text-gray-900"
-                                    rows={2}
                                     placeholder="Explanation for the answer..."
                                 />
                             </div>

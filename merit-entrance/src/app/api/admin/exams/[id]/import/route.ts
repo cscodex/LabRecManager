@@ -51,19 +51,27 @@ export async function POST(
 
         // 1.5 Handle Paragraphs
         const paragraphMap = new Map<string, string>(); // tempId -> realDbId
+        const paraDetailsMap = new Map<string, any>();
+
         if (paragraphs && Array.isArray(paragraphs) && paragraphs.length > 0) {
             for (const p of paragraphs) {
-                if (!p.id || !p.text) continue;
+                if (!p.id) continue;
+                paraDetailsMap.set(p.id, p);
 
                 // Construct JSON content
+                const titleJson = JSON.stringify({
+                    en: (language === 'both' || language === 'en') ? (p.title || p.text || 'Untitled Passage') : '',
+                    pa: (language === 'both' || language === 'pa') ? (p.title || p.text || 'Untitled Passage') : ''
+                });
+
                 const contentJson = JSON.stringify({
-                    en: (language === 'both' || language === 'en') ? p.text : '',
-                    pa: (language === 'both' || language === 'pa') ? p.text : '' // Naive copy if both
+                    en: (language === 'both' || language === 'en') ? (p.content || '') : '',
+                    pa: (language === 'both' || language === 'pa') ? (p.content || '') : ''
                 });
 
                 const [inserted] = await sql`
-                    INSERT INTO paragraphs (text)
-                    VALUES (${contentJson}::jsonb)
+                    INSERT INTO paragraphs (text, content)
+                    VALUES (${titleJson}::jsonb, ${contentJson}::jsonb)
                     RETURNING id
                 `;
                 paragraphMap.set(p.id, inserted.id);
@@ -87,6 +95,9 @@ export async function POST(
             questionsBySection[q.section].push(q);
         }
 
+        // Map to store created Parent Questions for Paragraphs (tempParaId -> dbQuestionId)
+        const parentQuestionMap = new Map<string, string>();
+
         for (const sectionId of Object.keys(questionsBySection)) {
             const sectionQuestions = questionsBySection[sectionId];
 
@@ -98,97 +109,109 @@ export async function POST(
                 ORDER BY "order" DESC 
                 LIMIT 1
             `;
-            let currentOrder = lastQuestion.length > 0 ? lastQuestion[0].order : 0;
+            let currentOrder = (lastQuestion[0]?.order || 0) + 1;
 
-            // Map row number to created question ID
-            const rowToIdMap = new Map<number, string>();
-
-            // Sort by row
-            sectionQuestions.sort((a, b) => a.row - b.row);
+            // Sort by row if row numbers are present, otherwise trust array order
+            sectionQuestions.sort((a, b) => (a.row || 0) - (b.row || 0));
 
             for (const q of sectionQuestions) {
                 try {
-                    currentOrder++;
+                    let parentId = null;
+                    let paragraphId = null;
 
-                    // Parent ID logic
-                    let parentId: string | null = null;
-                    if (q.parentRow) {
-                        if (rowToIdMap.has(q.parentRow)) {
-                            parentId = rowToIdMap.get(q.parentRow)!;
+                    // Check if this question belongs to a paragraph
+                    if (q.paragraphId && paragraphMap.has(q.paragraphId)) {
+                        const realParaId = paragraphMap.get(q.paragraphId);
+
+                        // Check if we've already created a Parent Question for this paragraph
+                        if (parentQuestionMap.has(q.paragraphId)) {
+                            parentId = parentQuestionMap.get(q.paragraphId);
                         } else {
-                            throw new Error(`Parent question at row ${q.parentRow} not found (or failed to import).`);
+                            // Create the Parent Question (Type='paragraph')
+                            const pDetails = paraDetailsMap.get(q.paragraphId) || {};
+
+                            const parentTitle = JSON.stringify({
+                                en: (language === 'both' || language === 'en') ? (pDetails.title || pDetails.text || 'Passage') : '',
+                                pa: (language === 'both' || language === 'pa') ? (pDetails.title || pDetails.text || 'Passage') : ''
+                            });
+
+                            const [parentQ] = await sql`
+                                INSERT INTO questions (
+                                    section_id, type, "order", 
+                                    text, marks, difficulty, paragraph_id
+                                )
+                                VALUES (
+                                    ${sectionId}, 'paragraph', ${currentOrder},
+                                    ${parentTitle}::jsonb, 0, 1, ${realParaId}
+                                )
+                                RETURNING id
+                            `;
+
+                            parentId = parentQ.id;
+                            parentQuestionMap.set(q.paragraphId, parentQ.id);
+                            currentOrder++; // Increment for the parent question
+                        }
+                    } else if (q.type === 'paragraph') {
+                        // Legacy handling for direct paragraph type (if passed explicitly)
+                        if (q.paragraphId && paragraphMap.has(q.paragraphId)) {
+                            // If it already has a paragraph ID from the map, use it
+                            paragraphId = paragraphMap.get(q.paragraphId);
+                        } else {
+                            const pText = JSON.stringify({
+                                en: (language === 'both' || language === 'en') ? q.text : '',
+                                pa: (language === 'both' || language === 'pa') ? q.text : ''
+                            });
+                            const [pEntry] = await sql`
+                                 INSERT INTO paragraphs (text) VALUES (${pText}::jsonb) RETURNING id
+                            `;
+                            paragraphId = pEntry.id;
                         }
                     }
 
-                    // JSON fields
+                    // Prepare current question data
                     const textJson = JSON.stringify({
-                        en: (language === 'both' || language === 'en') ? q.textEn : '',
-                        pa: (language === 'both' || language === 'pa') ? q.textPa : ''
+                        en: (language === 'both' || language === 'en') ? q.text : '',
+                        pa: (language === 'both' || language === 'pa') ? q.text : ''
                     });
 
-                    const explanationJson = (q.explanationEn || q.explanationPa) ? JSON.stringify({
-                        en: (language === 'both' || language === 'en') ? q.explanationEn : '',
-                        pa: (language === 'both' || language === 'pa') ? q.explanationPa : ''
+                    const explanationJson = q.explanation ? JSON.stringify({
+                        en: (language === 'both' || language === 'en') ? q.explanation : '',
+                        pa: (language === 'both' || language === 'pa') ? q.explanation : ''
                     }) : null;
 
-                    // Handle Paragraph Linking
-                    let paragraphId: string | null = null;
-                    if (q.paragraphId && paragraphMap.has(q.paragraphId)) {
-                        paragraphId = paragraphMap.get(q.paragraphId)!;
-                    } else if (q.type === 'paragraph') {
-                        // Legacy/Direct Paragraph Type Handling
-                        const paragraphContent = JSON.stringify({
-                            en: (language === 'both' || language === 'en') ? q.textEn : '',
-                            pa: (language === 'both' || language === 'pa') ? q.textPa : ''
-                        });
-
-                        const [pEntry] = await sql`
-                            INSERT INTO paragraphs (text, content)
-                            VALUES (
-                                ${textJson}::jsonb,
-                                ${paragraphContent}::jsonb
-                            ) RETURNING id
-                        `;
-                        paragraphId = pEntry.id;
+                    // Handle Options
+                    let optionsJson = '[]';
+                    if ((q.type === 'mcq' || !q.type || q.type === 'mcq_multiple') && Array.isArray(q.options)) {
+                        const opts = q.options.map((opt: string, idx: number) => ({
+                            id: String.fromCharCode(97 + idx),
+                            textEn: (language === 'both' || language === 'en') ? opt : '',
+                            textPa: (language === 'both' || language === 'pa') ? opt : ''
+                        }));
+                        optionsJson = JSON.stringify(opts);
                     }
 
-                    // Handle Options (Construct JSON)
-                    let optionsJson = null;
-                    if (['mcq_single', 'mcq_multiple'].includes(q.type)) {
-                        const options = [
-                            { id: 'a', text: { en: q.optionAEn || '', pa: q.optionAPa || '' } },
-                            { id: 'b', text: { en: q.optionBEn || '', pa: q.optionBPa || '' } },
-                            { id: 'c', text: { en: q.optionCEn || '', pa: q.optionCPa || '' } },
-                            { id: 'd', text: { en: q.optionDEn || '', pa: q.optionDPa || '' } },
-                        ].filter(o => o.text.en || o.text.pa);
-
-                        if (options.length > 0) {
-                            optionsJson = JSON.stringify(options);
-                        }
-                    }
+                    // Map internal type 'mcq' to likely 'mcq_single' used by Editor
+                    let dbType = q.type || 'mcq_single';
+                    if (dbType === 'mcq') dbType = 'mcq_single';
 
                     // Insert Question
                     const [insertedQuestion] = await sql`
                         INSERT INTO questions (
-                            section_id, type, text, marks, negative_marks, "order", explanation, parent_id, paragraph_id, correct_answer, options
-                        ) VALUES (
-                            ${sectionId},
-                            ${q.type},
-                            ${textJson}::jsonb,
-                            ${q.marks},
-                            ${q.negativeMarks},
-                            ${currentOrder},
-                            ${explanationJson}::jsonb,
-                            ${parentId},
-                            ${paragraphId},
-                            ${q.correctAnswer ? JSON.stringify([q.correctAnswer]) : '[]'}::jsonb,
-                            ${optionsJson}::jsonb
+                            section_id, type, "order", text, 
+                            options, correct_answer, explanation, 
+                            marks, difficulty, parent_id, paragraph_id
+                        )
+                        VALUES (
+                            ${sectionId}, ${dbType}, ${currentOrder}, ${textJson}::jsonb,
+                            ${optionsJson}::jsonb, ${JSON.stringify(q.correctAnswer ? [q.correctAnswer] : [])}::jsonb, ${explanationJson}::jsonb,
+                            ${q.marks}, 1, ${parentId}, ${paragraphId}
                         )
                         RETURNING id
                     `;
 
                     const questionId = insertedQuestion.id;
-                    rowToIdMap.set(q.row, questionId);
+                    currentOrder++;
+                    importedCount++;
 
                     // Handle Tags
                     if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
@@ -197,7 +220,6 @@ export async function POST(
                             const cleanTagName = tagName.trim();
 
                             // Find or create tag
-                            // Note: We could optimize this by caching tags, but for import safely 1-by-1 is okay or valid
                             const existingTag = await sql`SELECT id FROM tags WHERE name = ${cleanTagName}`;
                             let tagId;
                             if (existingTag.length > 0) {
@@ -215,19 +237,19 @@ export async function POST(
                         }
                     }
 
-                    importedCount++;
                 } catch (err: any) {
-                    errors.push({ row: q.row, error: err.message });
+                    errors.push({ row: q.row || 0, error: err.message });
                 }
             }
         }
 
         return NextResponse.json({ success: true, imported: importedCount, errors });
+
     } catch (error: any) {
-        console.error('Master Import error details:', error);
-        return NextResponse.json({
-            error: error.message || 'Internal Server Error',
-            details: error.toString()
-        }, { status: 500 });
+        console.error('Import Error:', error);
+        return NextResponse.json(
+            { success: false, error: error.message || 'Failed to import exam.' },
+            { status: 500 }
+        );
     }
 }

@@ -12,6 +12,7 @@ import Image from 'next/image';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import 'react-quill-new/dist/quill.snow.css';
+import RichTextEditor from '@/components/RichTextEditor';
 
 export interface QuestionFormData {
     id?: string;
@@ -360,16 +361,18 @@ export default function QuestionEditor({
 
                             <div className="ml-10 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input
-                                        placeholder="Question Text (En)"
+                                    <textarea
+                                        placeholder="Question Text (En - supports HTML)"
                                         value={sq.textEn}
                                         onChange={e => updateParaSubQuestion(idx, { textEn: e.target.value })}
+                                        rows={2}
                                         className="w-full px-3 py-2 border rounded-lg"
                                     />
-                                    <input
-                                        placeholder="Question Text (Pa)"
+                                    <textarea
+                                        placeholder="Question Text (Pa - supports HTML)"
                                         value={sq.textPa}
                                         onChange={e => updateParaSubQuestion(idx, { textPa: e.target.value })}
+                                        rows={2}
                                         className="w-full px-3 py-2 border rounded-lg"
                                     />
                                 </div>
@@ -429,15 +432,17 @@ export default function QuestionEditor({
                                                 >
                                                     {sq.correctAnswer.includes(opt.id) && <CheckCircle className="w-3 h-3" />}
                                                 </button>
-                                                <input
+                                                <textarea
                                                     value={opt.textEn}
                                                     onChange={e => updateSubQuestionOption(idx, oIdx, { textEn: e.target.value })}
+                                                    rows={1}
                                                     className="flex-1 px-2 py-1 border rounded text-sm"
                                                     placeholder={`Option ${opt.id}`}
                                                 />
-                                                <input
+                                                <textarea
                                                     value={opt.textPa}
                                                     onChange={e => updateSubQuestionOption(idx, oIdx, { textPa: e.target.value })}
+                                                    rows={1}
                                                     className="flex-1 px-2 py-1 border rounded text-xs text-gray-500"
                                                     placeholder="Punjabi"
                                                 />
@@ -547,20 +552,18 @@ export default function QuestionEditor({
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium mb-1">Question Text (English)</label>
-                        <textarea
+                        <RichTextEditor
                             value={formData.textEn}
-                            onChange={e => setFormData({ ...formData, textEn: e.target.value })}
-                            rows={3}
-                            className="w-full px-3 py-2 border rounded-lg"
+                            onChange={(val) => setFormData({ ...formData, textEn: val })}
+                            placeholder="Enter question text (English)..."
                         />
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Question Text (Punjabi)</label>
-                        <textarea
+                        <RichTextEditor
                             value={formData.textPa}
-                            onChange={e => setFormData({ ...formData, textPa: e.target.value })}
-                            rows={3}
-                            className="w-full px-3 py-2 border rounded-lg"
+                            onChange={(val) => setFormData({ ...formData, textPa: val })}
+                            placeholder="Enter question text (Punjabi)..."
                         />
                     </div>
                     <div>
@@ -654,23 +657,25 @@ export default function QuestionEditor({
                                     <button onClick={() => removeOption(opt.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                                 <div className="flex-1 space-y-2">
-                                    <input
+                                    <textarea
                                         value={opt.textEn}
                                         onChange={e => {
                                             const newOpts = [...formData.options];
                                             newOpts[idx].textEn = e.target.value;
                                             setFormData({ ...formData, options: newOpts });
                                         }}
+                                        rows={2}
                                         className="w-full px-2 py-1 border rounded text-sm"
                                         placeholder={`Option ${opt.id.toUpperCase()}`}
                                     />
-                                    <input
+                                    <textarea
                                         value={opt.textPa}
                                         onChange={e => {
                                             const newOpts = [...formData.options];
                                             newOpts[idx].textPa = e.target.value;
                                             setFormData({ ...formData, options: newOpts });
                                         }}
+                                        rows={2}
                                         className="w-full px-2 py-1 border rounded text-xs text-gray-500"
                                         placeholder="Punjabi"
                                     />
@@ -708,20 +713,18 @@ export default function QuestionEditor({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium mb-1">Explanation (En)</label>
-                    <textarea
+                    <RichTextEditor
                         value={formData.explanationEn}
-                        onChange={e => setFormData({ ...formData, explanationEn: e.target.value })}
-                        rows={2}
-                        className="w-full px-3 py-2 border rounded-lg"
+                        onChange={(val) => setFormData({ ...formData, explanationEn: val })}
+                        placeholder="Explanation (English)..."
                     />
                 </div>
                 <div>
                     <label className="block text-sm font-medium mb-1">Explanation (Pa)</label>
-                    <textarea
+                    <RichTextEditor
                         value={formData.explanationPa}
-                        onChange={e => setFormData({ ...formData, explanationPa: e.target.value })}
-                        rows={2}
-                        className="w-full px-3 py-2 border rounded-lg"
+                        onChange={(val) => setFormData({ ...formData, explanationPa: val })}
+                        placeholder="Explanation (Punjabi)..."
                     />
                 </div>
             </div>

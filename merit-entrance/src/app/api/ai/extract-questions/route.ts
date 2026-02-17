@@ -256,7 +256,12 @@ export async function POST(req: NextRequest) {
                 -   **DEFAULT MARKS IF NOT FOUND**:
                     -   MCQ / True/False / Fill_Blank / One Word: **1 mark**
                     -   Short Answer: **3 marks**
+                    -   Short Answer: **3 marks**
                     -   Long Answer: **6 marks**
+            -   **tags**:
+                -   Extract relevant **Subjects**, **Topics**, or **Chapters** relative to the content (e.g., ["Physics", "Thermodynamics", "Heat"]).
+                -   Infer **Difficulty** if possible (["Easy"], ["Medium"], ["Hard"]).
+                -   Return as an array of strings.
 
             **FORMATTING RULES**:
             -   **Math/Science**: Convert ALL expressions (Math, Physics, Chemistry) to **LaTeX**.
@@ -264,18 +269,28 @@ export async function POST(req: NextRequest) {
                 -   Block: \\[ \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
                 -   Chemical: \\( H_2SO_4 \\)
             -   **Images**: If a question has a diagram/image, insert placeholder: \`[IMAGE]\` at the end of the text.
+            -   **Structural & Code Formatting**:
+                -   **Tables**: Detect any tabular data and convert it to valid HTML \`<table>\` structures with \`<thead>\`, \`<tbody>\`, \`<tr>\`, \`<th>\`, and \`<td>\`.
+                -   **Code Blocks**: Convert code snippets into \`<pre><code>...</code></pre>\` blocks. Preserve indentation and line breaks within these blocks.
+                -   **Line Breaks & Indentation**: 
+                    -   Use \`<br>\` for explicit line breaks in questions, options, answers, or explanations.
+                    -   Use \`&nbsp;\` or appropriate HTML entities for significant indentation in non-code text.
 
             **PARAGRAPHS/COMPREHENSION / LINKED QUESTIONS**:
             -   **Definition**: Any content (passage, case study, common data problem) that applies to multiple questions.
             -   **Action**: 
+                -   Extract **EVERY** passage found. **DO NOT SKIP ANY PARAGRAPHS.**
                 -   Extract the common text/data into the \`paragraphs\` array with a unique \`id\` (e.g., "p1").
+                -   **Title Extraction**: Extract the title if present. **If no title is provided, GENERATE a relevant, short title based on the content (e.g., 'Physics Problem', 'Comprehension Passage', 'Case Study').** put this in the \`title\` field.
+                -   **Content**: Put the main body text in the \`content\` field. Preserve all formatting.
+                -   **Formatting**: Use **HTML** tags for structural elements like tables (\`<table>\`), lists (\`<ul>\`, \`<ol>\`), and line breaks (\`<br>\`). Use LaTeX for Math.
                 -   **CRITICAL**: If a single problem statement has multiple follow-up parts (e.g., "(i), (ii), (iii)"), treat the main problem as a **Paragraph** and the parts as separate questions linked to it.
                 -   Link each follow-up question to the paragraph using \`paragraphId\`.
 
             RETURN JSON ONLY using this schema:
             {
               "instructions": ["Instruction 1"],
-              "paragraphs": [{ "id": "p1", "text": "Passage text..." }],
+              "paragraphs": [{ "id": "p1", "title": "Passage Title", "content": "Passage text..." }],
               "questions": [
                 {
                   "type": "mcq" | "fill_blank" | "short_answer" | "long_answer",
@@ -284,6 +299,9 @@ export async function POST(req: NextRequest) {
                   "correctAnswer": "A"Or "Model/Exact Answer",
                   "explanation": "Explanation...",
                   "marks": 1,
+                  "explanation": "Explanation...",
+                  "marks": 1,
+                  "tags": ["Topic", "Subtopic"],
                   "paragraphId": "p1" 
                 }
               ]
@@ -342,7 +360,14 @@ export async function POST(req: NextRequest) {
 
                 extractedQuestions.push(...questionsWithMeta);
                 extractedInstructions.push(...loadedInstructions);
-                extractedParagraphs.push(...loadedParagraphs);
+
+                // Map paragraphs to ensure consistent structure
+                const formattedParagraphs = loadedParagraphs.map((p: any) => ({
+                    id: p.id,
+                    title: p.title || p.text || 'Untitled Passage',
+                    content: p.content || p.text || ''
+                }));
+                extractedParagraphs.push(...formattedParagraphs);
 
             } catch (err: any) {
                 console.error(`Error processing page ${pageIndex} with provider ${provider}:`, err.message);
