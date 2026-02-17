@@ -7,7 +7,8 @@ import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, getText } from '@/lib/utils';
 import {
     BookOpen, Plus, Edit, Trash2, Eye, Users,
-    Clock, FileText, ChevronLeft, MoreVertical
+    Clock, FileText, ChevronLeft, MoreVertical,
+    Search, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,6 +23,7 @@ interface Exam {
     section_count: number;
     question_count: number;
     assigned_count: number;
+    updated_at: string;
 }
 
 export default function AdminExamsPage() {
@@ -30,6 +32,11 @@ export default function AdminExamsPage() {
     const [exams, setExams] = useState<Exam[]>([]);
     const [loading, setLoading] = useState(true);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+    // Filter & Pagination State
+    const [search, setSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 12;
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -82,6 +89,18 @@ export default function AdminExamsPage() {
         );
     };
 
+    // Filter Logic
+    const filteredExams = exams.filter(exam =>
+        getText(exam.title, language).toLowerCase().includes(search.toLowerCase())
+    );
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredExams.length / itemsPerPage);
+    const paginatedExams = filteredExams.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     if (!_hasHydrated || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -123,105 +142,158 @@ export default function AdminExamsPage() {
                 </div>
             </header>
 
+            {/* Search & Filters */}
+            <div className="max-w-7xl mx-auto px-4 py-4">
+                <div className="relative">
+                    <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                        placeholder="Search exams by title..."
+                        className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+            </div>
+
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 py-6">
-                {exams.length === 0 ? (
+                {filteredExams.length === 0 ? (
                     <div className="bg-white rounded-xl p-12 text-center">
                         <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-4">No exams created yet.</p>
-                        <Link
-                            href="/admin/exams/create"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Create First Exam
-                        </Link>
+                        <p className="text-gray-500 mb-4">
+                            {search ? 'No exams found matching your search.' : 'No exams created yet.'}
+                        </p>
+                        {!search && (
+                            <Link
+                                href="/admin/exams/create"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Create First Exam
+                            </Link>
+                        )}
                     </div>
                 ) : (
-                    <div className="grid gap-4">
-                        {exams.map((exam) => (
-                            <div
-                                key={exam.id}
-                                className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition"
-                            >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="text-lg font-semibold text-gray-900">
-                                                {getText(exam.title, language)}
-                                            </h3>
-                                            {getStatusBadge(exam.status)}
+                    <>
+                        <div className="grid gap-4">
+                            {paginatedExams.map((exam) => (
+                                <div
+                                    key={exam.id}
+                                    className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <h3 className="text-lg font-semibold text-gray-900">
+                                                    {getText(exam.title, language)}
+                                                </h3>
+                                                {getStatusBadge(exam.status)}
+                                            </div>
+
+                                            {exam.description && (
+                                                <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+                                                    {getText(exam.description, language)}
+                                                </p>
+                                            )}
+
+                                            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="w-4 h-4" />
+                                                    {exam.duration} mins
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <FileText className="w-4 h-4" />
+                                                    {exam.section_count} sections, {exam.question_count} questions
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <Users className="w-4 h-4" />
+                                                    {exam.assigned_count} students assigned
+                                                </span>
+                                                <span>Total: {exam.total_marks} marks</span>
+                                            </div>
                                         </div>
 
-                                        {exam.description && (
-                                            <p className="text-sm text-gray-500 mb-3 line-clamp-2">
-                                                {getText(exam.description, language)}
-                                            </p>
-                                        )}
-
-                                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                                            <span className="flex items-center gap-1">
-                                                <Clock className="w-4 h-4" />
-                                                {exam.duration} mins
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <FileText className="w-4 h-4" />
-                                                {exam.section_count} sections, {exam.question_count} questions
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <Users className="w-4 h-4" />
-                                                {exam.assigned_count} students assigned
-                                            </span>
-                                            <span>Total: {exam.total_marks} marks</span>
+                                        <div className="flex items-center gap-2 ml-4">
+                                            <Link
+                                                href={`/admin/exams/${exam.id}`}
+                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                                title="View/Edit"
+                                            >
+                                                <Edit className="w-5 h-5" />
+                                            </Link>
+                                            <Link
+                                                href={`/admin/exams/${exam.id}/view`}
+                                                className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
+                                                title="View Exam"
+                                            >
+                                                <Eye className="w-5 h-5" />
+                                            </Link>
+                                            <button
+                                                onClick={() => setDeleteConfirm(exam.id)}
+                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-2 ml-4">
-                                        <Link
-                                            href={`/admin/exams/${exam.id}`}
-                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                            title="View/Edit"
-                                        >
-                                            <Edit className="w-5 h-5" />
-                                        </Link>
-                                        <Link
-                                            href={`/admin/exams/${exam.id}/view`}
-                                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
-                                            title="View Exam"
-                                        >
-                                            <Eye className="w-5 h-5" />
-                                        </Link>
-                                        <button
-                                            onClick={() => setDeleteConfirm(exam.id)}
-                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                            title="Delete"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
+                                    <div className="mt-4 pt-4 border-t flex items-center justify-between text-xs text-gray-400">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span>Created: {formatDateTimeIST(exam.created_at)}</span>
+                                            {exam.updated_at && (
+                                                <span>Updated: {formatDateTimeIST(exam.updated_at)}</span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Link
+                                                href={`/admin/exams/${exam.id}/assign`}
+                                                className="text-blue-600 hover:underline"
+                                            >
+                                                Assign Students
+                                            </Link>
+                                            <span className="text-gray-300">|</span>
+                                            <Link
+                                                href={`/admin/exams/${exam.id}/monitor`}
+                                                className="text-green-600 hover:underline"
+                                            >
+                                                Live Monitor
+                                            </Link>
+                                        </div>
                                     </div>
                                 </div>
+                            ))}
+                        </div>
 
-                                <div className="mt-4 pt-4 border-t flex items-center justify-between text-xs text-gray-400">
-                                    <span>Created: {formatDateTimeIST(exam.created_at)}</span>
-                                    <div className="flex gap-2">
-                                        <Link
-                                            href={`/admin/exams/${exam.id}/assign`}
-                                            className="text-blue-600 hover:underline"
-                                        >
-                                            Assign Students
-                                        </Link>
-                                        <span className="text-gray-300">|</span>
-                                        <Link
-                                            href={`/admin/exams/${exam.id}/monitor`}
-                                            className="text-green-600 hover:underline"
-                                        >
-                                            Live Monitor
-                                        </Link>
-                                    </div>
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="mt-6 flex items-center justify-between border-t pt-4">
+                                <div className="text-sm text-gray-500">
+                                    Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredExams.length)}</span> of <span className="font-medium">{filteredExams.length}</span> exams
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="p-2 border rounded-lg hover:bg-white disabled:opacity-50 disabled:hover:bg-transparent"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <span className="text-sm font-medium px-2">
+                                        Page {currentPage} of {totalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="p-2 border rounded-lg hover:bg-white disabled:opacity-50 disabled:hover:bg-transparent"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </main>
 

@@ -335,6 +335,7 @@ export default function ManageStudentsPage() {
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Roll No</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class/School</th>
 
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -361,6 +362,10 @@ export default function ManageStudentsPage() {
                                                         <p className="text-sm text-gray-500 font-regional">{student.name_regional}</p>
                                                     )}
                                                 </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm">
+                                                <div className="text-gray-900">{student.email || '-'}</div>
+                                                <div className="text-gray-500 text-xs">{student.phone || ''}</div>
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 <div className="text-gray-900">{student.class || '-'}</div>

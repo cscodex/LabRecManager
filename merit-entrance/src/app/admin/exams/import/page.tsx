@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { Upload, FileText, Check, Loader2, ChevronRight, ChevronLeft, Save, AlertCircle, X, Plus, Eye } from 'lucide-react';
+import { Upload, FileText, Check, Loader2, ChevronRight, ChevronLeft, Save, AlertCircle, X, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { MathText } from '@/components/MathText';
@@ -66,6 +66,9 @@ export default function ImportExamPage() {
     const [sections, setSections] = useState<any[]>([]);
     const [selectedSectionId, setSelectedSectionId] = useState<string>('');
     const [selectedModel, setSelectedModel] = useState<string>('gemini-flash-latest');
+    const [processingStatus, setProcessingStatus] = useState('Initializing...');
+    const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Auth check
     useEffect(() => {
@@ -178,6 +181,7 @@ export default function ImportExamPage() {
         // Proceed to processing step (visual mostly, as we already have images)
         setStep('processing');
         setProgress(0);
+        setProcessingStatus('Preparing images for analysis...');
         // Simulate "processing" then send to AI
         setTimeout(() => {
             analyzeWithAI(selectedImages);
@@ -206,11 +210,14 @@ export default function ImportExamPage() {
                 const batchImages = allImages.slice(start, end);
 
                 // Update progress to show which batch is processing
+
                 const currentProgress = Math.round((i / totalBatches) * 100);
                 setProgress(currentProgress);
                 const batchStart = start + 1;
                 const batchEnd = Math.min(end, allImages.length);
-                toast.loading(`Processing Pages ${batchStart}-${batchEnd} of ${allImages.length}...`, { id: 'batch-toast' });
+                const statusMsg = `Analyzing Batch ${i + 1}/${totalBatches} (Pages ${batchStart}-${batchEnd})...`;
+                setProcessingStatus(statusMsg);
+                // toast.loading(statusMsg, { id: 'batch-toast' }); // Redundant with status text
 
                 const response = await fetch('/api/ai/extract-questions', {
                     method: 'POST',
@@ -237,6 +244,7 @@ export default function ImportExamPage() {
             }
 
             toast.dismiss('batch-toast');
+            setProcessingStatus('Finalizing extraction...');
             setProgress(100);
 
             if (allQuestions.length > 0) {
@@ -271,6 +279,7 @@ export default function ImportExamPage() {
         } finally {
             setIsAnalyzing(false);
             setProgress(0);
+            setProcessingStatus('Idle');
         }
     };
 
@@ -305,6 +314,7 @@ export default function ImportExamPage() {
         }
 
         try {
+            setIsSaving(true);
             const loadingToast = toast.loading(importMode === 'new' ? 'Creating exam...' : 'Adding questions...');
 
             const payload = {
@@ -351,6 +361,8 @@ export default function ImportExamPage() {
             }
         } catch (error) {
             toast.error('An error occurred while saving');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -365,6 +377,7 @@ export default function ImportExamPage() {
         return questions.map((q, idx) => {
             const isSelected = selectedQuestionIndices.includes(idx);
             const isDuplicate = duplicateIndices.includes(idx);
+            const isEditing = editingQuestionIndex === idx;
 
             let paragraphElement = null;
             if (q.paragraphId && !renderedParagraphIds.has(q.paragraphId)) {
@@ -447,133 +460,205 @@ export default function ImportExamPage() {
                             </div>
                         </div>
 
-                        {/* Question Text Editor & Render */}
-                        <div className="mb-3 space-y-2">
-                            <RichTextEditor
-                                value={q.text}
-                                onChange={(val) => {
-                                    const newQ = [...questions];
-                                    newQ[idx].text = val;
-                                    setQuestions(newQ);
-                                }}
-                                placeholder="Question text (Supports HTML & LaTeX)..."
-                            />
-                        </div>
 
-                        <div className="space-y-2 pl-4 border-l-2 border-gray-100">
-                            {/* Question Type Badge */}
-                            <div className="mb-2">
-                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${!q.type || q.type === 'mcq' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                    q.type === 'fill_blank' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                        'bg-orange-100 text-orange-700 border-orange-200'
-                                    }`}>
-                                    {!q.type || q.type === 'mcq' ? 'Multiple Choice' : q.type === 'fill_blank' ? 'Fill in Blank' : q.type === 'short_answer' ? 'Short Answer' : 'Long Answer'}
-                                </span>
-                            </div>
 
-                            {/* Logic for Different Types */}
-                            {(!q.type || q.type === 'mcq') ? (
-                                q.options.map((opt, oIdx) => {
-                                    const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
-                                    return (
-                                        <div key={oIdx} className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    const newQ = [...questions];
-                                                    newQ[idx].correctAnswer = String.fromCharCode(65 + oIdx);
-                                                    setQuestions(newQ);
-                                                }}
-                                                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCorrect ? 'bg-green-500 text-white shadow-md scale-110' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                                                title="Mark as correct"
-                                            >
-                                                {String.fromCharCode(65 + oIdx)}
-                                            </button>
-                                            <div className="flex-1">
-                                                <textarea
-                                                    value={opt}
-                                                    onChange={(e) => {
-                                                        const newQ = [...questions];
-                                                        newQ[idx].options[oIdx] = e.target.value;
-                                                        setQuestions(newQ);
-                                                    }}
-                                                    rows={2}
-                                                    className={`w-full px-3 py-2 border rounded text-sm mb-1 font-mono whitespace-pre-wrap focus:ring-2 focus:ring-blue-500 transition-colors ${isCorrect ? 'border-green-200 bg-green-50/30' : 'border-gray-200 text-gray-600'}`}
-                                                    placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
-                                                />
-                                                <div className="text-sm">
-                                                    <MathText text={opt} inline />
+                        {/* Question Content - Read vs Edit Mode */}
+                        {
+                            isEditing ? (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                    {/* Question Text Editor */}
+                                    <div>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Question Text</label>
+                                        <RichTextEditor
+                                            value={q.text}
+                                            onChange={(val) => {
+                                                const newQ = [...questions];
+                                                newQ[idx].text = val;
+                                                setQuestions(newQ);
+                                            }}
+                                            placeholder="Question text (Supports HTML & LaTeX)..."
+                                        />
+                                    </div>
+
+                                    <div className="space-y-3 pl-4 border-l-2 border-gray-100">
+                                        {/* Question Type Badge */}
+                                        <div className="mb-2">
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${!q.type || q.type === 'mcq' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                                q.type === 'fill_blank' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                    'bg-orange-100 text-orange-700 border-orange-200'
+                                                }`}>
+                                                {!q.type || q.type === 'mcq' ? 'Multiple Choice' : q.type === 'fill_blank' ? 'Fill in Blank' : q.type === 'short_answer' ? 'Short Answer' : 'Long Answer'}
+                                            </span>
+                                        </div>
+
+                                        {/* Logic for Different Types */}
+                                        {(!q.type || q.type === 'mcq') ? (
+                                            q.options.map((opt, oIdx) => {
+                                                const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
+                                                return (
+                                                    <div key={oIdx} className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                const newQ = [...questions];
+                                                                newQ[idx].correctAnswer = String.fromCharCode(65 + oIdx);
+                                                                setQuestions(newQ);
+                                                            }}
+                                                            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCorrect ? 'bg-green-500 text-white shadow-md scale-110' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                                                            title="Mark as correct"
+                                                        >
+                                                            {String.fromCharCode(65 + oIdx)}
+                                                        </button>
+                                                        <div className="flex-1">
+                                                            <textarea
+                                                                value={opt}
+                                                                onChange={(e) => {
+                                                                    const newQ = [...questions];
+                                                                    newQ[idx].options[oIdx] = e.target.value;
+                                                                    setQuestions(newQ);
+                                                                }}
+                                                                rows={2}
+                                                                className={`w-full px-3 py-2 border rounded text-sm mb-1 font-mono whitespace-pre-wrap focus:ring-2 focus:ring-blue-500 transition-colors ${isCorrect ? 'border-green-200 bg-green-50/30' : 'border-gray-200 text-gray-600'}`}
+                                                                placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                            />
+                                                            <div className="text-sm">
+                                                                <MathText text={opt} inline />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            // Non-MCQ Types - Rich Text for Model Answer
+                                            <div className="mt-2">
+                                                <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">
+                                                    {q.type === 'fill_blank' ? 'Correct Answer (Exact Text)' : 'Model Answer / Key Points'}
+                                                </label>
+                                                {q.type === 'fill_blank' ? (
+                                                    <input
+                                                        value={q.correctAnswer}
+                                                        onChange={(e) => {
+                                                            const newQ = [...questions];
+                                                            newQ[idx].correctAnswer = e.target.value;
+                                                            setQuestions(newQ);
+                                                        }}
+                                                        className="w-full px-3 py-2 border rounded-lg text-sm bg-green-50/30 border-green-200 focus:border-green-500 font-medium text-green-800"
+                                                        placeholder="Enter the correct answer..."
+                                                    />
+                                                ) : (
+                                                    <RichTextEditor
+                                                        value={q.correctAnswer || ''}
+                                                        onChange={(val) => {
+                                                            const newQ = [...questions];
+                                                            newQ[idx].correctAnswer = val;
+                                                            setQuestions(newQ);
+                                                        }}
+                                                        placeholder="Enter model answer or key points for grading..."
+                                                    />
+                                                )}
+                                                <div className="text-[10px] text-gray-400 mt-1">
+                                                    {q.type === 'fill_blank' ? 'This text will be used for exact matching.' : 'AI will use this model answer to grade student responses.'}
                                                 </div>
                                             </div>
+                                        )}
+                                    </div>
+
+                                    {/* Explanation and Tags */}
+                                    <div className="mt-4 grid grid-cols-1 gap-3">
+                                        <div>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase">Explanation</label>
+                                            <RichTextEditor
+                                                value={q.explanation || ''}
+                                                onChange={(val) => {
+                                                    const newQ = [...questions];
+                                                    newQ[idx].explanation = val;
+                                                    setQuestions(newQ);
+                                                }}
+                                                placeholder="Explanation for the answer..."
+                                            />
                                         </div>
-                                    );
-                                })
-                            ) : (
-                                // Non-MCQ Types
-                                <div className="mt-2">
-                                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">
-                                        {q.type === 'fill_blank' ? 'Correct Answer (Exact Text)' : 'Model Answer / Key Points'}
-                                    </label>
-                                    {q.type === 'fill_blank' ? (
-                                        <input
-                                            value={q.correctAnswer}
-                                            onChange={(e) => {
-                                                const newQ = [...questions];
-                                                newQ[idx].correctAnswer = e.target.value;
-                                                setQuestions(newQ);
-                                            }}
-                                            className="w-full px-3 py-2 border rounded-lg text-sm bg-green-50/30 border-green-200 focus:border-green-500 font-medium text-green-800"
-                                            placeholder="Enter the correct answer..."
-                                        />
-                                    ) : (
-                                        <textarea
-                                            value={q.correctAnswer}
-                                            onChange={(e) => {
-                                                const newQ = [...questions];
-                                                newQ[idx].correctAnswer = e.target.value;
-                                                setQuestions(newQ);
-                                            }}
-                                            rows={3}
-                                            className="w-full p-2 border rounded-lg text-sm bg-orange-50/30 border-orange-200 focus:border-orange-500 text-gray-800"
-                                            placeholder="Enter model answer or key points for grading..."
-                                        />
-                                    )}
-                                    <div className="text-[10px] text-gray-400 mt-1">
-                                        {q.type === 'fill_blank' ? 'This text will be used for exact matching.' : 'AI will use this model answer to grade student responses.'}
+                                        <div>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase">Tags</label>
+                                            <input
+                                                value={q.tags?.join(', ') || ''}
+                                                onChange={(e) => {
+                                                    const newQ = [...questions];
+                                                    newQ[idx].tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
+                                                    setQuestions(newQ);
+                                                }}
+                                                className="w-full mt-1 px-2 py-1.5 border rounded text-xs text-gray-600 focus:text-gray-900"
+                                                placeholder="e.g. Algebra, Calculus (comma separated)"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-2 border-t mt-4">
+                                        <button
+                                            onClick={() => setEditingQuestionIndex(null)}
+                                            className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
+                                        >
+                                            <Check className="w-3 h-3" /> Done Editing
+                                        </button>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                            ) : (
+                                // Read-Only Preview Mode
+                                <div className="group relative">
+                                    <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white shadow-sm border rounded-lg p-1 flex gap-1 z-10">
+                                        <button
+                                            onClick={() => setEditingQuestionIndex(idx)}
+                                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                            title="Edit Question"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
 
-                        {/* Explanation and Tags */}
-                        <div className="mt-4 grid grid-cols-1 gap-3">
-                            <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase">Explanation</label>
-                                <RichTextEditor
-                                    value={q.explanation || ''}
-                                    onChange={(val) => {
-                                        const newQ = [...questions];
-                                        newQ[idx].explanation = val;
-                                        setQuestions(newQ);
-                                    }}
-                                    placeholder="Explanation for the answer..."
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-gray-500 uppercase">Tags</label>
-                                <input
-                                    value={q.tags?.join(', ') || ''}
-                                    onChange={(e) => {
-                                        const newQ = [...questions];
-                                        newQ[idx].tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
-                                        setQuestions(newQ);
-                                    }}
-                                    className="w-full mt-1 px-2 py-1.5 border rounded text-xs text-gray-600 focus:text-gray-900"
-                                    placeholder="e.g. Algebra, Calculus (comma separated)"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                                    <div className="mb-3">
+                                        <div className="text-sm font-medium text-gray-900 bg-gray-50/50 p-2 rounded">
+                                            <MathText text={q.text} />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {(!q.type || q.type === 'mcq') ? (
+                                            <div className="grid grid-cols-1 gap-1">
+                                                {q.options.map((opt, oIdx) => {
+                                                    const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
+                                                    return (
+                                                        <div key={oIdx} className={`flex items-start gap-2 text-xs p-1.5 rounded ${isCorrect ? 'bg-green-50 border border-green-100' : 'hover:bg-gray-50'}`}>
+                                                            <span className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full font-bold ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                                                {String.fromCharCode(65 + oIdx)}
+                                                            </span>
+                                                            <div className="pt-0.5">
+                                                                <MathText text={opt} inline />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs">
+                                                <span className="font-semibold text-gray-500 uppercase">Correct Answer:</span>
+                                                <div className="mt-1 p-2 bg-green-50 border border-green-100 rounded text-green-900">
+                                                    <MathText text={q.correctAnswer} />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {q.explanation && (
+                                            <div className="text-xs pt-2 border-t border-gray-100">
+                                                <span className="font-semibold text-gray-500 uppercase">Explanation:</span>
+                                                <div className="mt-1 text-gray-600">
+                                                    <MathText text={q.explanation} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        }
+                    </div >
+                </div >
             );
         });
     };
@@ -814,52 +899,54 @@ export default function ImportExamPage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-20">
-                                {pdfPages.map((img, idx) => {
-                                    const isSelected = selectedPageIndices.includes(idx);
-                                    return (
-                                        <div
-                                            key={idx}
-                                            className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-200 ${isSelected ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-gray-200 hover:border-gray-300'}`}
-                                        >
+                            <div className="h-[60vh] overflow-y-auto border rounded-xl p-4 bg-gray-50">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-20">
+                                    {pdfPages.map((img, idx) => {
+                                        const isSelected = selectedPageIndices.includes(idx);
+                                        return (
                                             <div
-                                                className="aspect-[3/4] bg-gray-100 relative cursor-pointer"
-                                                onClick={() => {
-                                                    setSelectedPageIndices(prev =>
-                                                        isSelected ? prev.filter(i => i !== idx) : [...prev, idx]
-                                                    );
-                                                }}
+                                                key={idx}
+                                                className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-200 ${isSelected ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-gray-200 hover:border-gray-300'}`}
                                             >
-                                                <img src={img} alt={`Page ${idx + 1}`} className="w-full h-full object-contain" />
+                                                <div
+                                                    className="aspect-[3/4] bg-gray-100 relative cursor-pointer"
+                                                    onClick={() => {
+                                                        setSelectedPageIndices(prev =>
+                                                            isSelected ? prev.filter(i => i !== idx) : [...prev, idx]
+                                                        );
+                                                    }}
+                                                >
+                                                    <img src={img} alt={`Page ${idx + 1}`} className="w-full h-full object-contain" />
 
-                                                {/* Overlay */}
-                                                <div className={`absolute inset-0 bg-blue-600/10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
+                                                    {/* Overlay */}
+                                                    <div className={`absolute inset-0 bg-blue-600/10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
 
-                                                {/* Checkbox */}
-                                                <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
-                                                    {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                                    {/* Checkbox */}
+                                                    <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
+                                                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                                    </div>
+
+                                                    {/* Page Number */}
+                                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                                                        Page {idx + 1}
+                                                    </div>
                                                 </div>
 
-                                                {/* Page Number */}
-                                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                                                    Page {idx + 1}
-                                                </div>
+                                                {/* Eye Icon for Preview */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setPreviewPage(img);
+                                                    }}
+                                                    className="absolute bottom-2 right-2 p-1.5 bg-white text-gray-600 rounded-full shadow hover:bg-blue-50 hover:text-blue-600 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                                    title="View Enlarged"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
                                             </div>
-
-                                            {/* Eye Icon for Preview */}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setPreviewPage(img);
-                                                }}
-                                                className="absolute bottom-2 right-2 p-1.5 bg-white text-gray-600 rounded-full shadow hover:bg-blue-50 hover:text-blue-600 transition-colors z-10 opacity-0 group-hover:opacity-100"
-                                                title="View Enlarged"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     )
@@ -880,7 +967,8 @@ export default function ImportExamPage() {
                             <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
                                 <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
                             </div>
-                            <p className="text-sm text-gray-500">{progress}% Complete</p>
+                            <p className="text-sm text-gray-500 mt-2 font-medium">{processingStatus}</p>
+                            <p className="text-xs text-gray-400 mt-1">{progress}% Complete</p>
                         </div>
                     )
                 }
@@ -1089,6 +1177,25 @@ export default function ImportExamPage() {
                     </div>
                 )
             }
+
+            {/* Blocking Import Overlay */}
+            {isSaving && (
+                <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl p-8 flex flex-col items-center max-w-sm w-full animate-in zoom-in-95 duration-300">
+                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 relative">
+                            <Loader2 className="w-8 h-8 animate-spin" />
+                            <div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-ping opacity-20"></div>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Importing Questions...</h3>
+                        <p className="text-gray-500 text-center text-sm mb-6">
+                            Please wait while we save the exam and questions to the database. Do not close this window.
+                        </p>
+                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div className="h-full bg-blue-600 animate-progress-indeterminate"></div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }
