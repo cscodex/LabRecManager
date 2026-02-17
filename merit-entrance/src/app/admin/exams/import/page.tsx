@@ -325,7 +325,23 @@ export default function ImportExamPage() {
                         type: q.type || 'mcq', // Default to mcq
                         text: q.text,
                         options: q.options,
-                        correctAnswer: q.correctAnswer,
+                        correctAnswer: (() => {
+                            // Normalize correctAnswer to ID (A, B, C...)
+                            if (!q.options || q.options.length === 0) return q.correctAnswer;
+
+                            // Check if it's already an ID/Index like 'A' or 'B'
+                            if (/^[A-Z]$/.test(q.correctAnswer) && q.correctAnswer.charCodeAt(0) - 65 < q.options.length) {
+                                return q.correctAnswer;
+                            }
+
+                            // Check if it matches an option text
+                            const idx = q.options.findIndex(opt => opt === q.correctAnswer);
+                            if (idx !== -1) {
+                                return String.fromCharCode(65 + idx);
+                            }
+
+                            return q.correctAnswer;
+                        })(),
                         marks: q.marks,
                         explanation: q.explanation,
                         tags: q.tags // Add tags

@@ -98,7 +98,18 @@ export default function QuestionEditor({
         subQuestions: []
     });
 
-    const [formData, setFormData] = useState<QuestionFormData>(initialData || createEmptyQuestion());
+    const [formData, setFormData] = useState<QuestionFormData>(() => {
+        const data = initialData ? { ...initialData } : createEmptyQuestion();
+        // Ensure correctAnswer is always an array
+        if (!Array.isArray(data.correctAnswer)) {
+            if (typeof data.correctAnswer === 'string') {
+                data.correctAnswer = [data.correctAnswer];
+            } else {
+                data.correctAnswer = [];
+            }
+        }
+        return data;
+    });
     const [uploading, setUploading] = useState(false);
 
     // For Paragraph Mode
