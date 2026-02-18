@@ -13,6 +13,7 @@ import Image from 'next/image';
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import 'react-quill-new/dist/quill.snow.css';
 import RichTextEditor from '@/components/RichTextEditor';
+import AIExtractionModal from './AIExtractionModal';
 
 export interface QuestionFormData {
     id?: string;
@@ -111,6 +112,7 @@ export default function QuestionEditor({
         return data;
     });
     const [uploading, setUploading] = useState(false);
+    const [showAIModal, setShowAIModal] = useState(false);
 
     // For Paragraph Mode
     const [isParaMode, setIsParaMode] = useState(initialData?.type === 'paragraph');
@@ -539,6 +541,14 @@ export default function QuestionEditor({
                     {initialData?.id ? 'Edit Question' : 'New Question'}
                 </h2>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowAIModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg hover:opacity-90 transition-all text-sm font-medium shadow-sm border border-indigo-500/20"
+                    >
+                        <ImageIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline">Extract from Image</span>
+                    </button>
+                    <div className="h-6 w-px bg-gray-200 mx-1"></div>
                     <select
                         value={formData.type}
                         onChange={e => {
@@ -746,6 +756,20 @@ export default function QuestionEditor({
                     {isSaving ? 'Saving...' : 'Save Question'}
                 </button>
             </div>
+
+            {/* AI Extraction Modal */}
+            <AIExtractionModal
+                isOpen={showAIModal}
+                onClose={() => setShowAIModal(false)}
+                onExtract={(data) => {
+                    setFormData(prev => ({
+                        ...prev,
+                        ...data,
+                        subQuestions: data.type === 'paragraph' ? (data.subQuestions || []) : (prev.subQuestions || []),
+                    }));
+                    toast.success('Question populated from AI!');
+                }}
+            />
         </div>
     );
 }
