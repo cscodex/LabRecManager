@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { mode, questions } = body;
+        const { mode, questions, instructions } = body;
 
         if (!questions || !Array.isArray(questions)) {
             return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -28,11 +28,36 @@ export async function POST(req: NextRequest) {
             }
             targetExamId = examId;
             targetSectionId = sectionId;
+
+            // Append instructions to existing exam if provided
+            if (instructions && Array.isArray(instructions) && instructions.length > 0) {
+                const instructionsHtml = instructions.map((inst: string) => `<li>${inst}</li>`).join('');
+                const instructionsContent = `<ul>${instructionsHtml}</ul>`;
+                // Append to existing instructions
+                await sql`
+                    UPDATE exams 
+                    SET instructions = jsonb_set(
+                        COALESCE(instructions, '{}'::jsonb),
+                        '{en}',
+                        to_jsonb(COALESCE(instructions->>'en', '') || ${instructionsContent})
+                    ),
+                    updated_at = NOW()
+                    WHERE id = ${targetExamId}
+                `;
+            }
         } else {
             // Default to 'new'
             const { title, duration, totalMarks } = body;
             if (!title) {
                 return NextResponse.json({ error: 'Missing exam title' }, { status: 400 });
+            }
+
+            // Build instructions HTML
+            let instructionsJsonb = '{}';
+            if (instructions && Array.isArray(instructions) && instructions.length > 0) {
+                const instructionsHtml = instructions.map((inst: string) => `<li>${inst}</li>`).join('');
+                const instructionsContent = `<ul>${instructionsHtml}</ul>`;
+                instructionsJsonb = JSON.stringify({ en: instructionsContent });
             }
 
             // 1. Create Exam
@@ -42,6 +67,7 @@ export async function POST(req: NextRequest) {
                     description, 
                     duration, 
                     total_marks, 
+                    instructions,
                     status, 
                     created_by,
                     created_at,
@@ -51,6 +77,7 @@ export async function POST(req: NextRequest) {
                     ${JSON.stringify({ en: 'Imported via AI' })}::jsonb,
                     ${duration || 180},
                     ${totalMarks || 0},
+                    ${instructionsJsonb}::jsonb,
                     'draft',
                     ${session.id},
                     NOW(),
