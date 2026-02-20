@@ -384,7 +384,8 @@ export default function ImportExamPage() {
                         marks: q.marks,
                         explanation: q.explanation,
                         tags: q.tags,
-                        difficulty: q.difficulty || null
+                        difficulty: q.difficulty || null,
+                        paragraphId: q.paragraphId || null
                     })),
                 ...(importMode === 'new' ? {
                     title: examDetails.title,
@@ -484,10 +485,10 @@ export default function ImportExamPage() {
                                 <span className="font-bold text-gray-500">Q{idx + 1}</span>
                                 {q.difficulty && (
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${q.difficulty <= 1 ? 'bg-green-100 text-green-700 border-green-200' :
-                                            q.difficulty <= 2 ? 'bg-lime-100 text-lime-700 border-lime-200' :
-                                                q.difficulty <= 3 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                                                    q.difficulty <= 4 ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                                                        'bg-red-100 text-red-700 border-red-200'
+                                        q.difficulty <= 2 ? 'bg-lime-100 text-lime-700 border-lime-200' :
+                                            q.difficulty <= 3 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                                                q.difficulty <= 4 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                    'bg-red-100 text-red-700 border-red-200'
                                         }`}>
                                         Difficulty: {q.difficulty}/5
                                     </span>

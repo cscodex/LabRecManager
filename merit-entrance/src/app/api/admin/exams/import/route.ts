@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { mode, questions, instructions } = body;
+        const { mode, questions, instructions, paragraphs } = body;
 
         if (!questions || !Array.isArray(questions)) {
             return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -101,6 +101,26 @@ export async function POST(req: NextRequest) {
             targetSectionId = sectionResult[0].id;
         }
 
+        // 2.5. Insert Paragraphs and build ID mapping (AI id -> DB UUID)
+        const paragraphIdMap: Record<string, string> = {};
+        if (paragraphs && Array.isArray(paragraphs) && paragraphs.length > 0) {
+            for (const p of paragraphs) {
+                try {
+                    const pResult = await sql`
+                        INSERT INTO paragraphs (text, content)
+                        VALUES (
+                            ${JSON.stringify({ en: p.title || 'Untitled Passage' })}::jsonb,
+                            ${JSON.stringify({ en: p.content || '' })}::jsonb
+                        ) RETURNING id
+                    `;
+                    paragraphIdMap[p.id] = pResult[0].id;
+                    console.log(`Inserted paragraph '${p.id}' -> DB UUID '${pResult[0].id}'`);
+                } catch (pError: any) {
+                    console.error(`Failed to insert paragraph ${p.id}:`, pError.message);
+                }
+            }
+        }
+
         // 3. Insert Questions
         let insertedCount = 0;
         const errors: string[] = [];
@@ -118,6 +138,21 @@ export async function POST(req: NextRequest) {
                     text: { en: opt }
                 }));
 
+                // Format correct answer based on type
+                // MCQ/fill_blank: wrap in array like ["A"] or ["answer"]
+                // short/long answer: store as model answer string in array
+                let correctAnswerValue: string[];
+                if (type === 'mcq_single' && q.correctAnswer && /^[A-Z]$/.test(q.correctAnswer)) {
+                    correctAnswerValue = [q.correctAnswer]; // e.g., ["A"]
+                } else if (q.correctAnswer) {
+                    correctAnswerValue = [q.correctAnswer]; // e.g., ["model answer text"]
+                } else {
+                    correctAnswerValue = [];
+                }
+
+                // Resolve paragraph_id from AI paragraph ID to DB UUID
+                const dbParagraphId = q.paragraphId ? (paragraphIdMap[q.paragraphId] || null) : null;
+
                 const questionResult = await sql`
                     INSERT INTO questions (
                         section_id,
@@ -128,16 +163,18 @@ export async function POST(req: NextRequest) {
                         marks,
                         explanation,
                         difficulty,
+                        paragraph_id,
                         "order"
                     ) VALUES (
                         ${targetSectionId},
                         ${JSON.stringify({ en: q.text })}::jsonb,
                         ${type},
                         ${JSON.stringify(formattedOptions)}::jsonb,
-                        ${JSON.stringify(q.correctAnswer)}::jsonb, 
+                        ${JSON.stringify(correctAnswerValue)}::jsonb, 
                         ${q.marks},
                         ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
                         ${Math.round(Number(q.difficulty) || 1)},
+                        ${dbParagraphId},
                         ${idx + 1}
                     ) RETURNING id
                 `;
