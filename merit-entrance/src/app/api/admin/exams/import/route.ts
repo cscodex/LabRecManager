@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
                         ${JSON.stringify(q.correctAnswer)}::jsonb, 
                         ${q.marks},
                         ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
-                        ${q.difficulty || null},
+                        ${Math.round(Number(q.difficulty) || 1)},
                         ${idx + 1}
                     ) RETURNING id
                 `;
