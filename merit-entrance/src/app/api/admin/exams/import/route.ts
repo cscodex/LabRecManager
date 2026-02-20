@@ -138,16 +138,29 @@ export async function POST(req: NextRequest) {
                     text: { en: opt }
                 }));
 
-                // Format correct answer based on type
-                // MCQ/fill_blank: wrap in array like ["A"] or ["answer"]
-                // short/long answer: store as model answer string in array
-                let correctAnswerValue: string[];
-                if (type === 'mcq_single' && q.correctAnswer && /^[A-Z]$/.test(q.correctAnswer)) {
-                    correctAnswerValue = [q.correctAnswer]; // e.g., ["A"]
-                } else if (q.correctAnswer) {
-                    correctAnswerValue = [q.correctAnswer]; // e.g., ["model answer text"]
+                // --- Answer Storage Logic ---
+                // MCQ: correct_answer = ["A"] (letter of correct option)
+                // fill_blank: correct_answer = ["exact answer"] (for strict comparison)
+                // short_answer / long_answer: correct_answer = [] (empty), model_answer = JSONB with answer text (for AI grading)
+                let correctAnswerValue: string[] = [];
+                let modelAnswerValue: string | null = null;
+
+                if (type === 'mcq_single') {
+                    // MCQ: store the letter
+                    if (q.correctAnswer && /^[A-Z]$/.test(q.correctAnswer)) {
+                        correctAnswerValue = [q.correctAnswer];
+                    }
+                } else if (type === 'fill_blank') {
+                    // Fill blank: store exact text for strict comparison
+                    if (q.correctAnswer) {
+                        correctAnswerValue = [q.correctAnswer];
+                    }
                 } else {
-                    correctAnswerValue = [];
+                    // short_answer / long_answer: store model answer separately for AI grading
+                    if (q.correctAnswer) {
+                        modelAnswerValue = q.correctAnswer;
+                    }
+                    // correct_answer stays empty []
                 }
 
                 // Resolve paragraph_id from AI paragraph ID to DB UUID
@@ -160,6 +173,7 @@ export async function POST(req: NextRequest) {
                         type,
                         options,
                         correct_answer,
+                        model_answer,
                         marks,
                         explanation,
                         difficulty,
@@ -170,7 +184,8 @@ export async function POST(req: NextRequest) {
                         ${JSON.stringify({ en: q.text })}::jsonb,
                         ${type},
                         ${JSON.stringify(formattedOptions)}::jsonb,
-                        ${JSON.stringify(correctAnswerValue)}::jsonb, 
+                        ${JSON.stringify(correctAnswerValue)}::jsonb,
+                        ${modelAnswerValue ? JSON.stringify({ en: modelAnswerValue }) : null}::jsonb,
                         ${q.marks},
                         ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
                         ${Math.round(Number(q.difficulty) || 1)},
