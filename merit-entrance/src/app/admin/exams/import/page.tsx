@@ -23,6 +23,7 @@ interface ExtractedQuestion {
     marks: number;
     page: number; // Page number in PDF
     paragraphId?: string;
+    difficulty?: number; // 1-5 scale
 }
 
 interface ExtractedParagraph {
@@ -249,7 +250,45 @@ export default function ImportExamPage() {
 
             if (allQuestions.length > 0) {
                 // Ensure unique IDs for questions to avoid React key issues
-                const uniqueQuestions = allQuestions.map((q, idx) => ({ ...q, id: `q_${Date.now()}_${idx}` }));
+                const uniqueQuestions = allQuestions.map((q, idx) => {
+                    const processed = { ...q, id: `q_${Date.now()}_${idx}` };
+
+                    // --- Smart Type Detection ---
+                    // If type is mcq but no options exist, reclassify based on answer length
+                    if ((!processed.type || processed.type === 'mcq') && (!processed.options || processed.options.length === 0)) {
+                        const wordCount = (processed.correctAnswer || '').trim().split(/\s+/).length;
+                        if (wordCount <= 1) {
+                            processed.type = 'fill_blank';
+                        } else if (wordCount <= 3) {
+                            processed.type = 'short_answer';
+                        } else {
+                            // More than 3 words: short or long based on marks
+                            processed.type = (processed.marks || 1) > 3 ? 'long_answer' : 'short_answer';
+                        }
+                    }
+
+                    // --- Extract Difficulty from Tags ---
+                    if (processed.tags && processed.tags.length > 0) {
+                        const difficultyMap: Record<string, number> = {
+                            'easy': 1, 'very easy': 1,
+                            'medium': 3, 'moderate': 3,
+                            'hard': 4, 'difficult': 4,
+                            'very hard': 5, 'very difficult': 5
+                        };
+                        const remainingTags: string[] = [];
+                        for (const tag of processed.tags) {
+                            const lower = tag.toLowerCase().trim();
+                            if (difficultyMap[lower] !== undefined) {
+                                processed.difficulty = difficultyMap[lower];
+                            } else {
+                                remainingTags.push(tag);
+                            }
+                        }
+                        processed.tags = remainingTags;
+                    }
+
+                    return processed;
+                });
 
                 setQuestions(uniqueQuestions);
                 setExtractedInstructions(prev => Array.from(new Set([...prev, ...allInstructions]))); // Dedup instructions
@@ -344,7 +383,8 @@ export default function ImportExamPage() {
                         })(),
                         marks: q.marks,
                         explanation: q.explanation,
-                        tags: q.tags // Add tags
+                        tags: q.tags,
+                        difficulty: q.difficulty || null
                     })),
                 ...(importMode === 'new' ? {
                     title: examDetails.title,
@@ -370,9 +410,10 @@ export default function ImportExamPage() {
             toast.dismiss(loadingToast);
 
             if (response.ok && data.success) {
-                toast.success('Import successful!');
+                toast.success(`Import successful! ${data.questionCount || ''} questions added.`);
                 router.push(`/admin/exams/${data.examId || selectedExamId}`);
             } else {
+                console.error('Import failed:', data);
                 toast.error(data.error || 'Failed to save');
             }
         } catch (error) {
@@ -441,6 +482,16 @@ export default function ImportExamPage() {
                                     className="w-4 h-4 text-blue-600 rounded hover:cursor-pointer"
                                 />
                                 <span className="font-bold text-gray-500">Q{idx + 1}</span>
+                                {q.difficulty && (
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${q.difficulty <= 1 ? 'bg-green-100 text-green-700 border-green-200' :
+                                            q.difficulty <= 2 ? 'bg-lime-100 text-lime-700 border-lime-200' :
+                                                q.difficulty <= 3 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                                                    q.difficulty <= 4 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                        'bg-red-100 text-red-700 border-red-200'
+                                        }`}>
+                                        Difficulty: {q.difficulty}/5
+                                    </span>
+                                )}
                                 {isDuplicate && (
                                     <span className="flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200">
                                         <AlertCircle className="w-3 h-3" /> Duplicate
@@ -694,88 +745,89 @@ export default function ImportExamPage() {
     if (!_hasHydrated) return null;
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-            {/* Header */}
-            <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-20">
-                <div className="flex items-center gap-4">
-                    <Link href="/admin/exams" className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
-                        <ChevronLeft className="w-5 h-5" />
-                    </Link>
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900">Import Exam from PDF</h1>
-                        <p className="text-xs text-gray-500">Step: {step.toUpperCase()}</p>
+        <MathJaxProvider>
+            <div className="min-h-screen bg-gray-50 flex flex-col">
+                {/* Header */}
+                <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+                    <div className="flex items-center gap-4">
+                        <Link href="/admin/exams" className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+                            <ChevronLeft className="w-5 h-5" />
+                        </Link>
+                        <div>
+                            <h1 className="text-xl font-bold text-gray-900">Import Exam from PDF</h1>
+                            <p className="text-xs text-gray-500">Step: {step.toUpperCase()}</p>
+                        </div>
                     </div>
-                </div>
-                {step === 'review' && (
-                    <button
-                        onClick={() => setStep('details')}
-                        className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                        Next: Exam Details <ChevronRight className="w-4 h-4" />
-                    </button>
-                )}
-            </header>
+                    {step === 'review' && (
+                        <button
+                            onClick={() => setStep('details')}
+                            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                            Next: Exam Details <ChevronRight className="w-4 h-4" />
+                        </button>
+                    )}
+                </header>
 
-            <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
-                {/* Step 1: Upload */}
-                {step === 'upload' && (
-                    <div className="max-w-xl mx-auto mt-20">
-                        <div className="bg-white rounded-2xl shadow-sm border-2 border-dashed border-gray-300 p-12 text-center hover:border-blue-500 transition-colors">
-                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Upload className="w-8 h-8" />
-                            </div>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Question Paper</h2>
-                            <p className="text-gray-500 mb-8">Drag and drop a PDF file here, or click to browse.</p>
-
-                            <input
-                                type="file"
-                                accept="application/pdf"
-                                onChange={handleFileChange}
-                                className="hidden"
-                                id="pdf-upload"
-                            />
-                            <label
-                                htmlFor="pdf-upload"
-                                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 cursor-pointer font-medium"
-                            >
-                                <FileText className="w-4 h-4" />
-                                Select PDF
-                            </label>
-
-                            {file && (
-                                <div className="mt-6 p-4 bg-gray-50 rounded-lg flex items-center justify-between text-left">
-                                    <div className="flex items-center gap-3">
-                                        <FileText className="w-5 h-5 text-red-500" />
-                                        <span className="font-medium text-gray-700">{file.name}</span>
-                                    </div>
-                                    <button
-                                        onClick={loadPDFPreview}
-                                        className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700"
-                                    >
-                                        Load Preview
-                                    </button>
+                <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+                    {/* Step 1: Upload */}
+                    {step === 'upload' && (
+                        <div className="max-w-xl mx-auto mt-20">
+                            <div className="bg-white rounded-2xl shadow-sm border-2 border-dashed border-gray-300 p-12 text-center hover:border-blue-500 transition-colors">
+                                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Upload className="w-8 h-8" />
                                 </div>
-                            )}
+                                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Question Paper</h2>
+                                <p className="text-gray-500 mb-8">Drag and drop a PDF file here, or click to browse.</p>
 
-                            {/* Advanced Settings */}
-                            <div className="mt-8 text-left border-t pt-6">
-                                <button
-                                    onClick={() => setShowAdvanced(!showAdvanced)}
-                                    className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 font-medium mb-4"
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                    id="pdf-upload"
+                                />
+                                <label
+                                    htmlFor="pdf-upload"
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 cursor-pointer font-medium"
                                 >
-                                    {showAdvanced ? 'Hide' : 'Show'} AI Configuration
-                                </button>
+                                    <FileText className="w-4 h-4" />
+                                    Select PDF
+                                </label>
 
-                                {showAdvanced && (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                {file && (
+                                    <div className="mt-6 p-4 bg-gray-50 rounded-lg flex items-center justify-between text-left">
+                                        <div className="flex items-center gap-3">
+                                            <FileText className="w-5 h-5 text-red-500" />
+                                            <span className="font-medium text-gray-700">{file.name}</span>
+                                        </div>
+                                        <button
+                                            onClick={loadPDFPreview}
+                                            className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700"
+                                        >
+                                            Load Preview
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Advanced Settings */}
+                                <div className="mt-8 text-left border-t pt-6">
+                                    <button
+                                        onClick={() => setShowAdvanced(!showAdvanced)}
+                                        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 font-medium mb-4"
+                                    >
+                                        {showAdvanced ? 'Hide' : 'Show'} AI Configuration
+                                    </button>
+
+                                    {showAdvanced && (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
 
 
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                                Base System Prompt (Read Only)
-                                            </label>
-                                            <div className="bg-gray-100 p-3 rounded-md border text-xs text-gray-600 font-mono h-32 overflow-y-auto whitespace-pre-wrap">
-                                                {`Analyze this image of a question paper page.
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                                                    Base System Prompt (Read Only)
+                                                </label>
+                                                <div className="bg-gray-100 p-3 rounded-md border text-xs text-gray-600 font-mono h-32 overflow-y-auto whitespace-pre-wrap">
+                                                    {`Analyze this image of a question paper page.
 
             ** GOAL **: Extract all questions, instructions, and paragraphs from the page.
 
@@ -808,307 +860,355 @@ export default function ImportExamPage() {
             **PARAGRAPHS/COMPREHENSION / LINKED QUESTIONS**:
             -   **Action**: Extract common text (passage, case study, problem statement) into \`paragraphs\` array.
             -   **Linked Questions**: Treat follow-up parts (i, ii, iii) as separate questions linked to the paragraph via \`paragraphId\`.`}
+                                                </div >
                                             </div >
-                                        </div >
 
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                                                Additional Instructions (Optional)
-                                            </label>
-                                            <textarea
-                                                value={customPrompt}
-                                                onChange={(e) => setCustomPrompt(e.target.value)}
-                                                className="w-full p-3 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                rows={4}
-                                                placeholder="e.g., 'Ignore header and footer text', 'Extract subject name', 'All questions carry 2 marks'."
-                                            />
-                                            <p className="text-xs text-gray-400 mt-1">These instructions will be appended to the system prompt.</p>
-                                        </div>
-                                    </div >
-                                )
-                                }
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                                                    Additional Instructions (Optional)
+                                                </label>
+                                                <textarea
+                                                    value={customPrompt}
+                                                    onChange={(e) => setCustomPrompt(e.target.value)}
+                                                    className="w-full p-3 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    rows={4}
+                                                    placeholder="e.g., 'Ignore header and footer text', 'Extract subject name', 'All questions carry 2 marks'."
+                                                />
+                                                <p className="text-xs text-gray-400 mt-1">These instructions will be appended to the system prompt.</p>
+                                            </div>
+                                        </div >
+                                    )
+                                    }
+                                </div >
                             </div >
                         </div >
-                    </div >
-                )}
+                    )}
 
-                {/* Step 2: Selection */}
-                {
-                    step === 'selection' && (
-                        <div className="max-w-6xl mx-auto mt-8">
-                            <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900">Select Pages to Process</h2>
-                                    <p className="text-gray-500 text-sm">Select the pages containing questions.</p>
-                                </div>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setSelectedPageIndices(pdfPages.map((_, i) => i))}
-                                        className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
-                                    >
-                                        Select All
-                                    </button>
-                                    <button
-                                        onClick={() => setSelectedPageIndices([])}
-                                        className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
-                                    >
-                                        Clear
-                                    </button>
-                                    <button
-                                        onClick={startAIAnalysis}
-                                        disabled={selectedPageIndices.length === 0}
-                                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                    >
-                                        Analyze {selectedPageIndices.length} Page{selectedPageIndices.length !== 1 ? 's' : ''} <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* AI Model Selection Bar */}
-                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
-                                <div className="flex items-center gap-4">
+                    {/* Step 2: Selection */}
+                    {
+                        step === 'selection' && (
+                            <div className="max-w-6xl mx-auto mt-8">
+                                <div className="flex justify-between items-center mb-6">
                                     <div>
-                                        <label className="block text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">
-                                            AI Model
-                                        </label>
-                                        <select
-                                            value={selectedModel}
-                                            onChange={(e) => setSelectedModel(e.target.value)}
-                                            className="bg-white border-blue-200 text-sm rounded-md px-3 py-1.5 focus:border-blue-500 focus:ring-blue-500 text-gray-700"
-                                        >
-                                            <optgroup label="Google Gemini 2.0 (Preview)">
-                                                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Standard)</option>
-                                                <option value="gemini-2.0-flash-lite-preview-02-05">Gemini 2.0 Flash Lite (High Speed)</option>
-                                                <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro (Experimental)</option>
-                                                <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking (Reasoning)</option>
-                                            </optgroup>
-                                            <optgroup label="Google Gemini 1.5 (Stable)">
-                                                <option value="gemini-flash-latest">Gemini 1.5 Flash (Recommended)</option>
-                                                <option value="gemini-pro-latest">Gemini 1.5 Pro (Stable High Quality)</option>
-                                                <option value="gemini-flash-lite-latest">Gemini 1.5 Flash Lite (Fastest)</option>
-                                            </optgroup>
-                                            <optgroup label="OpenAI">
-                                                <option value="gpt-4o">GPT-4o (Best Quality)</option>
-                                                <option value="gpt-4o-mini">GPT-4o Mini (Fast & Cheap)</option>
-                                            </optgroup>
-                                            <optgroup label="Groq (Llama 4 Vision)">
-                                                <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B (Fast Vision)</option>
-                                                <option value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick 17B (High Context)</option>
-                                            </optgroup>
-                                        </select>
+                                        <h2 className="text-xl font-bold text-gray-900">Select Pages to Process</h2>
+                                        <p className="text-gray-500 text-sm">Select the pages containing questions.</p>
                                     </div>
-                                    <div className="h-8 w-px bg-blue-200 hidden sm:block"></div>
-                                    <div className="text-sm text-blue-700">
-                                        <span className="font-medium">Quota Status:</span>{' '}
-                                        <a
-                                            href={
-                                                selectedModel.startsWith('gpt') ? "https://platform.openai.com/usage" :
-                                                    (selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('meta-llama')) ? "https://console.groq.com/settings/limits" :
-                                                        "https://aistudio.google.com/app/plan_information"
-                                            }
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="underline hover:text-blue-900"
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setSelectedPageIndices(pdfPages.map((_, i) => i))}
+                                            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
                                         >
-                                            Check Usage
-                                        </a>
+                                            Select All
+                                        </button>
+                                        <button
+                                            onClick={() => setSelectedPageIndices([])}
+                                            className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
+                                        >
+                                            Clear
+                                        </button>
+                                        <button
+                                            onClick={startAIAnalysis}
+                                            disabled={selectedPageIndices.length === 0}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            Analyze {selectedPageIndices.length} Page{selectedPageIndices.length !== 1 ? 's' : ''} <ChevronRight className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="text-xs text-blue-600 max-w-md">
-                                    {selectedModel.startsWith('gpt') ?
-                                        "OpenAI usage is billed. Check your meaningful credit balance." :
-                                        (selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('meta-llama')) ?
-                                            "Groq offers free tiers for Llama models. Check rate limits." :
-                                            selectedModel.includes('gemini-2.0') ?
-                                                "Gemini 2.0 models are currently free in public preview." :
-                                                "Tip: Gemini 1.5 Flash allows ~1,500 pages/day. Use Pro only for complex reasoning (50/day)."
-                                    }
+
+                                {/* AI Model Selection Bar */}
+                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">
+                                                AI Model
+                                            </label>
+                                            <select
+                                                value={selectedModel}
+                                                onChange={(e) => setSelectedModel(e.target.value)}
+                                                className="bg-white border-blue-200 text-sm rounded-md px-3 py-1.5 focus:border-blue-500 focus:ring-blue-500 text-gray-700"
+                                            >
+                                                <optgroup label="Google Gemini 2.0 (Preview)">
+                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (Standard)</option>
+                                                    <option value="gemini-2.0-flash-lite-preview-02-05">Gemini 2.0 Flash Lite (High Speed)</option>
+                                                    <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro (Experimental)</option>
+                                                    <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking (Reasoning)</option>
+                                                </optgroup>
+                                                <optgroup label="Google Gemini 1.5 (Stable)">
+                                                    <option value="gemini-flash-latest">Gemini 1.5 Flash (Recommended)</option>
+                                                    <option value="gemini-pro-latest">Gemini 1.5 Pro (Stable High Quality)</option>
+                                                    <option value="gemini-flash-lite-latest">Gemini 1.5 Flash Lite (Fastest)</option>
+                                                </optgroup>
+                                                <optgroup label="OpenAI">
+                                                    <option value="gpt-4o">GPT-4o (Best Quality)</option>
+                                                    <option value="gpt-4o-mini">GPT-4o Mini (Fast & Cheap)</option>
+                                                </optgroup>
+                                                <optgroup label="Groq (Llama 4 Vision)">
+                                                    <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B (Fast Vision)</option>
+                                                    <option value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick 17B (High Context)</option>
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                        <div className="h-8 w-px bg-blue-200 hidden sm:block"></div>
+                                        <div className="text-sm text-blue-700">
+                                            <span className="font-medium">Quota Status:</span>{' '}
+                                            <a
+                                                href={
+                                                    selectedModel.startsWith('gpt') ? "https://platform.openai.com/usage" :
+                                                        (selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('meta-llama')) ? "https://console.groq.com/settings/limits" :
+                                                            "https://aistudio.google.com/app/plan_information"
+                                                }
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="underline hover:text-blue-900"
+                                            >
+                                                Check Usage
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-blue-600 max-w-md">
+                                        {selectedModel.startsWith('gpt') ?
+                                            "OpenAI usage is billed. Check your meaningful credit balance." :
+                                            (selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('meta-llama')) ?
+                                                "Groq offers free tiers for Llama models. Check rate limits." :
+                                                selectedModel.includes('gemini-2.0') ?
+                                                    "Gemini 2.0 models are currently free in public preview." :
+                                                    "Tip: Gemini 1.5 Flash allows ~1,500 pages/day. Use Pro only for complex reasoning (50/day)."
+                                        }
+                                    </div>
+                                </div>
+
+                                <div className="h-[60vh] overflow-y-auto border rounded-xl p-4 bg-gray-50">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-20">
+                                        {pdfPages.map((img, idx) => {
+                                            const isSelected = selectedPageIndices.includes(idx);
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-200 ${isSelected ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-gray-200 hover:border-gray-300'}`}
+                                                >
+                                                    <div
+                                                        className="aspect-[3/4] bg-gray-100 relative cursor-pointer"
+                                                        onClick={() => {
+                                                            setSelectedPageIndices(prev =>
+                                                                isSelected ? prev.filter(i => i !== idx) : [...prev, idx]
+                                                            );
+                                                        }}
+                                                    >
+                                                        <img src={img} alt={`Page ${idx + 1}`} className="w-full h-full object-contain" />
+
+                                                        {/* Overlay */}
+                                                        <div className={`absolute inset-0 bg-blue-600/10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
+
+                                                        {/* Checkbox */}
+                                                        <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
+                                                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                                        </div>
+
+                                                        {/* Page Number */}
+                                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                                                            Page {idx + 1}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Eye Icon for Preview */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPreviewPage(img);
+                                                        }}
+                                                        className="absolute bottom-2 right-2 p-1.5 bg-white text-gray-600 rounded-full shadow hover:bg-blue-50 hover:text-blue-600 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                                        title="View Enlarged"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
+                        )
+                    }
 
-                            <div className="h-[60vh] overflow-y-auto border rounded-xl p-4 bg-gray-50">
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-20">
+
+
+                    {/* Step 3: Processing */}
+                    {
+                        step === 'processing' && (
+                            <div className="max-w-xl mx-auto mt-20 text-center">
+                                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                                    <Loader2 className="w-8 h-8 animate-spin" />
+                                </div>
+                                <h2 className="text-xl font-bold text-gray-900 mb-2">Analyzing Document...</h2>
+                                <p className="text-gray-500 mb-8">Converting PDF and extracting questions with AI.</p>
+
+                                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                                    <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                                </div>
+                                <p className="text-sm text-gray-500 mt-2 font-medium">{processingStatus}</p>
+                                <p className="text-xs text-gray-400 mt-1">{progress}% Complete</p>
+                            </div>
+                        )
+                    }
+
+                    {/* Step 4: Review */}
+                    {
+                        step === 'review' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-140px)]">
+                                {/* PDF View (Left) */}
+                                <div className="bg-gray-800 rounded-xl overflow-y-auto p-4 flex flex-col gap-4 shadow-inner">
                                     {pdfPages.map((img, idx) => {
-                                        const isSelected = selectedPageIndices.includes(idx);
+                                        if (!selectedPageIndices.includes(idx)) return null;
                                         return (
-                                            <div
-                                                key={idx}
-                                                className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-200 ${isSelected ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-gray-200 hover:border-gray-300'}`}
-                                            >
-                                                <div
-                                                    className="aspect-[3/4] bg-gray-100 relative cursor-pointer"
-                                                    onClick={() => {
-                                                        setSelectedPageIndices(prev =>
-                                                            isSelected ? prev.filter(i => i !== idx) : [...prev, idx]
-                                                        );
-                                                    }}
-                                                >
-                                                    <img src={img} alt={`Page ${idx + 1}`} className="w-full h-full object-contain" />
-
-                                                    {/* Overlay */}
-                                                    <div className={`absolute inset-0 bg-blue-600/10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
-
-                                                    {/* Checkbox */}
-                                                    <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
-                                                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                                                    </div>
-
-                                                    {/* Page Number */}
-                                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                                                        Page {idx + 1}
-                                                    </div>
-                                                </div>
-
-                                                {/* Eye Icon for Preview */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setPreviewPage(img);
-                                                    }}
-                                                    className="absolute bottom-2 right-2 p-1.5 bg-white text-gray-600 rounded-full shadow hover:bg-blue-50 hover:text-blue-600 transition-colors z-10 opacity-0 group-hover:opacity-100"
-                                                    title="View Enlarged"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </button>
+                                            <div key={idx} className="relative">
+                                                <img src={img} alt={`Page ${idx + 1}`} className="w-full h-auto rounded shadow-lg bg-white" />
+                                                <span className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">Page {idx + 1}</span>
                                             </div>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        </div>
-                    )
-                }
+
+                                {/* Questions Editor (Right) */}
+                                <div className="bg-white rounded-xl shadow-sm border flex flex-col overflow-hidden">
+                                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                                        <h3 className="font-semibold text-gray-900">Extracted Questions ({questions.length})</h3>
+                                        <button className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                                            <Plus className="w-4 h-4" /> Add Manual
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                                        {/* Instructions Section */}
+                                        {extractedInstructions.length > 0 && (
+                                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                                <div className="flex items-start gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={importInstructions}
+                                                        onChange={(e) => setImportInstructions(e.target.checked)}
+                                                        className="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer"
+                                                    />
+                                                    <div>
+                                                        <h4 className="font-semibold text-purple-900 text-sm mb-2">Import Exam Instructions</h4>
+                                                        <ul className="list-disc list-inside text-xs text-purple-800 space-y-1">
+                                                            {extractedInstructions.map((inst, i) => (
+                                                                <li key={i} dangerouslySetInnerHTML={{ __html: inst }} />
+                                                            ))}
+                                                        </ul>
+                                                        <p className="text-[10px] text-purple-600 mt-2 italic">
+                                                            These will be appended to the exam&apos;s existing instructions.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
 
 
-
-                {/* Step 3: Processing */}
-                {
-                    step === 'processing' && (
-                        <div className="max-w-xl mx-auto mt-20 text-center">
-                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                                <Loader2 className="w-8 h-8 animate-spin" />
-                            </div>
-                            <h2 className="text-xl font-bold text-gray-900 mb-2">Analyzing Document...</h2>
-                            <p className="text-gray-500 mb-8">Converting PDF and extracting questions with AI.</p>
-
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                                <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
-                            </div>
-                            <p className="text-sm text-gray-500 mt-2 font-medium">{processingStatus}</p>
-                            <p className="text-xs text-gray-400 mt-1">{progress}% Complete</p>
-                        </div>
-                    )
-                }
-
-                {/* Step 4: Review */}
-                {
-                    step === 'review' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-140px)]">
-                            {/* PDF View (Left) */}
-                            <div className="bg-gray-800 rounded-xl overflow-y-auto p-4 flex flex-col gap-4 shadow-inner">
-                                {pdfPages.map((img, idx) => {
-                                    if (!selectedPageIndices.includes(idx)) return null;
-                                    return (
-                                        <div key={idx} className="relative">
-                                            <img src={img} alt={`Page ${idx + 1}`} className="w-full h-auto rounded shadow-lg bg-white" />
-                                            <span className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">Page {idx + 1}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Questions Editor (Right) */}
-                            <div className="bg-white rounded-xl shadow-sm border flex flex-col overflow-hidden">
-                                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                                    <h3 className="font-semibold text-gray-900">Extracted Questions ({questions.length})</h3>
-                                    <button className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                                        <Plus className="w-4 h-4" /> Add Manual
-                                    </button>
+                                        {renderQuestionsWithParagraphs()}
+                                    </div>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                                    {/* Instructions Section */}
-                                    {extractedInstructions.length > 0 && (
-                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                                            <div className="flex items-start gap-3">
+                            </div>
+                        )
+                    }
+
+                    {/* Step 5: Details */}
+                    {
+                        step === 'details' && (
+                            <div className="max-w-2xl mx-auto mt-10">
+                                <div className="bg-white rounded-xl shadow-sm border p-8">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-6">Finalize Exam Details</h2>
+
+                                    {/* Mode Selection */}
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Import Destination</label>
+                                        <div className="flex gap-4">
+                                            <button
+                                                onClick={() => setImportMode('new')}
+                                                className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-colors ${importMode === 'new' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                            >
+                                                Create New Exam
+                                            </button>
+                                            <button
+                                                onClick={() => setImportMode('existing')}
+                                                className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-colors ${importMode === 'existing' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                            >
+                                                Add to Existing
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {importMode === 'new' ? (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title</label>
                                                 <input
-                                                    type="checkbox"
-                                                    checked={importInstructions}
-                                                    onChange={(e) => setImportInstructions(e.target.checked)}
-                                                    className="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer"
+                                                    type="text"
+                                                    value={examDetails.title}
+                                                    onChange={(e) => setExamDetails({ ...examDetails, title: e.target.value })}
+                                                    className="w-full px-4 py-2 border rounded-lg"
+                                                    placeholder="e.g. JEE Mains 2024 Mock 1"
                                                 />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <h4 className="font-semibold text-purple-900 text-sm mb-2">Import Exam Instructions</h4>
-                                                    <ul className="list-disc list-inside text-xs text-purple-800 space-y-1">
-                                                        {extractedInstructions.map((inst, i) => (
-                                                            <li key={i}>{inst}</li>
-                                                        ))}
-                                                    </ul>
-                                                    <p className="text-[10px] text-purple-600 mt-2 italic">
-                                                        These will be appended to the exam&apos;s existing instructions.
-                                                    </p>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Duration (mins)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={examDetails.duration}
+                                                        onChange={(e) => setExamDetails({ ...examDetails, duration: Number(e.target.value) })}
+                                                        className="w-full px-4 py-2 border rounded-lg"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
+                                                    <input
+                                                        type="number"
+                                                        value={examDetails.totalMarks}
+                                                        readOnly
+                                                        className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
-
-
-                                    {renderQuestionsWithParagraphs()}
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-
-                {/* Step 5: Details */}
-                {
-                    step === 'details' && (
-                        <div className="max-w-2xl mx-auto mt-10">
-                            <div className="bg-white rounded-xl shadow-sm border p-8">
-                                <h2 className="text-xl font-bold text-gray-900 mb-6">Finalize Exam Details</h2>
-
-                                {/* Mode Selection */}
-                                <div className="mb-6">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Import Destination</label>
-                                    <div className="flex gap-4">
-                                        <button
-                                            onClick={() => setImportMode('new')}
-                                            className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-colors ${importMode === 'new' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                        >
-                                            Create New Exam
-                                        </button>
-                                        <button
-                                            onClick={() => setImportMode('existing')}
-                                            className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-colors ${importMode === 'existing' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                        >
-                                            Add to Existing
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {importMode === 'new' ? (
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title</label>
-                                            <input
-                                                type="text"
-                                                value={examDetails.title}
-                                                onChange={(e) => setExamDetails({ ...examDetails, title: e.target.value })}
-                                                className="w-full px-4 py-2 border rounded-lg"
-                                                placeholder="e.g. JEE Mains 2024 Mock 1"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                    ) : (
+                                        <div className="space-y-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (mins)</label>
-                                                <input
-                                                    type="number"
-                                                    value={examDetails.duration}
-                                                    onChange={(e) => setExamDetails({ ...examDetails, duration: Number(e.target.value) })}
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Exam</label>
+                                                <select
+                                                    value={selectedExamId}
+                                                    onChange={(e) => setSelectedExamId(e.target.value)}
                                                     className="w-full px-4 py-2 border rounded-lg"
-                                                />
+                                                >
+                                                    <option value="">-- Select Exam --</option>
+                                                    {exams.map(ex => (
+                                                        <option key={ex.id} value={ex.id}>
+                                                            {ex.title?.en || ex.title}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </div>
+
+                                            {selectedExamId && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Section</label>
+                                                    <select
+                                                        value={selectedSectionId}
+                                                        onChange={(e) => setSelectedSectionId(e.target.value)}
+                                                        className="w-full px-4 py-2 border rounded-lg"
+                                                    >
+                                                        <option value="">-- Select Section --</option>
+                                                        {sections.map(s => (
+                                                            <option key={s.id} value={s.id}>
+                                                                {s.name?.en || s.name || `Section ${s.order}`}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {sections.length === 0 && <p className="text-xs text-red-500 mt-1">No sections found in this exam.</p>}
+                                                </div>
+                                            )}
+
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks to Add</label>
                                                 <input
                                                     type="number"
                                                     value={examDetails.totalMarks}
@@ -1117,112 +1217,65 @@ export default function ImportExamPage() {
                                                 />
                                             </div>
                                         </div>
+                                    )}
+                                    <div className="mt-8 flex gap-3">
+                                        <button onClick={() => setStep('review')} className="px-6 py-2 border rounded-lg text-gray-600">Back</button>
+                                        <button
+                                            onClick={handleSaveExam}
+                                            className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                                        >
+                                            <Save className="w-4 h-4" /> Save & Create Exam
+                                        </button>
                                     </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Select Exam</label>
-                                            <select
-                                                value={selectedExamId}
-                                                onChange={(e) => setSelectedExamId(e.target.value)}
-                                                className="w-full px-4 py-2 border rounded-lg"
-                                            >
-                                                <option value="">-- Select Exam --</option>
-                                                {exams.map(ex => (
-                                                    <option key={ex.id} value={ex.id}>
-                                                        {ex.title?.en || ex.title}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        {selectedExamId && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Section</label>
-                                                <select
-                                                    value={selectedSectionId}
-                                                    onChange={(e) => setSelectedSectionId(e.target.value)}
-                                                    className="w-full px-4 py-2 border rounded-lg"
-                                                >
-                                                    <option value="">-- Select Section --</option>
-                                                    {sections.map(s => (
-                                                        <option key={s.id} value={s.id}>
-                                                            {s.name?.en || s.name || `Section ${s.order}`}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                {sections.length === 0 && <p className="text-xs text-red-500 mt-1">No sections found in this exam.</p>}
-                                            </div>
-                                        )}
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks to Add</label>
-                                            <input
-                                                type="number"
-                                                value={examDetails.totalMarks}
-                                                readOnly
-                                                className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="mt-8 flex gap-3">
-                                    <button onClick={() => setStep('review')} className="px-6 py-2 border rounded-lg text-gray-600">Back</button>
-                                    <button
-                                        onClick={handleSaveExam}
-                                        className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
-                                    >
-                                        <Save className="w-4 h-4" /> Save & Create Exam
-                                    </button>
                                 </div>
                             </div>
+                        )
+                    }
+
+                </main>
+
+                {/* Image Preview Modal */}
+                {
+                    previewPage && (
+                        <div
+                            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
+                            onClick={() => setPreviewPage(null)}
+                        >
+                            <button
+                                onClick={() => setPreviewPage(null)}
+                                className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                            >
+                                <X className="w-8 h-8" />
+                            </button>
+                            <img
+                                src={previewPage}
+                                alt="Page Preview"
+                                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                                onClick={(e) => e.stopPropagation()}
+                            />
                         </div>
                     )
                 }
 
-            </main>
-
-            {/* Image Preview Modal */}
-            {
-                previewPage && (
-                    <div
-                        className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
-                        onClick={() => setPreviewPage(null)}
-                    >
-                        <button
-                            onClick={() => setPreviewPage(null)}
-                            className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
-                        >
-                            <X className="w-8 h-8" />
-                        </button>
-                        <img
-                            src={previewPage}
-                            alt="Page Preview"
-                            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </div>
-                )
-            }
-
-            {/* Blocking Import Overlay */}
-            {isSaving && (
-                <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl p-8 flex flex-col items-center max-w-sm w-full animate-in zoom-in-95 duration-300">
-                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 relative">
-                            <Loader2 className="w-8 h-8 animate-spin" />
-                            <div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-ping opacity-20"></div>
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Importing Questions...</h3>
-                        <p className="text-gray-500 text-center text-sm mb-6">
-                            Please wait while we save the exam and questions to the database. Do not close this window.
-                        </p>
-                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div className="h-full bg-blue-600 animate-progress-indeterminate"></div>
+                {/* Blocking Import Overlay */}
+                {isSaving && (
+                    <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl p-8 flex flex-col items-center max-w-sm w-full animate-in zoom-in-95 duration-300">
+                            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 relative">
+                                <Loader2 className="w-8 h-8 animate-spin" />
+                                <div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-ping opacity-20"></div>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Importing Questions...</h3>
+                            <p className="text-gray-500 text-center text-sm mb-6">
+                                Please wait while we save the exam and questions to the database. Do not close this window.
+                            </p>
+                            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                <div className="h-full bg-blue-600 animate-progress-indeterminate"></div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div >
+                )}
+            </div >
+        </MathJaxProvider>
     );
 }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getSession } from '@/lib/auth';
-// import { logActivity } from '@/lib/logger'; // Assumed
 
 const sql = neon(process.env.MERIT_DATABASE_URL || '');
 
@@ -29,9 +28,6 @@ export async function POST(req: NextRequest) {
             }
             targetExamId = examId;
             targetSectionId = sectionId;
-
-            // Optional: Update Exam Total Marks?
-            // For now, simpler to just add questions. Recalculation might be needed elsewhere.
         } else {
             // Default to 'new'
             const { title, duration, totalMarks } = body;
@@ -83,70 +79,89 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Insert Questions
+        let insertedCount = 0;
+        const errors: string[] = [];
+
         for (let idx = 0; idx < questions.length; idx++) {
             const q = questions[idx];
-            // Determine type
-            let type = q.type || 'mcq_single';
-            if (type === 'mcq') type = 'mcq_single';
+            try {
+                // Determine type
+                let type = q.type || 'mcq_single';
+                if (type === 'mcq') type = 'mcq_single';
 
-            // Helper function to format options
-            const formattedOptions = q.options.map((opt: string, optIdx: number) => ({
-                id: String.fromCharCode(65 + optIdx), // A, B, C...
-                text: { en: opt }
-            }));
+                // Format options
+                const formattedOptions = (q.options || []).map((opt: string, optIdx: number) => ({
+                    id: String.fromCharCode(65 + optIdx),
+                    text: { en: opt }
+                }));
 
-            const questionResult = await sql`
-                INSERT INTO questions (
-                    section_id,
-                    text,
-                    type,
-                    options,
-                    correct_answer,
-                    marks,
-                    explanation,
-                    "order"
-                ) VALUES (
-                    ${targetSectionId},
-                    ${JSON.stringify({ en: q.text })}::jsonb,
-                    ${type},
-                    ${JSON.stringify(formattedOptions)}::jsonb,
-                    ${JSON.stringify(q.correctAnswer)}::jsonb, 
-                    ${q.marks},
-                    ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
-                    ${idx + 1}
-                ) RETURNING id
-            `;
-            const questionId = questionResult[0].id;
+                const questionResult = await sql`
+                    INSERT INTO questions (
+                        section_id,
+                        text,
+                        type,
+                        options,
+                        correct_answer,
+                        marks,
+                        explanation,
+                        difficulty,
+                        "order"
+                    ) VALUES (
+                        ${targetSectionId},
+                        ${JSON.stringify({ en: q.text })}::jsonb,
+                        ${type},
+                        ${JSON.stringify(formattedOptions)}::jsonb,
+                        ${JSON.stringify(q.correctAnswer)}::jsonb, 
+                        ${q.marks},
+                        ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
+                        ${q.difficulty || null},
+                        ${idx + 1}
+                    ) RETURNING id
+                `;
+                const questionId = questionResult[0].id;
 
-            // 4. Insert Tags
-            if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
-                for (const tagName of q.tags) {
-                    const cleanedTag = tagName.trim();
-                    if (!cleanedTag) continue;
+                // 4. Insert Tags
+                if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
+                    for (const tagName of q.tags) {
+                        const cleanedTag = tagName.trim();
+                        if (!cleanedTag) continue;
 
-                    // a. Upsert Tag
-                    await sql`
-                        INSERT INTO tags (name) VALUES (${cleanedTag}) 
-                        ON CONFLICT (name) DO NOTHING
-                    `;
-
-                    // b. Get Tag ID
-                    const tagRes = await sql`SELECT id FROM tags WHERE name = ${cleanedTag}`;
-
-                    if (tagRes && tagRes.length > 0) {
-                        const tagId = tagRes[0].id;
-                        // c. Link Question to Tag
+                        // a. Upsert Tag
                         await sql`
-                            INSERT INTO question_tags (question_id, tag_id)
-                            VALUES (${questionId}, ${tagId})
-                            ON CONFLICT DO NOTHING
+                            INSERT INTO tags (name) VALUES (${cleanedTag}) 
+                            ON CONFLICT (name) DO NOTHING
                         `;
+
+                        // b. Get Tag ID
+                        const tagRes = await sql`SELECT id FROM tags WHERE name = ${cleanedTag}`;
+
+                        if (tagRes && tagRes.length > 0) {
+                            const tagId = tagRes[0].id;
+                            // c. Link Question to Tag
+                            await sql`
+                                INSERT INTO question_tags (question_id, tag_id)
+                                VALUES (${questionId}, ${tagId})
+                                ON CONFLICT DO NOTHING
+                            `;
+                        }
                     }
                 }
+
+                insertedCount++;
+            } catch (qError: any) {
+                console.error(`Failed to insert question ${idx + 1}:`, qError.message);
+                errors.push(`Q${idx + 1}: ${qError.message}`);
             }
         }
 
-        return NextResponse.json({ success: true, examId: targetExamId });
+        console.log(`Import complete: ${insertedCount}/${questions.length} questions inserted for exam ${targetExamId}`);
+
+        return NextResponse.json({
+            success: true,
+            examId: targetExamId,
+            questionCount: insertedCount,
+            errors: errors.length > 0 ? errors : undefined
+        });
 
     } catch (error) {
         console.error('Import Exam Error:', error);
