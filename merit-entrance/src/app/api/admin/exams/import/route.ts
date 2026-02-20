@@ -59,20 +59,16 @@ export async function POST(req: NextRequest) {
             `;
             targetExamId = examResult[0].id;
 
-            // 2. Create Default Section (Title same as Exam Title)
+            // 2. Create Default Section (Name same as Exam Title)
             const sectionResult = await sql`
                 INSERT INTO sections (
                     exam_id,
-                    title,
-                    description,
-                    "order",
-                    total_marks
+                    name,
+                    "order"
                 ) VALUES (
                     ${targetExamId},
                     ${JSON.stringify({ en: title })}::jsonb,
-                    ${JSON.stringify({ en: 'Imported Questions' })}::jsonb,
-                    1,
-                    ${totalMarks || 0}
+                    1
                 ) RETURNING id
             `;
             targetSectionId = sectionResult[0].id;
