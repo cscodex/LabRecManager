@@ -61,6 +61,7 @@ interface Exam {
     shuffle_questions: boolean;
     security_mode?: boolean;
     status: string;
+    type?: string;
     sections: Section[];
     schedules: { id: string; start_time: string; end_time: string }[];
     avg_difficulty?: number;
@@ -103,6 +104,7 @@ export default function EditExamPage() {
         shuffleQuestions: false,
         securityMode: false,
         status: 'draft',
+        type: '',
     });
 
     const [newSection, setNewSection] = useState({ nameEn: '', namePa: '', duration: '' });
@@ -158,6 +160,7 @@ export default function EditExamPage() {
                     shuffleQuestions: e.shuffle_questions,
                     securityMode: e.security_mode || false,
                     status: e.status,
+                    type: e.type || '',
                 });
             }
         } catch (error) {
@@ -252,6 +255,7 @@ export default function EditExamPage() {
                         shuffleQuestions: formData.shuffleQuestions,
                         securityMode: formData.securityMode,
                         status: formData.status,
+                        type: formData.type || null,
                     }),
                 });
 
@@ -959,6 +963,24 @@ export default function EditExamPage() {
                                         <option value="draft">Draft</option>
                                         <option value="published">Published</option>
                                         <option value="archived">Archived</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
+                                    <select
+                                        value={formData.type}
+                                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                                        className="w-full px-4 py-2 border rounded-lg"
+                                    >
+                                        <option value="">Select Type</option>
+                                        <option value="JEE_MAIN">JEE Main</option>
+                                        <option value="JEE_ADV">JEE Advanced</option>
+                                        <option value="NEET">NEET</option>
+                                        <option value="UPSC_CSE">UPSC CSE</option>
+                                        <option value="GATE">GATE</option>
+                                        <option value="CAT">CAT</option>
+                                        <option value="SOE">School of Eminence</option>
+                                        <option value="OTHER">Other</option>
                                     </select>
                                 </div>
                             </div>

@@ -3,9 +3,9 @@
 ## Overview
 
 Build a comprehensive student analytics + recommendation + auto-generation system. Three pillars:
-1. **Deep Analytics** — Time, consistency, and comparative performance
-2. **Recommendation Engine** — OPF/WTI-based exam suggestions
-3. **Auto-Generation** — Build exams from question bank
+1. **Deep Analytics** — Time, consistency, comparative performance, and **Cut-off Trends**.
+2. **Recommendation Engine** — OPF/WTI-based exam suggestions with **Goal Gap Analysis**.
+3. **Auto-Generation** — Build exams from question bank.
 
 **Zero changes to existing pages or APIs.**
 
@@ -157,21 +157,101 @@ WHERE q.id NOT IN (
 
 ---
 
-## Part B: Proposed Changes
+## Part B: Updates & Enhancements (From Review)
 
-### Database
+### 1. Cut-off Trends & Gap Analysis [NEW]
+
+To provide context to student scores, we will introduce a **Cut-off Analysis** module. This allows students to compare their performance against real-world data (Previous Year Cut-offs) for exams like **IIT JEE**, **NEET**, **UPSC**, etc.
+
+**Features:**
+*   **Trend Graph**: Visual comparison of Student's Average Score vs. Historical Cut-offs (Qualifying & Admission).
+*   **Gap Analysis**: "You are 20 marks away from the 2024 JEE Advanced General Cut-off."
+*   **Category-Based**: Filter cut-offs by Category (General, OBC, SC, ST, EWS, etc.).
+*   **Sectional Cut-offs**: For exams like JEE Advanced/UPSC, validation against sectional minimums.
+
+### 2. Proposed SQL Schema for Cut-offs
+
+We need to store historical data.
+
+#### [MODIFY] `exams` Table
+Add `type` to classify the exam.
+
+```sql
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+-- Values: 'JEE_MAIN', 'JEE_ADV', 'NEET', 'UPSC_CSE', 'GATE', 'CAT', 'CUSTOM'
+```
+
+#### [NEW] `exam_cutoffs` Table
+Stores historical cut-off data.
+
+```sql
+CREATE TABLE IF NOT EXISTS exam_cutoff_trends (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    exam_type VARCHAR(50) NOT NULL, -- Matches exams.type (e.g., 'JEE_MAIN')
+    year INTEGER NOT NULL,
+    category VARCHAR(50) NOT NULL, -- 'GEN', 'OBC', 'SC', 'ST', 'EWS', 'PWD'
+    stage VARCHAR(50), -- 'PRELIMS', 'MAINS', 'ROUND_1', 'ROUND_6'
+    
+    -- Scores
+    total_cutoff_marks DECIMAL(10,2),
+    total_cutoff_percentile DECIMAL(5,2),
+    
+    -- Sectional Cutoffs (stored as JSON for flexibility)
+    -- Example: {"Physics": 10, "Chemistry": 10, "Maths": 10}
+    sectional_cutoffs JSONB,
+    
+    -- Metadata
+    description TEXT, -- e.g., "Qualifying for JEE Advanced" or "IIT Bombay CSE Closing Rank"
+    source_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for fast lookup
+CREATE INDEX idx_exam_cutoff_lookup ON exam_cutoff_trends(exam_type, year, category);
+```
+
+### 4. Student Course Progress Tracking [NEW]
+
+To visualize the student's learning journey over time ("Tracking the Course"), we will implement specific graphical representations on the Student Dashboard.
+
+**Visualizations:**
+1.  **Learning Trajectory (Score History Line Chart)**:
+    -   X-Axis: Timeline of Exams/Tests taken.
+    -   Y-Axis: Percentage Score.
+    -   *Feature*: Add a "Trend Line" (Moving Average) to smooth out fluctuations and show true progress direction.
+2.  **Topic Mastery Heatmap**:
+    -   X-Axis: Tests (Chronological).
+    -   Y-Axis: Topics (Physics, Chemistry, Math, etc.).
+    -   *Cell Color*: Green (High Mastery) to Red (Low Mastery).
+    -   *Insight*: Quickly shows if a student is improving in specific weak areas over time.
+3.  **Syllabus Coverage Sunburst/Donut Chart**:
+    -   Visualizes the "Course" structure.
+    -   Inner Ring: Subjects.
+    -   Outer Ring: Topics.
+    -   *Color*: Grey (Untouched), Yellow (Attempted), Green (Mastered).
+    -   *Insight*: "You have mastered 40% of the Physics syllabus."
+
+### 5. Enhanced Recommendation Engine
+
+*   **Goal Setting**: Allow students to set a "Target Exam" (e.g., JEE Advanced 2026).
+*   **Gap-Based Recommendations**: If the gap > 20%, recommend "Foundation" exams. If gap < 10%, recommend "Mock" exams (High Difficulty).
+
+---
+
+## Part C: Database & API Updates
+
+### Database Changes
 
 #### [MODIFY] [schema.sql](file:///Users/charanpreetsingh/LabRecManagemer/merit-entrance/database/schema.sql)
-
-One optional column:
 
 ```sql
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'admin';
 -- Values: 'admin', 'recommended', 'manual_practice'
-```
 
-> [!NOTE]
-> No other schema changes. `time_spent` already exists in `question_responses`. `total_score` already in `exam_attempts`. All analytics are computed from existing data.
+-- As proposed above
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+-- Create exam_cutoff_trends table (see above)
+```
 
 ---
 
@@ -192,7 +272,12 @@ ALTER TABLE exams ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'admin';
   "topicBreakdown": [
     { "tag": "Physics", "accuracy": 0.70, "isWeak": false, "tpf": 1.33 }
   ],
-  "percentile": { "overall": 72.5, "perExam": [{ "examTitle": "JEE Mock 1", "percentile": 68 }] }
+  "percentile": { "overall": 72.5, "perExam": [{ "examTitle": "JEE Mock 1", "percentile": 68 }] },
+  "cutoffs": {
+      "target": "JEE_MAIN",
+      "gap": -15,
+      "message": "You are 15 marks below the 2024 General Cutoff."
+  }
 }
 ```
 
@@ -250,47 +335,11 @@ Add ~80 lines:
 
 #### [MODIFY] `src/app/student/performance/page.tsx`
 
-**Enhanced Performance Page** — Add 3 new sections to existing page:
+**Enhanced Performance Page** — Add 4 new sections to existing page:
 1. **Consistency Card** — CI score, trend arrow, sparkline of last 10 scores
 2. **Time Analytics** — bar chart of TPF per topic, "rushing" warnings
 3. **Percentile Card** — overall percentile, per-exam percentile list
+4. **Target & Cut-offs** — Trend line showing student score vs. Historical Cut-offs.
 
 > [!IMPORTANT]
 > These are **additions** to the existing performance page, not replacements. All current charts and data remain untouched.
-
----
-
-## Part C: Data Flow
-
-```mermaid
-graph TD
-    A["question_responses<br/>(is_correct, marks_awarded, time_spent)"] --> B["Analytics API"]
-    C["exam_attempts<br/>(total_score, status)"] --> B
-    D["question_tags + tags"] --> B
-    B --> E["OPF Calculation"]
-    B --> F["WTI Detection"]
-    B --> G["TPF per Topic"]
-    B --> H["Consistency Index"]
-    B --> I["Percentile Rank"]
-    E --> J["Recommendation API"]
-    F --> J
-    G --> J
-    J --> K["Generate Exam API"]
-    K --> L["New Exam in DB"]
-    L --> M["Student Dashboard"]
-```
-
----
-
-## Part D: Verification Plan
-
-### Automated
-1. `npx tsc --noEmit` — TypeScript build
-2. API tests: call `/api/student/analytics` with test student
-3. Generation test: POST to `/api/student/generate-exam`, verify exam created
-
-### Manual
-1. Student with 5+ attempts → check analytics page shows CI, trend, TPF
-2. Accept recommendation → exam appears in dashboard
-3. Take generated exam → verify no repeated questions
-4. Compare percentile across 2+ students on same exam

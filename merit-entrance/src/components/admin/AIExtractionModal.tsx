@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, Check, RefreshCw, Loader2, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MathText } from '@/components/MathText';
@@ -20,6 +20,22 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
     const [extractedData, setExtractedData] = useState<any>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+
+    const [defaultModel, setDefaultModel] = useState('gemini-1.5-flash');
+
+    useEffect(() => {
+        if (isOpen) {
+            // Fetch settings
+            fetch('/api/admin/settings')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.settings?.defaultAIModel) {
+                        setDefaultModel(data.settings.defaultAIModel);
+                    }
+                })
+                .catch(err => console.error('Failed to load settings:', err));
+        }
+    }, [isOpen]);
 
     // Reset state on close
     const handleClose = () => {
@@ -92,7 +108,7 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     images: [image], // Send single image
-                    model: 'gemini-1.5-flash' // Default fast model
+                    model: defaultModel // Use fetched default model
                 })
             });
 
@@ -121,6 +137,13 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                     correctAnswer: Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer].filter(Boolean),
                     explanationEn: q.explanation || '',
                     marks: q.marks || 1,
+                    tags: q.tags || [], // Map tags
+                    difficulty: (() => {
+                        const tags = (q.tags || []).map((t: string) => t.toLowerCase());
+                        if (tags.includes('hard') || tags.includes('difficult')) return 5;
+                        if (tags.includes('medium') || tags.includes('intermediate')) return 3;
+                        return 1; // Default/Easy
+                    })(),
 
                     // Paragraph handling
                     ...(para ? {
@@ -185,6 +208,9 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                         <ImageIcon className="w-5 h-5 text-blue-600" />
                         Extract Question from Image
+                        <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border">
+                            Using: {defaultModel}
+                        </span>
                     </h3>
                     <button onClick={handleClose} className="p-1 hover:bg-gray-200 rounded-full">
                         <X className="w-5 h-5 text-gray-500" />
@@ -258,6 +284,15 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
 
                     {step === 'preview' && extractedData && (
                         <div className="space-y-6">
+                            {/* Metadata Badge */}
+                            <div className="flex gap-2 mb-2 items-center flex-wrap">
+                                <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">Marks: {extractedData.marks}</span>
+                                <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded">Level: {extractedData.difficulty || 1}/5</span>
+                                {extractedData.tags && extractedData.tags.map((tag: string, i: number) => (
+                                    <span key={i} className="bg-gray-100 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-gray-200">{tag}</span>
+                                ))}
+                            </div>
+
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                 <h4 className="font-semibold text-blue-900 mb-2 text-sm uppercase">Extracted Question</h4>
                                 <div className="bg-white p-4 rounded border border-blue-100 text-gray-800">
@@ -274,7 +309,7 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                                 </div>
                             )}
 
-                            {extractedData.options && extractedData.options.length > 0 && (
+                            {extractedData.options && extractedData.options.length > 0 ? (
                                 <div className="space-y-2">
                                     {extractedData.options.map((opt: any) => {
                                         const isCorrect = extractedData.correctAnswer?.includes(opt.id) || extractedData.correctAnswer?.includes(opt.textEn);
@@ -290,6 +325,26 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                                             </div>
                                         );
                                     })}
+                                </div>
+                            ) : null}
+
+                            {/* Non-MCQ Answer Display */}
+                            {extractedData.type !== 'mcq_single' && extractedData.type !== 'mcq_multiple' && extractedData.correctAnswer && extractedData.correctAnswer.length > 0 && (
+                                <div className="mt-2">
+                                    <h4 className="font-semibold text-gray-700 text-xs uppercase mb-1">Model Answer / Key Points</h4>
+                                    <div className="bg-green-50 border border-green-100 rounded p-3 text-sm text-gray-800">
+                                        <MathText text={extractedData.correctAnswer[0]} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Explanation Display */}
+                            {extractedData.explanationEn && (
+                                <div className="mt-2">
+                                    <h4 className="font-semibold text-gray-700 text-xs uppercase mb-1">Explanation</h4>
+                                    <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-600 italic">
+                                        <MathText text={extractedData.explanationEn} />
+                                    </div>
                                 </div>
                             )}
 

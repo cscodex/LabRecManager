@@ -21,7 +21,18 @@ interface AppSettings {
     showResultsImmediately: boolean;
     requirePhotoForExam: boolean;
     maxLoginAttempts: number;
+    defaultAIModel: string;
 }
+
+const AI_MODELS = [
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Fastest)' },
+    { id: 'gemini-2.0-flash-lite-preview-02-05', name: 'Gemini 2.0 Flash Lite (Preview)' },
+    { id: 'gemini-2.0-flash-thinking-exp-01-21', name: 'Gemini 2.0 Flash Thinking (Experimental)' },
+    { id: 'gpt-4o', name: 'GPT-4o (OpenAI)' },
+    { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 Vision (Groq)' },
+    { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout 17B (Fast Vision)' },
+    { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick 17B (High Context)' },
+];
 
 export default function AdminSettingsPage() {
     const router = useRouter();
@@ -37,6 +48,7 @@ export default function AdminSettingsPage() {
         showResultsImmediately: true,
         requirePhotoForExam: false,
         maxLoginAttempts: 5,
+        defaultAIModel: 'gemini-1.5-flash',
     });
 
     const [loading, setLoading] = useState(true);
@@ -55,11 +67,18 @@ export default function AdminSettingsPage() {
 
     const loadSettings = async () => {
         try {
-            // In a real app, this would fetch from API
-            // For now, using default values
+            const response = await fetch('/api/admin/settings');
+            const data = await response.json();
+            if (data.success && data.settings) {
+                setSettings(prev => ({
+                    ...prev,
+                    ...data.settings
+                }));
+            }
             setLoading(false);
         } catch (error) {
-            toast.error('Failed to load settings');
+            console.error('Failed to load settings:', error);
+            // Don't show error toast on load if it's just first time (might be empty)
             setLoading(false);
         }
     };
@@ -67,9 +86,17 @@ export default function AdminSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            // In a real app, this would save to API
-            await new Promise(resolve => setTimeout(resolve, 500));
-            toast.success('Settings saved successfully!');
+            const response = await fetch('/api/admin/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings }),
+            });
+
+            if (response.ok) {
+                toast.success('Settings saved successfully!');
+            } else {
+                toast.error('Failed to save settings');
+            }
         } catch (error) {
             toast.error('Failed to save settings');
         } finally {
@@ -150,6 +177,23 @@ export default function AdminSettingsPage() {
                                 <h2 className="font-semibold text-gray-900">Global Configuration</h2>
                             </div>
                             <div className="p-4 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Default AI Model
+                                    </label>
+                                    <select
+                                        value={settings.defaultAIModel}
+                                        onChange={(e) => setSettings({ ...settings, defaultAIModel: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg bg-white"
+                                    >
+                                        {AI_MODELS.map(model => (
+                                            <option key={model.id} value={model.id}>
+                                                {model.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">This model will be used by default for extraction and grading.</p>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">

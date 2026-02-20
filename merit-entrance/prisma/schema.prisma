@@ -62,6 +62,7 @@ model Exam {
   shuffleQuestions Boolean      @default(false) @map("shuffle_questions")
   showResults      String       @default("after_submit") // after_submit, after_end, manual
   status           String       @default("draft") // draft, published, archived
+  type             String?      @db.VarChar(50)
   securityMode     Boolean      @default(false) @map("security_mode")
   instructions     Json?
   createdById      String       @map("created_by") @db.Uuid
@@ -76,6 +77,16 @@ model Exam {
   assignmentLogs ExamAssignmentLog[]
   
   @@map("exams")
+}
+
+model ExamType {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("exam_types")
 }
 
 model Section {
@@ -290,4 +301,13 @@ model ActivityLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("activity_logs")
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String   // JSON stringified value or plain text
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("system_settings")
 }

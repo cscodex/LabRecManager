@@ -232,6 +232,12 @@ export async function POST(req: NextRequest) {
             -   Return them as an array of strings in the \`instructions\` field.
             -   These will be appended to the exam instructions.
 
+            **EXAM TYPE EXTRACTION**:
+            -   Analyze the header or title of the page to identify the Exam Type.
+            -   Look for keywords like "JEE Main", "JEE Advanced", "NEET", "UPSC", "GATE", "CAT", "School of Eminence", "Board Exam".
+            -   Map this to one of the following codes: 'JEE_MAIN', 'JEE_ADV', 'NEET', 'UPSC_CSE', 'GATE', 'CAT', 'SOE', 'OTHER'.
+            -   Return this single string value in the \`examType\` field.
+
             **QUESTION EXTRACTION RULES**:
             1.  **Multiple Choice Questions (MCW)**:
                 -   Extract all questions with options.
@@ -289,6 +295,7 @@ export async function POST(req: NextRequest) {
 
             RETURN JSON ONLY using this schema:
             {
+              "examType": "JEE_MAIN", 
               "instructions": ["Instruction 1"],
               "paragraphs": [{ "id": "p1", "title": "Passage Title", "content": "Passage text..." }],
               "questions": [
@@ -309,6 +316,8 @@ export async function POST(req: NextRequest) {
         `;
 
         const finalPrompt = customPrompt ? `${basePrompt}\n\nADDITIONAL INSTRUCTIONS:\n${customPrompt}` : basePrompt;
+
+        let extractedExamType: string | null = null;
 
         for (const base64Image of images) {
             let text = '';
@@ -344,6 +353,9 @@ export async function POST(req: NextRequest) {
                 });
 
                 const parsed = JSON.parse(cleanedText);
+                if (parsed.examType && !extractedExamType) {
+                    extractedExamType = parsed.examType;
+                }
                 const loadedQuestions = parsed.questions || [];
                 const loadedInstructions = parsed.instructions || [];
                 const loadedParagraphs = parsed.paragraphs || [];
@@ -371,17 +383,23 @@ export async function POST(req: NextRequest) {
 
             } catch (err: any) {
                 console.error(`Error processing page ${pageIndex} with provider ${provider}:`, err.message);
+                console.error('Raw Text that failed parsing:', text.substring(0, 1000) + '...'); // Log first 1000 chars
                 // Continue to next page
             }
 
             pageIndex++;
         }
 
+        if (extractedQuestions.length === 0) {
+            console.warn('No questions extracted from any page.');
+        }
+
         return NextResponse.json({
             success: true,
             questions: extractedQuestions,
             instructions: extractedInstructions,
-            paragraphs: extractedParagraphs
+            paragraphs: extractedParagraphs,
+            examType: extractedExamType
         });
 
     } catch (error: any) {

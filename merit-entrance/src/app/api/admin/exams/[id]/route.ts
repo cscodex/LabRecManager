@@ -98,12 +98,12 @@ export async function PUT(
 
         const { id } = await params;
         const body = await request.json();
-        const { title, description, instructions, gradingInstructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status } = body;
+        const { title, description, instructions, gradingInstructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status, type } = body;
 
-        console.log('Updating exam:', { id, title, description: !!description, instructions: !!instructions });
+        console.log('Updating exam:', { id, title, type, description: !!description, instructions: !!instructions });
 
         const now = new Date().toISOString();
-        await sql`
+        const update = await sql`
       UPDATE exams SET
         title = ${JSON.stringify(title)}::jsonb,
         description = ${description ? JSON.stringify(description) : null}::jsonb,
@@ -116,6 +116,7 @@ export async function PUT(
         shuffle_questions = ${shuffleQuestions || false},
         security_mode = ${securityMode || false},
         status = ${status || 'draft'},
+        type = ${type || null},
         updated_at = ${now}
       WHERE id = ${id}
     `;

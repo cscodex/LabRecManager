@@ -24,6 +24,7 @@ interface Exam {
     question_count: number;
     assigned_count: number;
     updated_at: string;
+    type: string | null;
 }
 
 export default function AdminExamsPage() {
@@ -189,6 +190,11 @@ export default function AdminExamsPage() {
                                                     {getText(exam.title, language)}
                                                 </h3>
                                                 {getStatusBadge(exam.status)}
+                                                {exam.type && (
+                                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                                                        {exam.type.replace('_', ' ')}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {exam.description && (

@@ -23,6 +23,7 @@ export async function GET() {
         e.status,
         e.created_at,
         e.updated_at,
+        e.type,
         a.name as created_by_name,
         (SELECT COUNT(*) FROM sections WHERE exam_id = e.id) as section_count,
         (SELECT COUNT(*) FROM questions q JOIN sections s ON q.section_id = s.id WHERE s.exam_id = e.id) as question_count,
