@@ -36,14 +36,20 @@ export default function AdminLayout({
     const [isSystemMenuOpen, setSystemMenuOpen] = useState(true);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    // Redirect if not admin
+    const isPublicRoute = pathname.includes('/forgot-password') || pathname.includes('/reset-password');
+
+    // Redirect if not admin (and not on a public route)
     useEffect(() => {
-        if (_hasHydrated && (!isAuthenticated || !['admin', 'superadmin'].includes(user?.role || ''))) {
+        if (!isPublicRoute && _hasHydrated && (!isAuthenticated || !['admin', 'superadmin'].includes(user?.role || ''))) {
             router.push('/');
         }
-    }, [_hasHydrated, isAuthenticated, user, router]);
+    }, [_hasHydrated, isAuthenticated, user, router, isPublicRoute]);
 
-    if (!_hasHydrated) return null;
+    if (!isPublicRoute && !_hasHydrated) return null;
+
+    if (isPublicRoute) {
+        return <>{children}</>;
+    }
 
     const navItems = [
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
