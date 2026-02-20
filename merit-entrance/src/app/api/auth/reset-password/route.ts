@@ -21,23 +21,38 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Find student with this reset token
+        // Find user with this reset token in both tables
+        let user: any = null;
+        let type = 'student';
+
         const students = await sql`
             SELECT id, email, name, verification_expires
             FROM students
             WHERE verification_token = ${token}
         `;
 
-        if (students.length === 0) {
+        if (students.length > 0) {
+            user = students[0];
+        } else {
+            const admins = await sql`
+                SELECT id, email, name, verification_expires
+                FROM admins
+                WHERE verification_token = ${token}
+            `;
+            if (admins.length > 0) {
+                user = admins[0];
+                type = 'admin';
+            }
+        }
+
+        if (!user) {
             console.log(`Password Reset Failed: Token not found in DB. Received: ${token.substring(0, 10)}...`);
             return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 });
         }
 
-        const student = students[0];
-
         // Check if token has expired
-        if (student.verification_expires) {
-            const expiryDate = new Date(student.verification_expires);
+        if (user.verification_expires) {
+            const expiryDate = new Date(user.verification_expires);
             // 24 hours expiry to account for any timezone drifts
             const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
             const now = new Date();
@@ -60,13 +75,23 @@ export async function POST(request: NextRequest) {
         const passwordHash = await bcrypt.hash(password, 10);
 
         // Update password and clear reset token
-        await sql`
-            UPDATE students
-            SET password_hash = ${passwordHash},
-                verification_token = NULL,
-                verification_expires = NULL
-            WHERE id = ${student.id}
-        `;
+        if (type === 'admin') {
+            await sql`
+                UPDATE admins
+                SET password_hash = ${passwordHash},
+                    verification_token = NULL,
+                    verification_expires = NULL
+                WHERE id = ${user.id}
+            `;
+        } else {
+            await sql`
+                UPDATE students
+                SET password_hash = ${passwordHash},
+                    verification_token = NULL,
+                    verification_expires = NULL
+                WHERE id = ${user.id}
+            `;
+        }
 
         return NextResponse.json({
             success: true,

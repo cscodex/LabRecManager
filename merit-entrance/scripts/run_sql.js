@@ -23,7 +23,9 @@ async function main() {
     const adapter = new PrismaNeon(pool);
     const prisma = new PrismaClient({ adapter });
 
-    const sqlPath = path.join(__dirname, '../database/update_exam_types.sql');
+    const args = process.argv.slice(2);
+    const sqlFile = args[0] || 'update_exam_types.sql';
+    const sqlPath = path.join(__dirname, '../', sqlFile.startsWith('database/') ? sqlFile : `database/${sqlFile}`);
     console.log(`Reading SQL from ${sqlPath}`);
     const sql = fs.readFileSync(sqlPath, 'utf-8');
 

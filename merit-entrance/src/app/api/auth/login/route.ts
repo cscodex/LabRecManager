@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Check if email is verified
-            if (student.email_verified === false) {
+            if (!student.email_verified) {
                 return NextResponse.json(
                     {
                         error: 'Please verify your email before logging in.',

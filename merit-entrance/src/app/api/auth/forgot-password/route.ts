@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
 const SENDER_EMAIL = process.env.RESEND_VERIFIED_DOMAIN_EMAIL || 'onboarding@resend.dev';
 const SENDER_NAME = 'Merit Entrance';
 
-async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
-    const resetUrl = `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/student/reset-password?token=${token}`;
+async function sendPasswordResetEmail(email: string, name: string, token: string, type: 'student' | 'admin' = 'student'): Promise<boolean> {
+    const resetUrl = `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/${type}/reset-password?token=${token}`;
 
     try {
         console.log(`Sending password reset email via Resend to: ${email}`);
@@ -90,40 +90,44 @@ async function sendPasswordResetEmail(email: string, name: string, token: string
 export async function POST(request: NextRequest) {
     try {
         console.log('--- Forgot Password Request Started ---');
-        const { identifier } = await request.json();
-        console.log('Identifier received:', identifier);
+        const { identifier, type = 'student' } = await request.json();
+        console.log(`Identifier received: ${identifier}, Type: ${type}`);
 
         if (!identifier) {
-            return NextResponse.json({ error: 'Email or roll number is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Identifier is required' }, { status: 400 });
         }
 
-        // Find student by email or roll number
-        const students = await sql`
-            SELECT id, email, name, roll_number
-            FROM students
-            WHERE email = ${identifier} OR roll_number = ${identifier}
-        `;
+        let user: any = null;
+        let queryTableName = 'students';
 
-        if (students.length === 0) {
-            console.log('Student not found for identifier:', identifier);
-            return NextResponse.json({ error: 'No account found with this email or roll number' }, { status: 404 });
+        if (type === 'admin') {
+            const admins = await sql`SELECT id, email, name FROM admins WHERE email = ${identifier}`;
+            if (admins.length > 0) {
+                user = admins[0];
+                queryTableName = 'admins';
+            }
+        } else {
+            const students = await sql`SELECT id, email, name, roll_number FROM students WHERE email = ${identifier} OR roll_number = ${identifier}`;
+            if (students.length > 0) user = students[0];
         }
 
-        const student = students[0];
-        console.log('Student found:', { id: student.id, hasEmail: !!student.email });
+        if (!user) {
+            console.log(`${type} not found for identifier:`, identifier);
+            return NextResponse.json({ error: 'No account found with this identifier' }, { status: 404 });
+        }
 
-        if (!student.email) {
+        console.log(`${type} found:`, { id: user.id, hasEmail: !!user.email });
+
+        if (!user.email) {
             return NextResponse.json({ error: 'No email associated with this account' }, { status: 400 });
         }
 
         // Clean email
-        const targetEmail = student.email.trim();
+        const targetEmail = user.email.trim();
         console.log(`Preparing to email: '${targetEmail}' (Length: ${targetEmail.length})`);
 
         // Generate reset token (expires in 1 hour)
         const resetToken = generateVerificationToken();
-        // Use milliseconds to add 1 hour - more reliable than setHours
-        // 24 hours expiry
         const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         console.log('=== PASSWORD RESET DEBUG ===');
@@ -132,17 +136,26 @@ export async function POST(request: NextRequest) {
         console.log('Reset expires:', resetExpires.toISOString());
         console.log('===========================');
 
-        // Update student with reset token
-        await sql`
-            UPDATE students
-            SET verification_token = ${resetToken},
-                verification_expires = ${resetExpires.toISOString()}
-            WHERE id = ${student.id}
-        `;
+        // Update user with reset token
+        if (type === 'admin') {
+            await sql`
+                UPDATE admins
+                SET verification_token = ${resetToken},
+                    verification_expires = ${resetExpires.toISOString()}
+                WHERE id = ${user.id}
+            `;
+        } else {
+            await sql`
+                UPDATE students
+                SET verification_token = ${resetToken},
+                    verification_expires = ${resetExpires.toISOString()}
+                WHERE id = ${user.id}
+            `;
+        }
         console.log('Database updated with token.');
 
         // Send password reset email
-        const emailSent = await sendPasswordResetEmail(targetEmail, student.name, resetToken);
+        const emailSent = await sendPasswordResetEmail(targetEmail, user.name, resetToken, type as 'student' | 'admin');
 
         if (!emailSent) {
             return NextResponse.json({

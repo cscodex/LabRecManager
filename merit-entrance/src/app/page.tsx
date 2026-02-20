@@ -123,7 +123,7 @@ function LoginContent() {
             {/* Identifier Field */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {loginType === 'student' ? t('auth.rollNumber') : t('auth.email')}
+                {loginType === 'student' ? 'Roll Number or Email' : t('auth.email')}
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -131,7 +131,7 @@ function LoginContent() {
                   type={loginType === 'admin' ? 'email' : 'text'}
                   value={formData.identifier}
                   onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
-                  placeholder={loginType === 'student' ? t('auth.enterRollNumber') : t('auth.enterEmail')}
+                  placeholder={loginType === 'student' ? 'Enter Roll Number or Email' : t('auth.enterEmail')}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
@@ -161,17 +161,15 @@ function LoginContent() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              {/* Forgot Password Link - Only for students */}
-              {loginType === 'student' && (
-                <div className="mt-2 text-right">
-                  <Link
-                    href="/student/forgot-password"
-                    className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
-              )}
+              {/* Forgot Password Link */}
+              <div className="mt-2 text-right">
+                <Link
+                  href={loginType === 'student' ? '/student/forgot-password' : '/admin/forgot-password'}
+                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             {/* Submit Button */}

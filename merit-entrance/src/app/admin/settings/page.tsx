@@ -37,7 +37,10 @@ const AI_MODELS = [
 export default function AdminSettingsPage() {
     const router = useRouter();
     const { user, isAuthenticated, _hasHydrated } = useAuthStore();
-    const [activeTab, setActiveTab] = useState<'general'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'security'>('general');
+
+    const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [passwordChanging, setPasswordChanging] = useState(false);
 
     const [settings, setSettings] = useState<AppSettings>({
         siteName: 'Merit Entrance',
@@ -104,6 +107,39 @@ export default function AdminSettingsPage() {
         }
     };
 
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            toast.error('New passwords do not match');
+            return;
+        }
+
+        setPasswordChanging(true);
+        try {
+            const response = await fetch('/api/admin/profile/password', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentPassword: passwordData.currentPassword,
+                    newPassword: passwordData.newPassword,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                toast.success('Password updated successfully');
+                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            } else {
+                toast.error(data.error || 'Failed to update password');
+            }
+        } catch (error) {
+            toast.error('An error occurred. Please try again.');
+        } finally {
+            setPasswordChanging(false);
+        }
+    };
+
     const handleClearCache = async () => {
         toast.success('Cache cleared successfully!');
     };
@@ -161,6 +197,7 @@ export default function AdminSettingsPage() {
                     {/* Tabs */}
                     <div className="flex gap-2">
                         <TabButton id="general" label="General" icon={Settings} />
+                        <TabButton id="security" label="Security" icon={Shield} />
                     </div>
                 </div>
             </header>
@@ -331,6 +368,75 @@ export default function AdminSettingsPage() {
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* SECURITY SETTINGS TAB */}
+                {activeTab === 'security' && (
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-xl shadow-sm">
+                            <div className="p-4 border-b flex items-center gap-2">
+                                <Shield className="w-5 h-5 text-gray-600" />
+                                <h2 className="font-semibold text-gray-900">Change Password</h2>
+                            </div>
+                            <form onSubmit={handlePasswordChange} className="p-4 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Current Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.currentPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        New Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.newPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Must be at least 8 characters with 1 uppercase, 1 lowercase, 1 number, and 1 special character.
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Confirm New Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.confirmPassword}
+                                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+                                <div className="pt-2">
+                                    <button
+                                        type="submit"
+                                        disabled={passwordChanging}
+                                        className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                        {passwordChanging ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                Updating...
+                                            </>
+                                        ) : (
+                                            'Update Password'
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}
