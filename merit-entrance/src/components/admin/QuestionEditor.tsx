@@ -14,6 +14,8 @@ const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import 'react-quill-new/dist/quill.snow.css';
 import RichTextEditor from '@/components/RichTextEditor';
 import AIExtractionModal from './AIExtractionModal';
+import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
+import { MathText } from '@/components/MathText';
 
 export interface QuestionFormData {
     id?: string;
@@ -33,6 +35,8 @@ export interface QuestionFormData {
     paragraphTextPa: string;
     parentId: string;
     tags: string[];
+    modelAnswerEn?: string;
+    modelAnswerPa?: string;
     // Paragraph Sub-questions
     subQuestions?: SubQuestionForm[];
 }
@@ -96,6 +100,8 @@ export default function QuestionEditor({
         paragraphTextPa: '',
         parentId: '',
         tags: [],
+        modelAnswerEn: '',
+        modelAnswerPa: '',
         subQuestions: []
     });
 
@@ -335,7 +341,7 @@ export default function QuestionEditor({
                             const tag = tags.find(t => t.id === tagId);
                             return (
                                 <span key={tagId} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs flex items-center gap-1">
-                                    {tag?.name}
+                                    {tag?.name || tagId}
                                     <button onClick={() => setFormData({ ...formData, tags: formData.tags.filter(id => id !== tagId) })}>
                                         <X className="w-3 h-3" />
                                     </button>
@@ -535,241 +541,282 @@ export default function QuestionEditor({
 
     // Normal Form
     return (
-        <div className="bg-white border rounded-xl shadow-sm p-6 space-y-6">
-            <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg border">
-                <h2 className="text-lg font-bold text-gray-800">
-                    {initialData?.id ? 'Edit Question' : 'New Question'}
-                </h2>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowAIModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg hover:opacity-90 transition-all text-sm font-medium shadow-sm border border-indigo-500/20"
-                    >
-                        <ImageIcon className="w-4 h-4" />
-                        <span className="hidden sm:inline">Extract from Image</span>
-                    </button>
-                    <div className="h-6 w-px bg-gray-200 mx-1"></div>
-                    <select
-                        value={formData.type}
-                        onChange={e => {
-                            const newType = e.target.value;
-                            if (newType === 'paragraph') {
-                                setIsParaMode(true);
-                            }
-                            setFormData({ ...formData, type: newType, correctAnswer: [] });
-                        }}
-                        className="px-3 py-1 border rounded-lg text-sm"
-                    >
-                        <option value="mcq_single">Single Choice</option>
-                        <option value="mcq_multiple">Multiple Choice</option>
-                        <option value="fill_blank">Fill in Blank</option>
-                        <option value="paragraph">Paragraph</option>
-                    </select>
-                    <button onClick={onCancel} className="p-2 hover:bg-white rounded-full"><X className="w-5 h-5" /></button>
+        <MathJaxProvider>
+            <div className="bg-white border rounded-xl shadow-sm p-6 space-y-6">
+                <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg border">
+                    <h2 className="text-lg font-bold text-gray-800">
+                        {initialData?.id ? 'Edit Question' : 'New Question'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowAIModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg hover:opacity-90 transition-all text-sm font-medium shadow-sm border border-indigo-500/20"
+                        >
+                            <ImageIcon className="w-4 h-4" />
+                            <span className="hidden sm:inline">Extract from Image</span>
+                        </button>
+                        <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                        <select
+                            value={formData.type}
+                            onChange={e => {
+                                const newType = e.target.value;
+                                if (newType === 'paragraph') {
+                                    setIsParaMode(true);
+                                }
+                                setFormData({ ...formData, type: newType, correctAnswer: [] });
+                            }}
+                            className="px-3 py-1 border rounded-lg text-sm"
+                        >
+                            <option value="mcq_single">Single Choice</option>
+                            <option value="mcq_multiple">Multiple Choice</option>
+                            <option value="fill_blank">Fill in Blank</option>
+                            <option value="short_answer">Short Answer</option>
+                            <option value="long_answer">Long Answer</option>
+                            <option value="paragraph">Paragraph</option>
+                        </select>
+                        <button onClick={onCancel} className="p-2 hover:bg-white rounded-full"><X className="w-5 h-5" /></button>
+                    </div>
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Question Text (English)</label>
-                        <RichTextEditor
-                            value={formData.textEn}
-                            onChange={(val) => setFormData({ ...formData, textEn: val })}
-                            placeholder="Enter question text (English)..."
-                        />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Question Text (English)</label>
+                            <RichTextEditor
+                                value={formData.textEn}
+                                onChange={(val) => setFormData({ ...formData, textEn: val })}
+                                placeholder="Enter question text (English)..."
+                            />
+                            {formData.textEn && (
+                                <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
+                                    <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                    <MathText text={formData.textEn} />
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Question Text (Punjabi)</label>
+                            <RichTextEditor
+                                value={formData.textPa}
+                                onChange={(val) => setFormData({ ...formData, textPa: val })}
+                                placeholder="Enter question text (Punjabi)..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Image</label>
+                            {formData.imageUrl && (
+                                <div className="relative w-full h-32 mb-2 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                    <Image src={formData.imageUrl} alt="Question" layout="fill" objectFit="contain" />
+                                    <button onClick={() => setFormData({ ...formData, imageUrl: '' })} className="absolute top-1 right-1 bg-white p-1 rounded-full shadow"><X className="w-4 h-4" /></button>
+                                </div>
+                            )}
+                            <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">
+                                <Upload className="w-4 h-4" /> Upload Image
+                                <input type="file" className="hidden" accept="image/*" onChange={e => {
+                                    if (e.target.files?.[0]) handleImageUpload(e.target.files[0], 'question');
+                                }} />
+                            </label>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Question Text (Punjabi)</label>
-                        <RichTextEditor
-                            value={formData.textPa}
-                            onChange={(val) => setFormData({ ...formData, textPa: val })}
-                            placeholder="Enter question text (Punjabi)..."
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Image</label>
-                        {formData.imageUrl && (
-                            <div className="relative w-full h-32 mb-2 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                                <Image src={formData.imageUrl} alt="Question" layout="fill" objectFit="contain" />
-                                <button onClick={() => setFormData({ ...formData, imageUrl: '' })} className="absolute top-1 right-1 bg-white p-1 rounded-full shadow"><X className="w-4 h-4" /></button>
+
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Marks</label>
+                                <input type="number" value={formData.marks} onChange={e => setFormData({ ...formData, marks: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
                             </div>
-                        )}
-                        <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">
-                            <Upload className="w-4 h-4" /> Upload Image
-                            <input type="file" className="hidden" accept="image/*" onChange={e => {
-                                if (e.target.files?.[0]) handleImageUpload(e.target.files[0], 'question');
-                            }} />
-                        </label>
-                    </div>
-                </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Negative</label>
+                                <input type="number" step="0.25" value={formData.negativeMarks} onChange={e => setFormData({ ...formData, negativeMarks: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Difficulty</label>
+                                <select value={formData.difficulty} onChange={e => setFormData({ ...formData, difficulty: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg">
+                                    {[1, 2, 3, 4, 5].map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                            </div>
+                        </div>
 
-                <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
                         <div>
-                            <label className="block text-sm font-medium mb-1">Marks</label>
-                            <input type="number" value={formData.marks} onChange={e => setFormData({ ...formData, marks: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Negative</label>
-                            <input type="number" step="0.25" value={formData.negativeMarks} onChange={e => setFormData({ ...formData, negativeMarks: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Difficulty</label>
-                            <select value={formData.difficulty} onChange={e => setFormData({ ...formData, difficulty: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg">
-                                {[1, 2, 3, 4, 5].map(d => <option key={d} value={d}>{d}</option>)}
+                            <label className="block text-sm font-medium mb-1">Tags</label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {formData.tags.map(tagId => {
+                                    const tag = tags.find(t => t.id === tagId);
+                                    const displayName = tag?.name || tagId;
+                                    return <span key={tagId} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs flex items-center gap-1">{displayName} <button onClick={() => setFormData({ ...formData, tags: formData.tags.filter(id => id !== tagId) })}><X className="w-3 h-3" /></button></span>
+                                })}
+                            </div>
+                            <select
+                                value=""
+                                onChange={(e) => {
+                                    if (e.target.value && !formData.tags.includes(e.target.value)) {
+                                        setFormData({ ...formData, tags: [...formData.tags, e.target.value] });
+                                    }
+                                }}
+                                className="w-full px-3 py-2 border rounded-lg"
+                            >
+                                <option value="">+ Add Tag</option>
+                                {tags.filter(t => !formData.tags.includes(t.id)).map(tag => (
+                                    <option key={tag.id} value={tag.id}>{tag.name}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
+                </div>
 
+                {/* Options */}
+                {formData.type === 'fill_blank' ? (
                     <div>
-                        <label className="block text-sm font-medium mb-1">Tags</label>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                            {formData.tags.map(tagId => {
-                                const tag = tags.find(t => t.id === tagId);
-                                return <span key={tagId} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs flex items-center gap-1">{tag?.name} <button onClick={() => setFormData({ ...formData, tags: formData.tags.filter(id => id !== tagId) })}><X className="w-3 h-3" /></button></span>
-                            })}
-                        </div>
-                        <select
-                            value=""
-                            onChange={(e) => {
-                                if (e.target.value && !formData.tags.includes(e.target.value)) {
-                                    setFormData({ ...formData, tags: [...formData.tags, e.target.value] });
-                                }
-                            }}
+                        <label className="block text-sm font-medium mb-2">Correct Answer(s) (comma separated)</label>
+                        <input
+                            value={formData.fillBlankAnswers}
+                            onChange={e => setFormData({ ...formData, fillBlankAnswers: e.target.value, correctAnswer: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                             className="w-full px-3 py-2 border rounded-lg"
-                        >
-                            <option value="">+ Add Tag</option>
-                            {tags.filter(t => !formData.tags.includes(t.id)).map(tag => (
-                                <option key={tag.id} value={tag.id}>{tag.name}</option>
-                            ))}
-                        </select>
+                            placeholder="answer1, answer2"
+                        />
                     </div>
-                </div>
-            </div>
-
-            {/* Options */}
-            {formData.type === 'fill_blank' ? (
-                <div>
-                    <label className="block text-sm font-medium mb-2">Correct Answer(s) (comma separated)</label>
-                    <input
-                        value={formData.fillBlankAnswers}
-                        onChange={e => setFormData({ ...formData, fillBlankAnswers: e.target.value, correctAnswer: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="answer1, answer2"
-                    />
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <label className="block text-sm font-medium">Options</label>
-                        <button onClick={addOption} className="text-sm text-blue-600 hover:underline">+ Add Option</button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {formData.options.map((opt, idx) => (
-                            <div key={opt.id} className={`flex items-start gap-3 p-3 border rounded-lg ${formData.correctAnswer.includes(opt.id) ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
-                                <div className="space-y-2">
-                                    <button
-                                        onClick={() => toggleCorrectAnswer(opt.id)}
-                                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${formData.correctAnswer.includes(opt.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
-                                    >
-                                        {formData.correctAnswer.includes(opt.id) && <CheckCircle className="w-4 h-4" />}
-                                    </button>
-                                    <button onClick={() => removeOption(opt.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
-                                </div>
-                                <div className="flex-1 space-y-2">
-                                    <textarea
-                                        value={opt.textEn}
-                                        onChange={e => {
-                                            const newOpts = [...formData.options];
-                                            newOpts[idx].textEn = e.target.value;
-                                            setFormData({ ...formData, options: newOpts });
-                                        }}
-                                        rows={2}
-                                        className="w-full px-2 py-1 border rounded text-sm"
-                                        placeholder={`Option ${opt.id.toUpperCase()}`}
-                                    />
-                                    <textarea
-                                        value={opt.textPa}
-                                        onChange={e => {
-                                            const newOpts = [...formData.options];
-                                            newOpts[idx].textPa = e.target.value;
-                                            setFormData({ ...formData, options: newOpts });
-                                        }}
-                                        rows={2}
-                                        className="w-full px-2 py-1 border rounded text-xs text-gray-500"
-                                        placeholder="Punjabi"
-                                    />
-                                    {/* Option Image Upload */}
-                                    {opt.imageUrl && (
-                                        <div className="relative w-full h-16 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
-                                            <Image src={opt.imageUrl} alt="" width={120} height={64} className="max-h-16 w-auto object-contain" />
-                                            <button
-                                                onClick={() => {
-                                                    const newOpts = [...formData.options];
-                                                    newOpts[idx].imageUrl = undefined;
-                                                    setFormData({ ...formData, options: newOpts });
-                                                }}
-                                                className="absolute top-0.5 right-0.5 bg-white p-0.5 rounded-full shadow"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    )}
-                                    <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-50 text-xs text-gray-500">
-                                        <ImageIcon className="w-3 h-3" />
-                                        {opt.imageUrl ? 'Change' : 'Image'}
-                                        <input type="file" className="hidden" accept="image/*" onChange={e => {
-                                            if (e.target.files?.[0]) handleImageUpload(e.target.files[0], 'option', idx);
-                                        }} />
-                                    </label>
-                                </div>
+                ) : (formData.type === 'short_answer' || formData.type === 'long_answer') ? (
+                    <div className="space-y-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                            <strong>{formData.type === 'short_answer' ? 'Short' : 'Long'} Answer</strong> — This will be graded by AI using the model answer below.
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Model Answer (English)</label>
+                                <RichTextEditor
+                                    value={formData.modelAnswerEn || ''}
+                                    onChange={(val) => setFormData({ ...formData, modelAnswerEn: val })}
+                                    placeholder="Enter model answer for AI grading (English)..."
+                                />
+                                {formData.modelAnswerEn && (
+                                    <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
+                                        <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                        <MathText text={formData.modelAnswerEn} />
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Model Answer (Punjabi)</label>
+                                <RichTextEditor
+                                    value={formData.modelAnswerPa || ''}
+                                    onChange={(val) => setFormData({ ...formData, modelAnswerPa: val })}
+                                    placeholder="Enter model answer for AI grading (Punjabi)..."
+                                />
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <label className="block text-sm font-medium">Options</label>
+                            <button onClick={addOption} className="text-sm text-blue-600 hover:underline">+ Add Option</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {formData.options.map((opt, idx) => (
+                                <div key={opt.id} className={`flex items-start gap-3 p-3 border rounded-lg ${formData.correctAnswer.includes(opt.id) ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
+                                    <div className="space-y-2">
+                                        <button
+                                            onClick={() => toggleCorrectAnswer(opt.id)}
+                                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${formData.correctAnswer.includes(opt.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
+                                        >
+                                            {formData.correctAnswer.includes(opt.id) && <CheckCircle className="w-4 h-4" />}
+                                        </button>
+                                        <button onClick={() => removeOption(opt.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                    <div className="flex-1 space-y-2">
+                                        <textarea
+                                            value={opt.textEn}
+                                            onChange={e => {
+                                                const newOpts = [...formData.options];
+                                                newOpts[idx].textEn = e.target.value;
+                                                setFormData({ ...formData, options: newOpts });
+                                            }}
+                                            rows={2}
+                                            className="w-full px-2 py-1 border rounded text-sm"
+                                            placeholder={`Option ${opt.id.toUpperCase()}`}
+                                        />
+                                        <textarea
+                                            value={opt.textPa}
+                                            onChange={e => {
+                                                const newOpts = [...formData.options];
+                                                newOpts[idx].textPa = e.target.value;
+                                                setFormData({ ...formData, options: newOpts });
+                                            }}
+                                            rows={2}
+                                            className="w-full px-2 py-1 border rounded text-xs text-gray-500"
+                                            placeholder="Punjabi"
+                                        />
+                                        {/* Option Image Upload */}
+                                        {opt.imageUrl && (
+                                            <div className="relative w-full h-16 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+                                                <Image src={opt.imageUrl} alt="" width={120} height={64} className="max-h-16 w-auto object-contain" />
+                                                <button
+                                                    onClick={() => {
+                                                        const newOpts = [...formData.options];
+                                                        newOpts[idx].imageUrl = undefined;
+                                                        setFormData({ ...formData, options: newOpts });
+                                                    }}
+                                                    className="absolute top-0.5 right-0.5 bg-white p-0.5 rounded-full shadow"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                        <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 border rounded hover:bg-gray-50 text-xs text-gray-500">
+                                            <ImageIcon className="w-3 h-3" />
+                                            {opt.imageUrl ? 'Change' : 'Image'}
+                                            <input type="file" className="hidden" accept="image/*" onChange={e => {
+                                                if (e.target.files?.[0]) handleImageUpload(e.target.files[0], 'option', idx);
+                                            }} />
+                                        </label>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Explanation */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Explanation (En)</label>
+                        <RichTextEditor
+                            value={formData.explanationEn}
+                            onChange={(val) => setFormData({ ...formData, explanationEn: val })}
+                            placeholder="Explanation (English)..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Explanation (Pa)</label>
+                        <RichTextEditor
+                            value={formData.explanationPa}
+                            onChange={(val) => setFormData({ ...formData, explanationPa: val })}
+                            placeholder="Explanation (Punjabi)..."
+                        />
                     </div>
                 </div>
-            )}
 
-            {/* Explanation */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium mb-1">Explanation (En)</label>
-                    <RichTextEditor
-                        value={formData.explanationEn}
-                        onChange={(val) => setFormData({ ...formData, explanationEn: val })}
-                        placeholder="Explanation (English)..."
-                    />
+                <div className="flex justify-end gap-3 pt-6 border-t">
+                    <button onClick={onCancel} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleSubmit} disabled={isSaving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        {isSaving ? 'Saving...' : 'Save Question'}
+                    </button>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1">Explanation (Pa)</label>
-                    <RichTextEditor
-                        value={formData.explanationPa}
-                        onChange={(val) => setFormData({ ...formData, explanationPa: val })}
-                        placeholder="Explanation (Punjabi)..."
-                    />
-                </div>
-            </div>
 
-            <div className="flex justify-end gap-3 pt-6 border-t">
-                <button onClick={onCancel} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={handleSubmit} disabled={isSaving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                    {isSaving ? 'Saving...' : 'Save Question'}
-                </button>
+                {/* AI Extraction Modal */}
+                <AIExtractionModal
+                    isOpen={showAIModal}
+                    onClose={() => setShowAIModal(false)}
+                    onExtract={(data) => {
+                        setFormData(prev => ({
+                            ...prev,
+                            ...data,
+                            subQuestions: data.type === 'paragraph' ? (data.subQuestions || []) : (prev.subQuestions || []),
+                        }));
+                        toast.success('Question populated from AI!');
+                    }}
+                />
             </div>
-
-            {/* AI Extraction Modal */}
-            <AIExtractionModal
-                isOpen={showAIModal}
-                onClose={() => setShowAIModal(false)}
-                onExtract={(data) => {
-                    setFormData(prev => ({
-                        ...prev,
-                        ...data,
-                        subQuestions: data.type === 'paragraph' ? (data.subQuestions || []) : (prev.subQuestions || []),
-                    }));
-                    toast.success('Question populated from AI!');
-                }}
-            />
-        </div>
+        </MathJaxProvider>
     );
 }

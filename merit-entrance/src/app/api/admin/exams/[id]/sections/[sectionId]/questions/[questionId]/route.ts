@@ -16,7 +16,7 @@ export async function PUT(
 
         const { id, sectionId, questionId } = await params;
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags, subQuestions } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags, subQuestions, modelAnswer } = body;
 
         // 1. Handle Paragraph Content Update
         // Fetch existing question data to determine paragraph_id and current type
@@ -59,6 +59,7 @@ export async function PUT(
         text = ${text ? JSON.stringify(text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
         options = ${options ? JSON.stringify(options) : null}::jsonb,
         correct_answer = ${correctAnswer ? JSON.stringify(correctAnswer) : '[]'}::jsonb,
+        model_answer = ${modelAnswer ? JSON.stringify(modelAnswer) : null}::jsonb,
         explanation = ${explanation ? JSON.stringify(explanation) : null}::jsonb,
         marks = ${marks || 1},
         difficulty = ${difficulty || 1},

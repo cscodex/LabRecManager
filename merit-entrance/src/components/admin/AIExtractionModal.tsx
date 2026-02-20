@@ -124,35 +124,62 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                 const q = data.questions[0];
                 const para = data.paragraphs?.find((p: any) => p.id === q.paragraphId);
 
-                // Map to Partial<QuestionFormData>
+                // --- Smart Type Mapping ---
+                let aiType = q.type || 'mcq_single';
+                if (aiType === 'mcq') aiType = 'mcq_single';
+                // If type is mcq but has no options and answer is long, reclassify
+                if ((aiType === 'mcq_single') && (!q.options || q.options.length === 0)) {
+                    const wordCount = (q.correctAnswer || '').split(/\s+/).length;
+                    if (wordCount <= 3) {
+                        aiType = 'fill_blank';
+                    } else {
+                        aiType = (q.marks || 1) <= 3 ? 'short_answer' : 'long_answer';
+                    }
+                }
+
+                // --- Build mapped data ---
                 const mappedData: Partial<QuestionFormData> = {
-                    type: q.type || 'mcq_single',
+                    type: aiType,
                     textEn: q.text,
-                    textPa: '', // AI usually extracts English unless specified
+                    textPa: '',
                     options: q.options?.map((opt: string, idx: number) => ({
-                        id: String.fromCharCode(97 + idx), // a, b, c
+                        id: String.fromCharCode(97 + idx),
                         textEn: opt,
                         textPa: ''
                     })) || [],
-                    correctAnswer: Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer].filter(Boolean),
                     explanationEn: q.explanation || '',
                     marks: q.marks || 1,
-                    tags: q.tags || [], // Map tags
+                    tags: q.tags || [],
                     difficulty: (() => {
-                        const tags = (q.tags || []).map((t: string) => t.toLowerCase());
-                        if (tags.includes('hard') || tags.includes('difficult')) return 5;
-                        if (tags.includes('medium') || tags.includes('intermediate')) return 3;
-                        return 1; // Default/Easy
+                        const tagsList = (q.tags || []).map((t: string) => t.toLowerCase());
+                        if (tagsList.includes('hard') || tagsList.includes('difficult')) return 5;
+                        if (tagsList.includes('medium') || tagsList.includes('intermediate')) return 3;
+                        return 1;
                     })(),
+
+                    // --- Answer handling based on type ---
+                    // MCQ/fill_blank: correctAnswer holds the answer
+                    // short/long answer: modelAnswerEn holds the answer, correctAnswer is empty
+                    correctAnswer: (() => {
+                        if (aiType === 'short_answer' || aiType === 'long_answer') {
+                            return []; // No strict correct answer for AI-graded types
+                        }
+                        return Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer].filter(Boolean);
+                    })(),
+                    modelAnswerEn: (aiType === 'short_answer' || aiType === 'long_answer')
+                        ? (q.correctAnswer || '')
+                        : '',
+
+                    // Fill blank: set fill blank answers field
+                    fillBlankAnswers: aiType === 'fill_blank' ? (q.correctAnswer || '') : '',
 
                     // Paragraph handling
                     ...(para ? {
                         type: 'paragraph',
                         paragraphTextEn: para.content || para.text,
-                        // If it's paragraph, the question itself is typically a sub-question
                         subQuestions: data.questions.filter((sq: any) => sq.paragraphId === para.id).map((sq: any) => ({
                             textEn: sq.text,
-                            type: sq.type || 'mcq_single',
+                            type: sq.type === 'mcq' ? 'mcq_single' : (sq.type || 'mcq_single'),
                             options: sq.options?.map((o: string, idx: number) => ({
                                 id: String.fromCharCode(97 + idx),
                                 textEn: o
@@ -164,15 +191,13 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                     } : {})
                 };
 
-                // Normalize Correct Answers to Option IDs if needed (similar to Import fix)
-                if (mappedData.options && mappedData.correctAnswer) {
+                // Normalize Correct Answers to Option IDs if MCQ type
+                if ((aiType === 'mcq_single' || aiType === 'mcq_multiple') && mappedData.options && mappedData.correctAnswer) {
                     mappedData.correctAnswer = mappedData.correctAnswer.map((ans: string) => {
-                        // Check if it matches an option text
                         const matchedOptIndex = mappedData.options?.findIndex(o => o.textEn === ans);
                         if (matchedOptIndex !== undefined && matchedOptIndex !== -1) {
-                            return String.fromCharCode(97 + matchedOptIndex); // 'a', 'b'...
+                            return String.fromCharCode(97 + matchedOptIndex);
                         }
-                        // Check if it's already an ID (A, B... or a, b...)
                         if (/^[A-Za-z]$/.test(ans)) return ans.toLowerCase();
                         return ans;
                     });

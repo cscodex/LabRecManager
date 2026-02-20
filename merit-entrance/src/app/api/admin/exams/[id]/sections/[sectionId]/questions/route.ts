@@ -82,12 +82,17 @@ export async function POST(
 
         const { id, sectionId } = await params;
         const body = await request.json();
-        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags } = body;
+        const { type, text, options, correctAnswer, explanation, marks, difficulty, negativeMarks, imageUrl, order, parentId, paragraphText, tags, modelAnswer } = body;
 
         // For paragraph type, paragraph_text is required; for sub-questions, parent_id is required
         if (type === 'paragraph') {
             if (!paragraphText?.en) {
                 return NextResponse.json({ error: 'Paragraph text is required' }, { status: 400 });
+            }
+        } else if (type === 'short_answer' || type === 'long_answer') {
+            // Short/long answers don't need correctAnswer (AI graded)
+            if (!text?.en) {
+                return NextResponse.json({ error: 'Question text is required' }, { status: 400 });
             }
         } else if (!text?.en || !correctAnswer) {
             return NextResponse.json({ error: 'Question text and answer are required' }, { status: 400 });
@@ -107,13 +112,14 @@ export async function POST(
         }
 
         const result = await sql`
-      INSERT INTO questions (section_id, type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id)
+      INSERT INTO questions (section_id, type, text, options, correct_answer, model_answer, explanation, marks, difficulty, negative_marks, image_url, "order", parent_id, paragraph_id)
       VALUES (
         ${sectionId},
         ${type || 'mcq_single'},
         ${text ? JSON.stringify(text) : JSON.stringify({ en: '', pa: '' })}::jsonb,
         ${options ? JSON.stringify(options) : null}::jsonb,
         ${correctAnswer ? JSON.stringify(correctAnswer) : '[]'}::jsonb,
+        ${modelAnswer ? JSON.stringify(modelAnswer) : null}::jsonb,
         ${explanation ? JSON.stringify(explanation) : null}::jsonb,
         ${marks || 1},
         ${difficulty || 1},

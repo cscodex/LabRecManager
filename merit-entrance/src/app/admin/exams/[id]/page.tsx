@@ -445,6 +445,12 @@ export default function EditExamPage() {
                 }));
             } else if (data.type === 'fill_blank') {
                 body.correctAnswer = data.fillBlankAnswers.split(',').map(s => s.trim()).filter(Boolean);
+            } else if (data.type === 'short_answer' || data.type === 'long_answer') {
+                body.correctAnswer = []; // Empty — graded by AI
+                body.modelAnswer = {
+                    en: data.modelAnswerEn || '',
+                    pa: data.modelAnswerPa || ''
+                };
             } else {
                 body.options = data.options.map(o => ({
                     id: o.id,
