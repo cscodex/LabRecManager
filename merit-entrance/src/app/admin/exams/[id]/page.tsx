@@ -9,7 +9,8 @@ import { getDifficultyColor } from '@/lib/performance';
 import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
-    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle, List
+    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle, List,
+    AlertCircle, Check, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -126,6 +127,12 @@ export default function EditExamPage() {
     const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
     const [bulkMoveTargetSectionId, setBulkMoveTargetSectionId] = useState('');
 
+    // PDF Instructions Extraction
+    const [showInstructionsPdfModal, setShowInstructionsPdfModal] = useState(false);
+    const [pdfPages, setPdfPages] = useState<string[]>([]);
+    const [selectedPageIndices, setSelectedPageIndices] = useState<number[]>([]);
+    const [isExtractingInstructions, setIsExtractingInstructions] = useState(false);
+    const [pdfFile, setPdfFile] = useState<File | null>(null);
 
     // Refs for auto-save debouncing
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -625,6 +632,89 @@ export default function EditExamPage() {
         }
     };
 
+    // --- PDF INSTRUCTIONS EXTRACTION LOGIC ---
+    const handlePdfUploadForInstructions = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setPdfFile(file);
+        setPdfPages([]);
+        setSelectedPageIndices([]);
+        setShowInstructionsPdfModal(true);
+
+        try {
+            const pdfjsLib = await import('pdfjs-dist');
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.mjs`;
+
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const numPages = pdf.numPages;
+            const images: string[] = [];
+
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdf.getPage(i);
+                // Render thumbnail
+                const viewport = page.getViewport({ scale: 1.5 }); // Good resolution for text extraction
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                if (context) {
+                    const renderContext: any = { canvasContext: context, viewport: viewport };
+                    await page.render(renderContext).promise;
+                    images.push(canvas.toDataURL('image/jpeg', 0.8));
+                }
+            }
+            setPdfPages(images);
+            setSelectedPageIndices([0]); // Select first page by default
+        } catch (error: any) {
+            console.error('PDF Preview Error:', error);
+            toast.error(`Failed to load PDF: ${error.message}`);
+            setShowInstructionsPdfModal(false);
+        }
+    };
+
+    const extractInstructionsFromPdf = async (targetLanguage: 'English' | 'Punjabi') => {
+        if (selectedPageIndices.length === 0) {
+            toast.error('Please select at least one page.');
+            return;
+        }
+
+        setIsExtractingInstructions(true);
+        const selectedImages = pdfPages.filter((_, idx) => selectedPageIndices.includes(idx));
+
+        try {
+            const response = await fetch('/api/ai/extract-instructions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ images: selectedImages, targetLanguage }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.error || 'Failed to extract instructions');
+
+            if (data.success && data.html) {
+                if (targetLanguage === 'English') {
+                    setFormData(prev => ({ ...prev, instructionsEn: data.html }));
+                } else {
+                    setFormData(prev => ({ ...prev, instructionsPa: data.html }));
+                }
+                toast.success(`Instructions extracted to ${targetLanguage}!`);
+                setShowInstructionsPdfModal(false);
+            } else {
+                toast.error('No instructions found or failed to parse.');
+            }
+        } catch (error: any) {
+            console.error('Extraction error:', error);
+            toast.error(error.message || 'Error occurred during extraction');
+        } finally {
+            setIsExtractingInstructions(false);
+        }
+    };
+    // ------------------------------------------
+
     const handleImportQuestions = async (selectedIds: string[]) => {
         if (!activeSectionId) return;
         try {
@@ -1078,11 +1168,29 @@ export default function EditExamPage() {
                     ) : activeTab === 'instructions' ? (
                         <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
                             {/* ... (Existing Instructions - Preserved) */}
-                            <div className="border-b pb-4">
-                                <h2 className="text-lg font-semibold text-gray-900">Exam Instructions</h2>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    These instructions are displayed to students before the exam starts.
-                                </p>
+                            <div className="border-b pb-4 flex justify-between items-start">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Exam Instructions</h2>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        These instructions are displayed to students before the exam starts.
+                                    </p>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        id="pdf-upload-instructions"
+                                        accept="application/pdf"
+                                        className="hidden"
+                                        onChange={handlePdfUploadForInstructions}
+                                    />
+                                    <label
+                                        htmlFor="pdf-upload-instructions"
+                                        className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                                    >
+                                        <FileText className="w-4 h-4" />
+                                        Extract from PDF
+                                    </label>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1745,6 +1853,80 @@ export default function EditExamPage() {
                                 Move Questions
                             </button>
                         </div>
+                    </div>
+                </Modal>
+
+                {/* PDF Instructions Extraction Modal */}
+                <Modal isOpen={showInstructionsPdfModal} onClose={() => !isExtractingInstructions && setShowInstructionsPdfModal(false)} title="Extract Instructions from PDF" maxWidth="4xl">
+                    <div className="p-6">
+                        {pdfPages.length > 0 ? (
+                            <div className="space-y-6">
+                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800 flex items-start gap-2">
+                                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                    <p>Select the page(s) that contain the general instructions or rules. Do NOT select pages with actual questions, as they will be ignored by the extraction prompt.</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 max-h-[50vh] overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                                    {pdfPages.map((pageImage, index) => (
+                                        <div
+                                            key={index}
+                                            onClick={() => {
+                                                if (isExtractingInstructions) return;
+                                                setSelectedPageIndices(prev =>
+                                                    prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index].sort((a, b) => a - b)
+                                                );
+                                            }}
+                                            className={`relative cursor-pointer transition-all ${selectedPageIndices.includes(index) ? 'ring-2 ring-indigo-500 rounded-lg shadow-md scale-[1.02]' : 'hover:shadow-lg opacity-70 hover:opacity-100'}`}
+                                        >
+                                            <div className="aspect-[1/1.4] relative bg-white border border-gray-200 rounded-lg overflow-hidden flex items-center justify-center">
+                                                <img src={pageImage} alt={`Page ${index + 1}`} className="max-w-full max-h-full object-contain" />
+                                                <div className="absolute bottom-2 right-2 bg-gray-900/70 text-white px-2 py-0.5 rounded text-xs">
+                                                    Pg {index + 1}
+                                                </div>
+                                            </div>
+                                            {selectedPageIndices.includes(index) && (
+                                                <div className="absolute -top-2 -right-2 bg-indigo-600 text-white rounded-full p-1 shadow-md">
+                                                    <Check className="w-4 h-4" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex items-center justify-between border-t pt-4">
+                                    <div className="text-sm font-medium text-gray-700">
+                                        {selectedPageIndices.length} page(s) selected
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowInstructionsPdfModal(false)}
+                                            disabled={isExtractingInstructions}
+                                            className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => extractInstructionsFromPdf('English')}
+                                            disabled={isExtractingInstructions || selectedPageIndices.length === 0}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            {isExtractingInstructions ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting...</> : 'Extract English'}
+                                        </button>
+                                        <button
+                                            onClick={() => extractInstructionsFromPdf('Punjabi')}
+                                            disabled={isExtractingInstructions || selectedPageIndices.length === 0}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            {isExtractingInstructions ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting...</> : 'Extract Punjabi'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex justify-center p-12">
+                                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                            </div>
+                        )}
                     </div>
                 </Modal>
 
