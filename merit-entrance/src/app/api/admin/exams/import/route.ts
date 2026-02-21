@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
                     } else if (type === 'fill_blank') {
                         if (q.correctAnswer) correctAnswerValue = [q.correctAnswer];
                     } else {
-                        if (q.correctAnswer) modelAnswerValue = q.correctAnswer;
+                        // Short/Long answer: use 'answer' field (new), fallback to 'correctAnswer' for backward compat
+                        modelAnswerValue = q.answer || q.correctAnswer || null;
                     }
 
                     const dbParagraphId = q.paragraphId ? (paragraphIdMap[q.paragraphId] || null) : null;

@@ -1373,114 +1373,139 @@ export default function EditExamPage() {
                                                 No questions in this section yet.
                                             </div>
                                         ) : (
-                                            sectionQuestions[activeSectionId]?.map((q, idx) => (
-                                                <div key={q.id} className={`border rounded-lg p-4 hover:shadow-md transition-shadow group ${selectedQuestions.has(q.id) ? 'bg-blue-50 border-blue-300' : 'bg-white'}`}>
-                                                    <div className="flex justify-between items-start gap-4">
-                                                        <div className="flex gap-3 flex-1">
-                                                            {/* Checkbox */}
-                                                            <button
-                                                                onClick={() => toggleQuestionSelection(q.id)}
-                                                                className="flex-shrink-0 mt-0.5"
-                                                            >
-                                                                {selectedQuestions.has(q.id) ? (
-                                                                    <CheckCircle className="w-5 h-5 text-blue-600" />
-                                                                ) : (
-                                                                    <Square className="w-5 h-5 text-gray-300 hover:text-gray-500" />
-                                                                )}
-                                                            </button>
-                                                            <span className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 mt-0.5">
-                                                                {idx + 1}
-                                                            </span>
-                                                            <div className="flex-1">
-                                                                <div className="font-medium text-gray-900 mb-1">
-                                                                    <MathText text={getText(q.text, language)} />
+                                            (() => {
+                                                const renderedParagraphIds = new Set<string>();
+                                                return sectionQuestions[activeSectionId]?.map((q, idx) => {
+                                                    // Render paragraph card above the first question linked to it
+                                                    let paragraphCard = null;
+                                                    if (q.paragraph_text && !renderedParagraphIds.has(q.paragraph_text?.en || '')) {
+                                                        renderedParagraphIds.add(q.paragraph_text?.en || '');
+                                                        paragraphCard = (
+                                                            <div key={`para-${q.id}`} className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2 shadow-sm">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <FileText className="w-4 h-4 text-orange-600" />
+                                                                    <span className="text-xs font-semibold text-orange-700 uppercase">Linked Passage / Paragraph</span>
                                                                 </div>
-                                                                <div className="flex flex-wrap gap-2 mt-2">
-                                                                    <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">{getTypeLabel(q.type)}</span>
-                                                                    <span className={`text-xs px-2 py-0.5 rounded border ${q.difficulty <= 2 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-yellow-50 text-yellow-700 border-yellow-100'}`}>Level {q.difficulty}</span>
-                                                                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded border">{q.marks} Marks</span>
-                                                                    {q.tags?.map(t => (
-                                                                        <span key={t.id} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded border border-purple-100">{t.name}</span>
-                                                                    ))}
+                                                                <div className="text-sm text-gray-800 bg-white p-3 rounded border border-orange-100 leading-relaxed">
+                                                                    <MathText text={getText(q.paragraph_text, language)} />
                                                                 </div>
-                                                                {/* Render Options Preview for context */}
-                                                                {q.options && q.options.length > 0 && (
-                                                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                                        {q.options.map((opt: any, i: number) => {
-                                                                            const isCorrect = Array.isArray(q.correct_answer)
-                                                                                ? q.correct_answer.includes(opt.id)
-                                                                                : q.correct_answer === opt.id;
-                                                                            return (
-                                                                                <div key={opt.id} className={`text-sm px-3 py-1.5 rounded border flex items-center gap-2 ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-100 text-gray-600'}`}>
-                                                                                    <span className="text-xs font-bold opacity-60">{String.fromCharCode(65 + i)}.</span>
-                                                                                    <span className="truncate"><MathText text={getText(opt.text, language)} inline /></span>
-                                                                                    {isCorrect && <CheckSquare className="w-3 h-3 ml-auto text-green-600" />}
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <div key={q.id}>
+                                                            {paragraphCard}
+                                                            <div className={`border rounded-lg p-4 hover:shadow-md transition-shadow group ${selectedQuestions.has(q.id) ? 'bg-blue-50 border-blue-300' : 'bg-white'}${q.paragraph_text ? ' ml-4 border-l-4 border-l-orange-200' : ''}`}>
+                                                                <div className="flex justify-between items-start gap-4">
+                                                                    <div className="flex gap-3 flex-1">
+                                                                        {/* Checkbox */}
+                                                                        <button
+                                                                            onClick={() => toggleQuestionSelection(q.id)}
+                                                                            className="flex-shrink-0 mt-0.5"
+                                                                        >
+                                                                            {selectedQuestions.has(q.id) ? (
+                                                                                <CheckCircle className="w-5 h-5 text-blue-600" />
+                                                                            ) : (
+                                                                                <Square className="w-5 h-5 text-gray-300 hover:text-gray-500" />
+                                                                            )}
+                                                                        </button>
+                                                                        <span className="flex-shrink-0 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 mt-0.5">
+                                                                            {idx + 1}
+                                                                        </span>
+                                                                        <div className="flex-1">
+                                                                            <div className="font-medium text-gray-900 mb-1">
+                                                                                <MathText text={getText(q.text, language)} />
+                                                                            </div>
+                                                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                                                <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">{getTypeLabel(q.type)}</span>
+                                                                                <span className={`text-xs px-2 py-0.5 rounded border ${q.difficulty <= 2 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-yellow-50 text-yellow-700 border-yellow-100'}`}>Level {q.difficulty}</span>
+                                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded border">{q.marks} Marks</span>
+                                                                                {q.tags?.map(t => (
+                                                                                    <span key={t.id} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded border border-purple-100">{t.name}</span>
+                                                                                ))}
+                                                                            </div>
+                                                                            {/* Render Options Preview for context */}
+                                                                            {q.options && q.options.length > 0 && (
+                                                                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                                    {q.options.map((opt: any, i: number) => {
+                                                                                        const isCorrect = Array.isArray(q.correct_answer)
+                                                                                            ? q.correct_answer.includes(opt.id)
+                                                                                            : q.correct_answer === opt.id;
+                                                                                        return (
+                                                                                            <div key={opt.id} className={`text-sm px-3 py-1.5 rounded border flex items-center gap-2 ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-100 text-gray-600'}`}>
+                                                                                                <span className="text-xs font-bold opacity-60">{String.fromCharCode(65 + i)}.</span>
+                                                                                                <span className="truncate"><MathText text={getText(opt.text, language)} inline /></span>
+                                                                                                {isCorrect && <CheckSquare className="w-3 h-3 ml-auto text-green-600" />}
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
                                                                                 </div>
-                                                                            )
-                                                                        })}
-                                                                    </div>
-                                                                )}
-                                                                {/* Fill Blank Answer */}
-                                                                {q.type === 'fill_blank' && q.correct_answer && (
-                                                                    <div className="mt-3">
-                                                                        <span className="text-xs font-semibold text-gray-500 mr-2">Answer:</span>
-                                                                        {Array.isArray(q.correct_answer) ? (
-                                                                            q.correct_answer.map((ans: string, i: number) => (
-                                                                                <span key={i} className="inline-block text-sm px-3 py-1 bg-green-50 text-green-800 border border-green-200 rounded mr-2 mb-1 font-medium">
-                                                                                    {ans}
-                                                                                </span>
-                                                                            ))
-                                                                        ) : (
-                                                                            <span className="inline-block text-sm px-3 py-1 bg-green-50 text-green-800 border border-green-200 rounded font-medium">
-                                                                                {String(q.correct_answer)}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                                {/* Model Answer for Short/Long Answer */}
-                                                                {(q.type === 'short_answer' || q.type === 'long_answer') && q.model_answer && (q.model_answer.en || q.model_answer.pa) && (
-                                                                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                                                        <p className="text-xs font-semibold text-amber-700 mb-1">Model Answer (AI Grading)</p>
-                                                                        <div className="text-sm text-amber-900 whitespace-pre-wrap">
-                                                                            <MathText text={getText(q.model_answer, language)} inline />
+                                                                            )}
+                                                                            {/* Fill Blank Answer */}
+                                                                            {q.type === 'fill_blank' && q.correct_answer && (
+                                                                                <div className="mt-3">
+                                                                                    <span className="text-xs font-semibold text-gray-500 mr-2">Answer:</span>
+                                                                                    {Array.isArray(q.correct_answer) ? (
+                                                                                        q.correct_answer.map((ans: string, i: number) => (
+                                                                                            <span key={i} className="inline-block text-sm px-3 py-1 bg-green-50 text-green-800 border border-green-200 rounded mr-2 mb-1 font-medium">
+                                                                                                {ans}
+                                                                                            </span>
+                                                                                        ))
+                                                                                    ) : (
+                                                                                        <span className="inline-block text-sm px-3 py-1 bg-green-50 text-green-800 border border-green-200 rounded font-medium">
+                                                                                            {String(q.correct_answer)}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                            {/* Model Answer for Short/Long Answer */}
+                                                                            {(q.type === 'short_answer' || q.type === 'long_answer') && q.model_answer && (q.model_answer.en || q.model_answer.pa) && (
+                                                                                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                                                                    <p className="text-xs font-semibold text-amber-700 mb-1">Model Answer (AI Grading)</p>
+                                                                                    <div className="text-sm text-amber-900 whitespace-pre-wrap">
+                                                                                        <MathText text={getText(q.model_answer, language)} inline />
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                            {q.explanation && (q.explanation.en || q.explanation.pa) && (
+                                                                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                                                    <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
+                                                                                    <p className="text-sm text-blue-800 whitespace-pre-wrap">
+                                                                                        <MathText text={getText(q.explanation, language)} inline />
+                                                                                    </p>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
-                                                                )}
-                                                                {q.explanation && (q.explanation.en || q.explanation.pa) && (
-                                                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                                        <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
-                                                                        <p className="text-sm text-blue-800 whitespace-pre-wrap">
-                                                                            <MathText text={getText(q.explanation, language)} inline />
-                                                                        </p>
+
+                                                                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                // Need to fetch full details including subQuestions if needed
+                                                                                // For now passing q which has basic details, usually enough except for paragraphs
+                                                                                setEditingQuestion(q);
+                                                                                setShowQuestionModal(true);
+                                                                            }}
+                                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                                                            title="Edit"
+                                                                        >
+                                                                            <Edit2 className="w-4 h-4" />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleQuestionDelete(q.id)}
+                                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                                                            title="Remove from section"
+                                                                        >
+                                                                            <Minus className="w-4 h-4" />
+                                                                        </button>
                                                                     </div>
-                                                                )}
+                                                                </div>
                                                             </div>
                                                         </div>
-
-                                                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button
-                                                                onClick={() => {
-                                                                    // Need to fetch full details including subQuestions if needed
-                                                                    // For now passing q which has basic details, usually enough except for paragraphs
-                                                                    setEditingQuestion(q);
-                                                                    setShowQuestionModal(true);
-                                                                }}
-                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                                                title="Edit"
-                                                            >
-                                                                <Edit2 className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleQuestionDelete(q.id)}
-                                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                                                title="Remove from section"
-                                                            >
-                                                                <Minus className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
+                                                    );
+                                                });
+                                            })()
                                         )}
                                     </div>
                                 </div>

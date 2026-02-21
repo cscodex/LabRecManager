@@ -280,8 +280,9 @@ export async function POST(req: NextRequest) {
             -   **text**: The full question text. Preserve formatting.
             -   **type**: "mcq" (includes True/False), "fill_blank", "short_answer", "long_answer".
             -   **options**: Array of strings (e.g. ["A) ...", "B) ..."] or ["True", "False"]).
-            -   **correctAnswer**: The correct option (e.g., "A", "True") or the answer text for fill_blank.
-            -   **explanation**: Detailed explanation of the answer.
+            -   **correctAnswer**: ONLY for MCQ and fill_blank types. The correct option letter (e.g., "A") or the blank's answer text. Leave empty/null for short_answer and long_answer.
+            -   **answer**: ONLY for short_answer and long_answer types. A concise model answer or key points for grading. Leave empty/null for MCQ and fill_blank.
+            -   **explanation**: Detailed step-by-step explanation of how to arrive at the answer.
             -   **marks**: 
                 -   Extract explicit marks if available (e.g., "[2]", "(3 marks)").
                 -   **DEFAULT MARKS IF NOT FOUND**:
@@ -336,7 +337,8 @@ export async function POST(req: NextRequest) {
                       "type": "mcq" | "fill_blank" | "short_answer" | "long_answer",
                       "text": "Question text...",
                       "options": ["A) ...", "B) ..."], 
-                      "correctAnswer": "A",
+                      "correctAnswer": "A (MCQ/fill_blank only, null for short/long)",
+                      "answer": "Model answer text (short/long answer only, null for MCQ/fill)",
                       "explanation": "Step-by-step solution...",
                       "marks": 1,
                       "tags": ["Topic", "Subtopic"],
@@ -348,6 +350,7 @@ export async function POST(req: NextRequest) {
               ]
             }
             **IMPORTANT**: If no clear section/part divisions exist, use a single section named "General" with all questions inside it.
+            **CRITICAL**: Extract ALL questions from the page. Do NOT truncate or skip any questions, even if the page has many. Every single question must be included.
         `;
 
         const finalPrompt = customPrompt ? `${basePrompt}\n\nADDITIONAL INSTRUCTIONS:\n${customPrompt}` : basePrompt;

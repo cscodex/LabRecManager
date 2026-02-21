@@ -211,7 +211,7 @@ export default function ImportExamPage() {
         setIsAnalyzing(true);
         setProgress(0);
 
-        const BATCH_SIZE = 3;
+        const BATCH_SIZE = 1; // Process 1 page at a time to avoid AI truncating questions on complex pages
         const totalBatches = Math.ceil(allImages.length / BATCH_SIZE);
 
         const allQuestions: ExtractedQuestion[] = [];
