@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
                         ${JSON.stringify(formattedOptions)}::jsonb,
                         ${JSON.stringify(correctAnswerValue)}::jsonb,
                         ${modelAnswerValue ? JSON.stringify({ en: modelAnswerValue }) : null}::jsonb,
-                        ${q.marks},
+                        ${parseFloat(q.marks) || 1},
                         ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
                         ${Math.round(Number(q.difficulty) || 1)},
                         ${dbParagraphId},

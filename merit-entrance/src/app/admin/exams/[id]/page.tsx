@@ -40,6 +40,7 @@ interface Question {
     tags: { id: string; name: string }[];
     options?: any[];
     correct_answer?: any;
+    model_answer?: Record<string, string>;
     explanation?: any;
     negative_marks?: number;
     image_url?: string;
@@ -682,6 +683,8 @@ export default function EditExamPage() {
             paragraphTextPa: q.paragraph_text?.pa || '',
             parentId: q.parent_id || '',
             tags: q.tags?.map(t => t.id) || [],
+            modelAnswerEn: q.model_answer?.en || '',
+            modelAnswerPa: q.model_answer?.pa || '',
             subQuestions: q.subQuestions?.map((sq: any) => ({
                 id: sq.id,
                 textEn: sq.text?.en || '',
@@ -1432,6 +1435,15 @@ export default function EditExamPage() {
                                                                                 {String(q.correct_answer)}
                                                                             </span>
                                                                         )}
+                                                                    </div>
+                                                                )}
+                                                                {/* Model Answer for Short/Long Answer */}
+                                                                {(q.type === 'short_answer' || q.type === 'long_answer') && q.model_answer && (q.model_answer.en || q.model_answer.pa) && (
+                                                                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                                                        <p className="text-xs font-semibold text-amber-700 mb-1">Model Answer (AI Grading)</p>
+                                                                        <div className="text-sm text-amber-900 whitespace-pre-wrap">
+                                                                            <MathText text={getText(q.model_answer, language)} inline />
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                                 {q.explanation && (q.explanation.en || q.explanation.pa) && (

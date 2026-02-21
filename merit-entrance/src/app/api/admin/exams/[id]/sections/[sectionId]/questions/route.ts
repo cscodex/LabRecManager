@@ -59,6 +59,7 @@ export async function GET(
                 text: safeParse(q.text),
                 options: q.options ? safeParse(q.options) : null,
                 correct_answer: safeParse(q.correct_answer),
+                model_answer: q.model_answer ? safeParse(q.model_answer) : null,
                 explanation: q.explanation ? safeParse(q.explanation) : null,
                 paragraph_text: q.paragraph_text ? safeParse(q.paragraph_text) : null,
                 tags: q.tags || [],
