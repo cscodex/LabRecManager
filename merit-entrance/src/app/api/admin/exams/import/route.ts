@@ -178,6 +178,7 @@ export async function POST(req: NextRequest) {
                         explanation,
                         difficulty,
                         paragraph_id,
+                        image_url,
                         "order"
                     ) VALUES (
                         ${targetSectionId},
@@ -190,6 +191,7 @@ export async function POST(req: NextRequest) {
                         ${JSON.stringify({ en: q.explanation || '' })}::jsonb,
                         ${Math.round(Number(q.difficulty) || 1)},
                         ${dbParagraphId},
+                        ${q.imageUrl || null},
                         ${idx + 1}
                     ) RETURNING id
                 `;

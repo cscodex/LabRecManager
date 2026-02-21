@@ -24,6 +24,8 @@ interface ExtractedQuestion {
     page: number; // Page number in PDF
     paragraphId?: string;
     difficulty?: number; // 1-5 scale
+    imageBounds?: { x: number; y: number; w: number; h: number };
+    imageUrl?: string;
 }
 
 interface ExtractedParagraph {
@@ -306,6 +308,46 @@ export default function ImportExamPage() {
                 toast.success('Analysis complete! Please review the questions.');
 
                 checkForDuplicates(uniqueQuestions);
+
+                // --- Extract Images for questions with imageBounds ---
+                const questionsWithImages = uniqueQuestions
+                    .map((q, idx) => ({ questionIndex: idx, imageBounds: q.imageBounds, page: q.page }))
+                    .filter(q => q.imageBounds && q.imageBounds.w > 0 && q.imageBounds.h > 0);
+
+                if (questionsWithImages.length > 0) {
+                    toast.loading(`Extracting ${questionsWithImages.length} image(s) from PDF...`, { id: 'img-toast' });
+                    try {
+                        // Build pageImages array: page number -> base64
+                        const selectedImages = pdfPages.filter((_, idx) => selectedPageIndices.includes(idx));
+                        const pageImages = selectedImages.map((base64, idx) => ({
+                            page: idx + 1, // 1-based page index matching question.page
+                            base64
+                        }));
+
+                        const imgRes = await fetch('/api/ai/extract-images', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pageImages, questions: questionsWithImages })
+                        });
+                        const imgData = await imgRes.json();
+
+                        if (imgData.success && imgData.images) {
+                            setQuestions(prev => prev.map((q, idx) => {
+                                if (imgData.images[idx]) {
+                                    return { ...q, imageUrl: imgData.images[idx] };
+                                }
+                                return q;
+                            }));
+                            const count = Object.keys(imgData.images).length;
+                            toast.success(`${count} image(s) extracted and uploaded!`, { id: 'img-toast' });
+                        } else {
+                            toast.dismiss('img-toast');
+                        }
+                    } catch (imgErr) {
+                        console.error('Image extraction failed:', imgErr);
+                        toast.error('Image extraction failed, but questions are still saved.', { id: 'img-toast' });
+                    }
+                }
             } else {
                 toast.error('No questions extracted from any batch.');
             }
@@ -385,7 +427,8 @@ export default function ImportExamPage() {
                         explanation: q.explanation,
                         tags: q.tags,
                         difficulty: q.difficulty || null,
-                        paragraphId: q.paragraphId || null
+                        paragraphId: q.paragraphId || null,
+                        imageUrl: q.imageUrl || null
                     })),
                 ...(importMode === 'new' ? {
                     title: examDetails.title,
@@ -685,6 +728,12 @@ export default function ImportExamPage() {
                                         <div className="text-sm font-medium text-gray-900 bg-gray-50/50 p-2 rounded">
                                             <MathText text={q.text} />
                                         </div>
+                                        {q.imageUrl && (
+                                            <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                                                <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Extracted Image</p>
+                                                <img src={q.imageUrl} alt="Question diagram" className="max-w-full max-h-48 rounded border border-gray-200" />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">

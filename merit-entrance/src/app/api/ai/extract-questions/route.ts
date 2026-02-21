@@ -275,6 +275,10 @@ export async function POST(req: NextRequest) {
                 -   Block: \\[ \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
                 -   Chemical: \\( H_2SO_4 \\)
             -   **Images**: If a question has a diagram/image, insert placeholder: \`[IMAGE]\` at the end of the text.
+            -   **Image Bounding Box**: When you detect a diagram/image in a question, also return \`imageBounds\` with the approximate position of the image region on the page as percentages (0-1):
+                \`"imageBounds": { "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.25 }\`
+                - x = left edge %, y = top edge %, w = width %, h = height %
+                - These coordinates help crop the actual image from the source page.
             -   **Structural & Code Formatting**:
                 -   **Tables**: Detect any tabular data and convert it to valid HTML \`<table>\` structures with \`<thead>\`, \`<tbody>\`, \`<tr>\`, \`<th>\`, and \`<td>\`.
                 -   **Code Blocks**: Convert code snippets into \`<pre><code>...</code></pre>\` blocks. Preserve indentation and line breaks within these blocks.
@@ -309,7 +313,8 @@ export async function POST(req: NextRequest) {
                   "explanation": "Explanation...",
                   "marks": 1,
                   "tags": ["Topic", "Subtopic"],
-                  "paragraphId": "p1" 
+                  "paragraphId": "p1",
+                  "imageBounds": { "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.25 }
                 }
               ]
             }
@@ -367,7 +372,8 @@ export async function POST(req: NextRequest) {
                     page: pageIndex,
                     correctAnswer: (q.correctAnswer || q.answer || '').replace(/Option\s?/i, '').trim(),
                     marks: q.marks || (q.type === 'long_answer' ? 6 : q.type === 'short_answer' ? 3 : 1),
-                    paragraphId: q.paragraphId // Explicitly preserve paragraphId
+                    paragraphId: q.paragraphId,
+                    imageBounds: q.imageBounds || null
                 }));
 
                 extractedQuestions.push(...questionsWithMeta);
