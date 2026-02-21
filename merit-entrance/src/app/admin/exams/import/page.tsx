@@ -248,22 +248,27 @@ export default function ImportExamPage() {
                 }
 
                 if (data.success) {
-                    if (data.questions) allQuestions.push(...data.questions);
+                    // Set page number on each question for image cropping
+                    const pageNumber = start + 1; // 1-indexed page in the selected pages
+                    const taggedQuestions = (data.questions || []).map((q: ExtractedQuestion) => ({ ...q, page: q.page || pageNumber }));
+                    allQuestions.push(...taggedQuestions);
                     if (data.instructions) allInstructions.push(...data.instructions);
                     if (data.paragraphs) allParagraphs.push(...data.paragraphs);
 
                     // Merge sections across batches
                     if (data.sections && Array.isArray(data.sections)) {
                         for (const sec of data.sections) {
+                            // Tag section questions with page number too
+                            const taggedSectionQuestions = (sec.questions || []).map((q: any) => ({ ...q, page: q.page || pageNumber }));
                             const existing = allSections.find((s: any) => s.name === sec.name);
                             if (existing) {
-                                existing.questions.push(...(sec.questions || []));
+                                existing.questions.push(...taggedSectionQuestions);
                                 existing.paragraphs.push(...(sec.paragraphs || []));
                                 if (sec.instructions?.length) {
                                     existing.instructions = [...(existing.instructions || []), ...sec.instructions];
                                 }
                             } else {
-                                allSections.push({ ...sec });
+                                allSections.push({ ...sec, questions: taggedSectionQuestions });
                             }
                         }
                     }

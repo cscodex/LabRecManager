@@ -1425,6 +1425,16 @@ export default function EditExamPage() {
                                                                                     <span key={t.id} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded border border-purple-100">{t.name}</span>
                                                                                 ))}
                                                                             </div>
+                                                                            {/* Question Image */}
+                                                                            {q.image_url && (
+                                                                                <div className="mt-3">
+                                                                                    <img
+                                                                                        src={q.image_url}
+                                                                                        alt="Question diagram"
+                                                                                        className="max-w-full max-h-48 rounded-lg border border-gray-200 object-contain bg-gray-50"
+                                                                                    />
+                                                                                </div>
+                                                                            )}
                                                                             {/* Render Options Preview for context */}
                                                                             {q.options && q.options.length > 0 && (
                                                                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
