@@ -204,6 +204,30 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                 }
 
                 setExtractedData(mappedData);
+
+                // --- Extract image if AI detected one (imageBounds) ---
+                if (q.imageBounds && q.imageBounds.w > 0 && q.imageBounds.h > 0 && image) {
+                    try {
+                        const imgRes = await fetch('/api/ai/extract-images', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                pageImages: [{ page: 1, base64: image }],
+                                questions: [{ questionIndex: 0, imageBounds: q.imageBounds, page: 1 }]
+                            })
+                        });
+                        const imgData = await imgRes.json();
+                        if (imgData.success && imgData.images && imgData.images[0]) {
+                            mappedData.imageUrl = imgData.images[0];
+                            setExtractedData({ ...mappedData }); // Re-set with imageUrl
+                            toast.success('Image extracted and uploaded!');
+                        }
+                    } catch (imgErr) {
+                        console.error('Image extraction failed:', imgErr);
+                        // Continue without image — not critical
+                    }
+                }
+
                 setStep('preview');
             } else {
                 toast.error('No questions found in image');
@@ -323,6 +347,12 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                                 <div className="bg-white p-4 rounded border border-blue-100 text-gray-800">
                                     <MathText text={extractedData.textEn} />
                                 </div>
+                                {extractedData.imageUrl && (
+                                    <div className="mt-3 p-3 bg-white rounded border border-blue-100">
+                                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Image</p>
+                                        <img src={extractedData.imageUrl} alt="Question diagram" className="max-w-full max-h-48 rounded border border-gray-200" />
+                                    </div>
+                                )}
                             </div>
 
                             {extractedData.type === 'paragraph' && (
