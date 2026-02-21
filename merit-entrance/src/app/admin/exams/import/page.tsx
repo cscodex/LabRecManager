@@ -26,6 +26,7 @@ interface ExtractedQuestion {
     difficulty?: number; // 1-5 scale
     imageBounds?: { x: number; y: number; w: number; h: number };
     imageUrl?: string;
+    section?: string; // Section name this question belongs to
 }
 
 interface ExtractedParagraph {
@@ -33,6 +34,15 @@ interface ExtractedParagraph {
     title: string;
     content: string;
     text?: string;
+    section?: string;
+}
+
+interface ExtractedSection {
+    name: string;
+    questions: ExtractedQuestion[];
+    paragraphs: ExtractedParagraph[];
+    instructions: string[];
+    collapsed?: boolean;
 }
 
 interface ExamDetails {
@@ -72,6 +82,8 @@ export default function ImportExamPage() {
     const [processingStatus, setProcessingStatus] = useState('Initializing...');
     const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [extractedSections, setExtractedSections] = useState<ExtractedSection[]>([]);
+    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
     // Auth check
     useEffect(() => {
@@ -203,6 +215,7 @@ export default function ImportExamPage() {
         const totalBatches = Math.ceil(allImages.length / BATCH_SIZE);
 
         const allQuestions: ExtractedQuestion[] = [];
+        const allSections: ExtractedSection[] = [];
         const allInstructions: string[] = [];
         const allParagraphs: ExtractedParagraph[] = [];
 
@@ -238,6 +251,29 @@ export default function ImportExamPage() {
                     if (data.questions) allQuestions.push(...data.questions);
                     if (data.instructions) allInstructions.push(...data.instructions);
                     if (data.paragraphs) allParagraphs.push(...data.paragraphs);
+
+                    // Merge sections across batches
+                    if (data.sections && Array.isArray(data.sections)) {
+                        for (const sec of data.sections) {
+                            const existing = allSections.find((s: any) => s.name === sec.name);
+                            if (existing) {
+                                existing.questions.push(...(sec.questions || []));
+                                existing.paragraphs.push(...(sec.paragraphs || []));
+                                if (sec.instructions?.length) {
+                                    existing.instructions = [...(existing.instructions || []), ...sec.instructions];
+                                }
+                            } else {
+                                allSections.push({ ...sec });
+                            }
+                        }
+                    }
+
+                    // Show rate limit or other errors from this batch
+                    if (data.errors && Array.isArray(data.errors)) {
+                        for (const err of data.errors) {
+                            toast.error(err, { duration: 8000 });
+                        }
+                    }
                 }
 
                 // Delay between batches if not the last one (avoid rate limits)
@@ -295,6 +331,7 @@ export default function ImportExamPage() {
                 setQuestions(uniqueQuestions);
                 setExtractedInstructions(prev => Array.from(new Set([...prev, ...allInstructions]))); // Dedup instructions
                 setExtractedParagraphs(allParagraphs);
+                setExtractedSections(allSections.length > 0 ? allSections : [{ name: 'General', questions: uniqueQuestions, paragraphs: allParagraphs, instructions: [] }]);
                 setImportInstructions(allInstructions.length > 0);
 
                 // Select all
@@ -403,24 +440,18 @@ export default function ImportExamPage() {
                 questions: questions
                     .filter((_, idx) => selectedQuestionIndices.includes(idx))
                     .map(q => ({
-                        type: q.type || 'mcq', // Default to mcq
+                        type: q.type || 'mcq',
                         text: q.text,
                         options: q.options,
                         correctAnswer: (() => {
-                            // Normalize correctAnswer to ID (A, B, C...)
                             if (!q.options || q.options.length === 0) return q.correctAnswer;
-
-                            // Check if it's already an ID/Index like 'A' or 'B'
                             if (/^[A-Z]$/.test(q.correctAnswer) && q.correctAnswer.charCodeAt(0) - 65 < q.options.length) {
                                 return q.correctAnswer;
                             }
-
-                            // Check if it matches an option text
                             const idx = q.options.findIndex(opt => opt === q.correctAnswer);
                             if (idx !== -1) {
                                 return String.fromCharCode(65 + idx);
                             }
-
                             return q.correctAnswer;
                         })(),
                         marks: q.marks,
@@ -428,8 +459,34 @@ export default function ImportExamPage() {
                         tags: q.tags,
                         difficulty: q.difficulty || null,
                         paragraphId: q.paragraphId || null,
-                        imageUrl: q.imageUrl || null
+                        imageUrl: q.imageUrl || null,
+                        section: q.section || null
                     })),
+                // Build sections payload from extractedSections with only selected questions
+                sections: extractedSections.map(sec => ({
+                    name: sec.name,
+                    instructions: sec.instructions || [],
+                    paragraphs: sec.paragraphs || [],
+                    questions: questions
+                        .filter((q, idx) => selectedQuestionIndices.includes(idx) && q.section === sec.name)
+                        .map(q => ({
+                            type: q.type || 'mcq',
+                            text: q.text,
+                            options: q.options,
+                            correctAnswer: (() => {
+                                if (!q.options || q.options.length === 0) return q.correctAnswer;
+                                if (/^[A-Z]$/.test(q.correctAnswer) && q.correctAnswer.charCodeAt(0) - 65 < q.options.length) return q.correctAnswer;
+                                const idx = q.options.findIndex(opt => opt === q.correctAnswer);
+                                return idx !== -1 ? String.fromCharCode(65 + idx) : q.correctAnswer;
+                            })(),
+                            marks: q.marks,
+                            explanation: q.explanation,
+                            tags: q.tags,
+                            difficulty: q.difficulty || null,
+                            paragraphId: q.paragraphId || null,
+                            imageUrl: q.imageUrl || null
+                        }))
+                })).filter(sec => sec.questions.length > 0),
                 ...(importMode === 'new' ? {
                     title: examDetails.title,
                     duration: examDetails.duration,
@@ -475,318 +532,406 @@ export default function ImportExamPage() {
     const renderQuestionsWithParagraphs = () => {
         const renderedParagraphIds = new Set<string>();
 
-        return questions.map((q, idx) => {
-            const isSelected = selectedQuestionIndices.includes(idx);
-            const isDuplicate = duplicateIndices.includes(idx);
-            const isEditing = editingQuestionIndex === idx;
+        // Group questions by section name
+        const sectionNames = extractedSections.length > 0
+            ? extractedSections.map(s => s.name)
+            : ['General'];
 
-            let paragraphElement = null;
-            if (q.paragraphId && !renderedParagraphIds.has(q.paragraphId)) {
-                const paragraph = extractedParagraphs.find(p => p.id === q.paragraphId);
-                if (paragraph) {
-                    renderedParagraphIds.add(q.paragraphId);
-                    const title = paragraph.title || paragraph.text || 'Untitled Passage';
-                    const content = paragraph.content || paragraph.text || '';
+        return sectionNames.map((sectionName) => {
+            // Get indices of questions belonging to this section
+            const sectionQuestionIndices = questions
+                .map((q, idx) => ({ q, idx }))
+                .filter(({ q }) => (q.section || 'General') === sectionName)
+                .map(({ idx }) => idx);
 
-                    paragraphElement = (
-                        <div key={`para-${paragraph.id}-${idx}`} className="bg-orange-50 border border-orange-200 rounded-lg p-5 mb-4 shadow-sm">
-                            <h4 className="font-bold text-orange-900 text-base mb-3 flex items-center gap-2">
-                                <FileText className="w-5 h-5" />
-                                {title} <span className="text-xs font-normal opacity-70">(ID: {paragraph.id})</span>
-                            </h4>
-                            <div className="text-sm text-gray-800 bg-white p-4 rounded border border-orange-100 leading-relaxed font-serif">
-                                <MathText text={content} />
-                            </div>
-                        </div>
-                    );
-                }
-            }
+            if (sectionQuestionIndices.length === 0) return null;
+
+            const selectedInSection = sectionQuestionIndices.filter(idx => selectedQuestionIndices.includes(idx));
+            const allSelectedInSection = selectedInSection.length === sectionQuestionIndices.length;
+            const isCollapsed = collapsedSections[sectionName] || false;
+
+            const sectionObj = extractedSections.find(s => s.name === sectionName);
 
             return (
-                <div key={q.id || idx} className={q.paragraphId ? "ml-6 border-l-4 border-orange-200 pl-4" : ""}>
-                    {paragraphElement}
-                    <div className={`border rounded-lg p-4 mb-6 transition-colors ${isSelected ? (isDuplicate ? 'border-yellow-500 bg-yellow-50/50' : 'border-blue-500 bg-blue-50/50') : 'border-gray-200 opacity-70'}`}>
-                        <div className="flex justify-between mb-2">
-                            {q.paragraphId && (
-                                <div className="absolute top-0 right-0 bg-orange-100 text-orange-800 text-[10px] px-2 py-0.5 rounded-bl font-medium border-l border-b border-orange-200">
-                                    Linked to {q.paragraphId}
-                                </div>
-                            )}
+                <div key={`section-${sectionName}`} className="mb-6">
+                    {/* Section Header Card */}
+                    {sectionNames.length > 1 && (
+                        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-4 mb-3 shadow-sm">
                             <div className="flex items-center gap-3">
-                                <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                        if (e.target.checked) {
-                                            setSelectedQuestionIndices([...selectedQuestionIndices, idx]);
-                                        } else {
-                                            setSelectedQuestionIndices(selectedQuestionIndices.filter(i => i !== idx));
-                                        }
-                                    }}
-                                    className="w-4 h-4 text-blue-600 rounded hover:cursor-pointer"
-                                />
-                                <span className="font-bold text-gray-500">Q{idx + 1}</span>
-                                {q.difficulty && (
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${q.difficulty <= 1 ? 'bg-green-100 text-green-700 border-green-200' :
-                                        q.difficulty <= 2 ? 'bg-lime-100 text-lime-700 border-lime-200' :
-                                            q.difficulty <= 3 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                                                q.difficulty <= 4 ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                                                    'bg-red-100 text-red-700 border-red-200'
-                                        }`}>
-                                        Difficulty: {q.difficulty}/5
-                                    </span>
-                                )}
-                                {isDuplicate && (
-                                    <span className="flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200">
-                                        <AlertCircle className="w-3 h-3" /> Duplicate
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex gap-2">
-                                <input
-                                    type="number"
-                                    value={q.marks}
-                                    onChange={(e) => {
-                                        const newQ = [...questions];
-                                        newQ[idx].marks = Number(e.target.value);
-                                        setQuestions(newQ);
-                                    }}
-                                    className="w-16 px-2 py-1 border rounded text-xs"
-                                    placeholder="Marks"
-                                />
                                 <button
-                                    onClick={() => {
-                                        // Remove question entirely
-                                        const newQ = questions.filter((_, i) => i !== idx);
-                                        setQuestions(newQ);
-                                        setSelectedQuestionIndices(selectedQuestionIndices.filter(i => i !== idx));
-                                        // Update duplicate indices - simplistic approach: re-run check or leave as is (indices might shift, but this is rare case in review)
-                                        // For now, if we remove 1, all subsequent indices shift.
-                                        // Ideally we should use IDs. But let's stick to this for now as "Remove" is edge case.
-                                    }}
-                                    className="text-gray-400 hover:text-red-500"
+                                    onClick={() => setCollapsedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }))}
+                                    className="p-1 hover:bg-indigo-100 rounded transition-colors"
                                 >
-                                    <X className="w-4 h-4" />
+                                    {isCollapsed
+                                        ? <ChevronRight className="w-5 h-5 text-indigo-600" />
+                                        : <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                    }
                                 </button>
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        value={sectionName}
+                                        onChange={(e) => {
+                                            const newName = e.target.value;
+                                            // Rename section in extractedSections
+                                            setExtractedSections(prev => prev.map(s =>
+                                                s.name === sectionName ? { ...s, name: newName } : s
+                                            ));
+                                            // Rename section on questions
+                                            setQuestions(prev => prev.map(q =>
+                                                q.section === sectionName ? { ...q, section: newName } : q
+                                            ));
+                                            // Update collapsed state key
+                                            setCollapsedSections(prev => {
+                                                const { [sectionName]: old, ...rest } = prev;
+                                                return { ...rest, [newName]: old || false };
+                                            });
+                                        }}
+                                        className="text-lg font-bold text-indigo-900 bg-transparent border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 focus:outline-none px-1 w-full"
+                                    />
+                                    <p className="text-xs text-indigo-600 mt-0.5 pl-1">
+                                        {sectionQuestionIndices.length} questions • {selectedInSection.length} selected
+                                        {sectionObj?.instructions?.length ? ` • ${sectionObj.instructions.join(', ')}` : ''}
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={allSelectedInSection}
+                                        onChange={() => {
+                                            if (allSelectedInSection) {
+                                                // Deselect all in section
+                                                setSelectedQuestionIndices(prev => prev.filter(i => !sectionQuestionIndices.includes(i)));
+                                            } else {
+                                                // Select all in section
+                                                setSelectedQuestionIndices(prev => Array.from(new Set([...prev, ...sectionQuestionIndices])));
+                                            }
+                                        }}
+                                        className="rounded text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <span className="text-indigo-700 font-medium">Select All</span>
+                                </label>
                             </div>
                         </div>
+                    )}
 
+                    {/* Questions in this section */}
+                    {!isCollapsed && sectionQuestionIndices.map((idx) => {
+                        const q = questions[idx];
+                        const isSelected = selectedQuestionIndices.includes(idx);
+                        const isDuplicate = duplicateIndices.includes(idx);
+                        const isEditing = editingQuestionIndex === idx;
 
+                        let paragraphElement = null;
+                        if (q.paragraphId && !renderedParagraphIds.has(q.paragraphId)) {
+                            const paragraph = extractedParagraphs.find(p => p.id === q.paragraphId);
+                            if (paragraph) {
+                                renderedParagraphIds.add(q.paragraphId);
+                                const title = paragraph.title || paragraph.text || 'Untitled Passage';
+                                const content = paragraph.content || paragraph.text || '';
 
-                        {/* Question Content - Read vs Edit Mode */}
-                        {
-                            isEditing ? (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                                    {/* Question Text Editor */}
-                                    <div>
-                                        <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Question Text</label>
-                                        <RichTextEditor
-                                            value={q.text}
-                                            onChange={(val) => {
-                                                const newQ = [...questions];
-                                                newQ[idx].text = val;
-                                                setQuestions(newQ);
-                                            }}
-                                            placeholder="Question text (Supports HTML & LaTeX)..."
-                                        />
-                                    </div>
-
-                                    <div className="space-y-3 pl-4 border-l-2 border-gray-100">
-                                        {/* Question Type Badge */}
-                                        <div className="mb-2">
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${!q.type || q.type === 'mcq' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                                q.type === 'fill_blank' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                                    'bg-orange-100 text-orange-700 border-orange-200'
-                                                }`}>
-                                                {!q.type || q.type === 'mcq' ? 'Multiple Choice' : q.type === 'fill_blank' ? 'Fill in Blank' : q.type === 'short_answer' ? 'Short Answer' : 'Long Answer'}
-                                            </span>
+                                paragraphElement = (
+                                    <div key={`para-${paragraph.id}-${idx}`} className="bg-orange-50 border border-orange-200 rounded-lg p-5 mb-4 shadow-sm">
+                                        <h4 className="font-bold text-orange-900 text-base mb-3 flex items-center gap-2">
+                                            <FileText className="w-5 h-5" />
+                                            {title} <span className="text-xs font-normal opacity-70">(ID: {paragraph.id})</span>
+                                        </h4>
+                                        <div className="text-sm text-gray-800 bg-white p-4 rounded border border-orange-100 leading-relaxed font-serif">
+                                            <MathText text={content} />
                                         </div>
+                                    </div>
+                                );
+                            }
+                        }
 
-                                        {/* Logic for Different Types */}
-                                        {(!q.type || q.type === 'mcq') ? (
-                                            q.options.map((opt, oIdx) => {
-                                                const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
-                                                return (
-                                                    <div key={oIdx} className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                const newQ = [...questions];
-                                                                newQ[idx].correctAnswer = String.fromCharCode(65 + oIdx);
-                                                                setQuestions(newQ);
-                                                            }}
-                                                            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCorrect ? 'bg-green-500 text-white shadow-md scale-110' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                                                            title="Mark as correct"
-                                                        >
-                                                            {String.fromCharCode(65 + oIdx)}
-                                                        </button>
-                                                        <div className="flex-1">
-                                                            <textarea
-                                                                value={opt}
-                                                                onChange={(e) => {
-                                                                    const newQ = [...questions];
-                                                                    newQ[idx].options[oIdx] = e.target.value;
-                                                                    setQuestions(newQ);
-                                                                }}
-                                                                rows={2}
-                                                                className={`w-full px-3 py-2 border rounded text-sm mb-1 font-mono whitespace-pre-wrap focus:ring-2 focus:ring-blue-500 transition-colors ${isCorrect ? 'border-green-200 bg-green-50/30' : 'border-gray-200 text-gray-600'}`}
-                                                                placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
-                                                            />
-                                                            <div className="text-sm">
-                                                                <MathText text={opt} inline />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
-                                        ) : (
-                                            // Non-MCQ Types - Rich Text for Model Answer
-                                            <div className="mt-2">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">
-                                                    {q.type === 'fill_blank' ? 'Correct Answer (Exact Text)' : 'Model Answer / Key Points'}
-                                                </label>
-                                                {q.type === 'fill_blank' ? (
-                                                    <input
-                                                        value={q.correctAnswer}
-                                                        onChange={(e) => {
-                                                            const newQ = [...questions];
-                                                            newQ[idx].correctAnswer = e.target.value;
-                                                            setQuestions(newQ);
-                                                        }}
-                                                        className="w-full px-3 py-2 border rounded-lg text-sm bg-green-50/30 border-green-200 focus:border-green-500 font-medium text-green-800"
-                                                        placeholder="Enter the correct answer..."
-                                                    />
-                                                ) : (
-                                                    <RichTextEditor
-                                                        value={q.correctAnswer || ''}
-                                                        onChange={(val) => {
-                                                            const newQ = [...questions];
-                                                            newQ[idx].correctAnswer = val;
-                                                            setQuestions(newQ);
-                                                        }}
-                                                        placeholder="Enter model answer or key points for grading..."
-                                                    />
-                                                )}
-                                                <div className="text-[10px] text-gray-400 mt-1">
-                                                    {q.type === 'fill_blank' ? 'This text will be used for exact matching.' : 'AI will use this model answer to grade student responses.'}
-                                                </div>
+                        return (
+                            <div key={q.id || idx} className={q.paragraphId ? "ml-6 border-l-4 border-orange-200 pl-4" : ""}>
+                                {paragraphElement}
+                                <div className={`border rounded-lg p-4 mb-6 transition-colors ${isSelected ? (isDuplicate ? 'border-yellow-500 bg-yellow-50/50' : 'border-blue-500 bg-blue-50/50') : 'border-gray-200 opacity-70'}`}>
+                                    <div className="flex justify-between mb-2">
+                                        {q.paragraphId && (
+                                            <div className="absolute top-0 right-0 bg-orange-100 text-orange-800 text-[10px] px-2 py-0.5 rounded-bl font-medium border-l border-b border-orange-200">
+                                                Linked to {q.paragraphId}
                                             </div>
                                         )}
-                                    </div>
-
-                                    {/* Explanation and Tags */}
-                                    <div className="mt-4 grid grid-cols-1 gap-3">
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 uppercase">Explanation</label>
-                                            <RichTextEditor
-                                                value={q.explanation || ''}
-                                                onChange={(val) => {
-                                                    const newQ = [...questions];
-                                                    newQ[idx].explanation = val;
-                                                    setQuestions(newQ);
-                                                }}
-                                                placeholder="Explanation for the answer..."
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-semibold text-gray-500 uppercase">Tags</label>
+                                        <div className="flex items-center gap-3">
                                             <input
-                                                value={q.tags?.join(', ') || ''}
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedQuestionIndices([...selectedQuestionIndices, idx]);
+                                                    } else {
+                                                        setSelectedQuestionIndices(selectedQuestionIndices.filter(i => i !== idx));
+                                                    }
+                                                }}
+                                                className="w-4 h-4 text-blue-600 rounded hover:cursor-pointer"
+                                            />
+                                            <span className="font-bold text-gray-500">Q{idx + 1}</span>
+                                            {q.difficulty && (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${q.difficulty <= 1 ? 'bg-green-100 text-green-700 border-green-200' :
+                                                    q.difficulty <= 2 ? 'bg-lime-100 text-lime-700 border-lime-200' :
+                                                        q.difficulty <= 3 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                                                            q.difficulty <= 4 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                                'bg-red-100 text-red-700 border-red-200'
+                                                    }`}>
+                                                    Difficulty: {q.difficulty}/5
+                                                </span>
+                                            )}
+                                            {isDuplicate && (
+                                                <span className="flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200">
+                                                    <AlertCircle className="w-3 h-3" /> Duplicate
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                value={q.marks}
                                                 onChange={(e) => {
                                                     const newQ = [...questions];
-                                                    newQ[idx].tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
+                                                    newQ[idx].marks = Number(e.target.value);
                                                     setQuestions(newQ);
                                                 }}
-                                                className="w-full mt-1 px-2 py-1.5 border rounded text-xs text-gray-600 focus:text-gray-900"
-                                                placeholder="e.g. Algebra, Calculus (comma separated)"
+                                                className="w-16 px-2 py-1 border rounded text-xs"
+                                                placeholder="Marks"
                                             />
+                                            <button
+                                                onClick={() => {
+                                                    // Remove question entirely
+                                                    const newQ = questions.filter((_, i) => i !== idx);
+                                                    setQuestions(newQ);
+                                                    setSelectedQuestionIndices(selectedQuestionIndices.filter(i => i !== idx));
+                                                    // Update duplicate indices - simplistic approach: re-run check or leave as is (indices might shift, but this is rare case in review)
+                                                    // For now, if we remove 1, all subsequent indices shift.
+                                                    // Ideally we should use IDs. But let's stick to this for now as "Remove" is edge case.
+                                                }}
+                                                className="text-gray-400 hover:text-red-500"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-end pt-2 border-t mt-4">
-                                        <button
-                                            onClick={() => setEditingQuestionIndex(null)}
-                                            className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
-                                        >
-                                            <Check className="w-3 h-3" /> Done Editing
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                // Read-Only Preview Mode
-                                <div className="group relative">
-                                    <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white shadow-sm border rounded-lg p-1 flex gap-1 z-10">
-                                        <button
-                                            onClick={() => setEditingQuestionIndex(idx)}
-                                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                            title="Edit Question"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
 
-                                    <div className="mb-3">
-                                        <div className="text-sm font-medium text-gray-900 bg-gray-50/50 p-2 rounded">
-                                            <MathText text={q.text} />
-                                        </div>
-                                        {q.imageUrl && (
-                                            <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
-                                                <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Extracted Image</p>
-                                                <img src={q.imageUrl} alt="Question diagram" className="max-w-full max-h-48 rounded border border-gray-200" />
-                                            </div>
-                                        )}
-                                    </div>
 
-                                    <div className="space-y-2">
-                                        {(!q.type || q.type === 'mcq') ? (
-                                            <div className="grid grid-cols-1 gap-1">
-                                                {q.options.map((opt, oIdx) => {
-                                                    const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
-                                                    return (
-                                                        <div key={oIdx} className={`flex items-start gap-2 text-xs p-1.5 rounded ${isCorrect ? 'bg-green-50 border border-green-100' : 'hover:bg-gray-50'}`}>
-                                                            <span className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full font-bold ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                                                {String.fromCharCode(65 + oIdx)}
-                                                            </span>
-                                                            <div className="pt-0.5">
-                                                                <MathText text={opt} inline />
+                                    {/* Question Content - Read vs Edit Mode */}
+                                    {
+                                        isEditing ? (
+                                            <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                                {/* Question Text Editor */}
+                                                <div>
+                                                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Question Text</label>
+                                                    <RichTextEditor
+                                                        value={q.text}
+                                                        onChange={(val) => {
+                                                            const newQ = [...questions];
+                                                            newQ[idx].text = val;
+                                                            setQuestions(newQ);
+                                                        }}
+                                                        placeholder="Question text (Supports HTML & LaTeX)..."
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-3 pl-4 border-l-2 border-gray-100">
+                                                    {/* Question Type Badge */}
+                                                    <div className="mb-2">
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${!q.type || q.type === 'mcq' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                                            q.type === 'fill_blank' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                                'bg-orange-100 text-orange-700 border-orange-200'
+                                                            }`}>
+                                                            {!q.type || q.type === 'mcq' ? 'Multiple Choice' : q.type === 'fill_blank' ? 'Fill in Blank' : q.type === 'short_answer' ? 'Short Answer' : 'Long Answer'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Logic for Different Types */}
+                                                    {(!q.type || q.type === 'mcq') ? (
+                                                        q.options.map((opt, oIdx) => {
+                                                            const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
+                                                            return (
+                                                                <div key={oIdx} className="flex items-center gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const newQ = [...questions];
+                                                                            newQ[idx].correctAnswer = String.fromCharCode(65 + oIdx);
+                                                                            setQuestions(newQ);
+                                                                        }}
+                                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCorrect ? 'bg-green-500 text-white shadow-md scale-110' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                                                                        title="Mark as correct"
+                                                                    >
+                                                                        {String.fromCharCode(65 + oIdx)}
+                                                                    </button>
+                                                                    <div className="flex-1">
+                                                                        <textarea
+                                                                            value={opt}
+                                                                            onChange={(e) => {
+                                                                                const newQ = [...questions];
+                                                                                newQ[idx].options[oIdx] = e.target.value;
+                                                                                setQuestions(newQ);
+                                                                            }}
+                                                                            rows={2}
+                                                                            className={`w-full px-3 py-2 border rounded text-sm mb-1 font-mono whitespace-pre-wrap focus:ring-2 focus:ring-blue-500 transition-colors ${isCorrect ? 'border-green-200 bg-green-50/30' : 'border-gray-200 text-gray-600'}`}
+                                                                            placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                                        />
+                                                                        <div className="text-sm">
+                                                                            <MathText text={opt} inline />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        // Non-MCQ Types - Rich Text for Model Answer
+                                                        <div className="mt-2">
+                                                            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">
+                                                                {q.type === 'fill_blank' ? 'Correct Answer (Exact Text)' : 'Model Answer / Key Points'}
+                                                            </label>
+                                                            {q.type === 'fill_blank' ? (
+                                                                <input
+                                                                    value={q.correctAnswer}
+                                                                    onChange={(e) => {
+                                                                        const newQ = [...questions];
+                                                                        newQ[idx].correctAnswer = e.target.value;
+                                                                        setQuestions(newQ);
+                                                                    }}
+                                                                    className="w-full px-3 py-2 border rounded-lg text-sm bg-green-50/30 border-green-200 focus:border-green-500 font-medium text-green-800"
+                                                                    placeholder="Enter the correct answer..."
+                                                                />
+                                                            ) : (
+                                                                <RichTextEditor
+                                                                    value={q.correctAnswer || ''}
+                                                                    onChange={(val) => {
+                                                                        const newQ = [...questions];
+                                                                        newQ[idx].correctAnswer = val;
+                                                                        setQuestions(newQ);
+                                                                    }}
+                                                                    placeholder="Enter model answer or key points for grading..."
+                                                                />
+                                                            )}
+                                                            <div className="text-[10px] text-gray-400 mt-1">
+                                                                {q.type === 'fill_blank' ? 'This text will be used for exact matching.' : 'AI will use this model answer to grade student responses.'}
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
+                                                    )}
+                                                </div>
+
+                                                {/* Explanation and Tags */}
+                                                <div className="mt-4 grid grid-cols-1 gap-3">
+                                                    <div>
+                                                        <label className="text-xs font-semibold text-gray-500 uppercase">Explanation</label>
+                                                        <RichTextEditor
+                                                            value={q.explanation || ''}
+                                                            onChange={(val) => {
+                                                                const newQ = [...questions];
+                                                                newQ[idx].explanation = val;
+                                                                setQuestions(newQ);
+                                                            }}
+                                                            placeholder="Explanation for the answer..."
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-semibold text-gray-500 uppercase">Tags</label>
+                                                        <input
+                                                            value={q.tags?.join(', ') || ''}
+                                                            onChange={(e) => {
+                                                                const newQ = [...questions];
+                                                                newQ[idx].tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
+                                                                setQuestions(newQ);
+                                                            }}
+                                                            className="w-full mt-1 px-2 py-1.5 border rounded text-xs text-gray-600 focus:text-gray-900"
+                                                            placeholder="e.g. Algebra, Calculus (comma separated)"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex justify-end pt-2 border-t mt-4">
+                                                    <button
+                                                        onClick={() => setEditingQuestionIndex(null)}
+                                                        className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
+                                                    >
+                                                        <Check className="w-3 h-3" /> Done Editing
+                                                    </button>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <div className="text-xs">
-                                                <span className="font-semibold text-gray-500 uppercase">Correct Answer:</span>
-                                                <div className="mt-1 p-2 bg-green-50 border border-green-100 rounded text-green-900">
-                                                    <MathText text={q.correctAnswer} />
+                                            // Read-Only Preview Mode
+                                            <div className="group relative">
+                                                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white shadow-sm border rounded-lg p-1 flex gap-1 z-10">
+                                                    <button
+                                                        onClick={() => setEditingQuestionIndex(idx)}
+                                                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                        title="Edit Question"
+                                                    >
+                                                        <Pencil className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="mb-3">
+                                                    <div className="text-sm font-medium text-gray-900 bg-gray-50/50 p-2 rounded">
+                                                        <MathText text={q.text} />
+                                                    </div>
+                                                    {q.imageUrl && (
+                                                        <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                                                            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Extracted Image</p>
+                                                            <img src={q.imageUrl} alt="Question diagram" className="max-w-full max-h-48 rounded border border-gray-200" />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    {(!q.type || q.type === 'mcq') ? (
+                                                        <div className="grid grid-cols-1 gap-1">
+                                                            {q.options.map((opt, oIdx) => {
+                                                                const isCorrect = q.correctAnswer === opt || q.correctAnswer === String.fromCharCode(65 + oIdx);
+                                                                return (
+                                                                    <div key={oIdx} className={`flex items-start gap-2 text-xs p-1.5 rounded ${isCorrect ? 'bg-green-50 border border-green-100' : 'hover:bg-gray-50'}`}>
+                                                                        <span className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full font-bold ${isCorrect ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                                                            {String.fromCharCode(65 + oIdx)}
+                                                                        </span>
+                                                                        <div className="pt-0.5">
+                                                                            <MathText text={opt} inline />
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-xs">
+                                                            <span className="font-semibold text-gray-500 uppercase">Correct Answer:</span>
+                                                            <div className="mt-1 p-2 bg-green-50 border border-green-100 rounded text-green-900">
+                                                                <MathText text={q.correctAnswer} />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {q.explanation && (
+                                                        <div className="text-xs pt-2 border-t border-gray-100">
+                                                            <span className="font-semibold text-gray-500 uppercase">Explanation:</span>
+                                                            <div className="mt-1 text-gray-600">
+                                                                <MathText text={q.explanation} />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {q.tags && q.tags.length > 0 && (
+                                                        <div className="text-xs pt-2 border-t border-gray-100 flex gap-2 items-center flex-wrap">
+                                                            <span className="font-semibold text-gray-500 uppercase">Tags:</span>
+                                                            {q.tags.map((tag, tIdx) => (
+                                                                <span key={tIdx} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
+                                                                    {tag}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                        )}
-
-                                        {q.explanation && (
-                                            <div className="text-xs pt-2 border-t border-gray-100">
-                                                <span className="font-semibold text-gray-500 uppercase">Explanation:</span>
-                                                <div className="mt-1 text-gray-600">
-                                                    <MathText text={q.explanation} />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {q.tags && q.tags.length > 0 && (
-                                            <div className="text-xs pt-2 border-t border-gray-100 flex gap-2 items-center flex-wrap">
-                                                <span className="font-semibold text-gray-500 uppercase">Tags:</span>
-                                                {q.tags.map((tag, tIdx) => (
-                                                    <span key={tIdx} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )
-                        }
-                    </div >
-                </div >
+                                        )
+                                    }
+                                </div >
+                            </div >
+                        );
+                    })}
+                </div>
             );
         });
     };

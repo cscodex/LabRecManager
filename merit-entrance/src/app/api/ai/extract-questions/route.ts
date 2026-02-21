@@ -216,8 +216,10 @@ export async function POST(req: NextRequest) {
         }
 
         const extractedQuestions: any[] = [];
+        const extractedSections: any[] = [];
         const extractedInstructions: string[] = [];
         const extractedParagraphs: any[] = [];
+        const pageErrors: string[] = [];
         let pageIndex = 1;
         let currentKeyIndex = 0;
 
@@ -230,7 +232,17 @@ export async function POST(req: NextRequest) {
             **INSTRUCTIONS EXTRACTION**:
             -   If exam-level instructions (e.g., "All questions are compulsory", "Section A is 1 mark each") are found at the top, extract them.
             -   Return them as an array of strings in the \`instructions\` field.
-            -   These will be appended to the exam instructions.
+            -   **IMPORTANT**: Also analyze instructions for sectional breakdown info (e.g., "Part A contains 20 MCQs", "Section B: Mathematics").
+
+            **SECTION/PART DETECTION (CRITICAL)**:
+            -   **Detect sections/parts** from:
+                1. **Page headings**: "Part A", "Section 1", "Part II - Mathematics", "Section B: English" etc.
+                2. **Exam instructions**: If instructions mention sections (e.g., "Part A contains 20 MCQs of 1 mark each"), use this to name sections.
+                3. **Subject headings**: E.g., "Mathematics", "English", "Punjabi", "Physics" appearing as section dividers.
+            -   **Group all questions under their detected section** in the \`sections\` array.
+            -   Each section should have a \`name\` and its own \`questions\` and \`paragraphs\` arrays.
+            -   If **no clear sections/parts** are detected, put ALL questions under a single section named "General".
+            -   If a section has specific instructions (e.g., "Attempt any 5"), include them in the section's \`instructions\` array.
 
             **EXAM TYPE EXTRACTION**:
             -   Analyze the header or title of the page to identify the Exam Type.
@@ -313,24 +325,29 @@ export async function POST(req: NextRequest) {
             RETURN JSON ONLY using this schema:
             {
               "examType": "JEE_MAIN", 
-              "instructions": ["Instruction 1"],
-              "paragraphs": [{ "id": "p1", "title": "Passage Title", "content": "Passage text..." }],
-              "questions": [
+              "instructions": ["General exam instruction 1"],
+              "sections": [
                 {
-                  "type": "mcq" | "fill_blank" | "short_answer" | "long_answer",
-                  "text": "Question text... [IMAGE] if needed",
-                  "options": ["A) ...", "B) ..."], 
-                  "correctAnswer": "A"Or "Model/Exact Answer",
-                  "explanation": "Explanation...",
-                  "marks": 1,
-                  "explanation": "Explanation...",
-                  "marks": 1,
-                  "tags": ["Topic", "Subtopic"],
-                  "paragraphId": "p1",
-                  "imageBounds": { "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.25 }
+                  "name": "Part A - English",
+                  "instructions": ["Attempt all questions"],
+                  "paragraphs": [{ "id": "p1", "title": "Passage Title", "content": "Passage text..." }],
+                  "questions": [
+                    {
+                      "type": "mcq" | "fill_blank" | "short_answer" | "long_answer",
+                      "text": "Question text...",
+                      "options": ["A) ...", "B) ..."], 
+                      "correctAnswer": "A",
+                      "explanation": "Step-by-step solution...",
+                      "marks": 1,
+                      "tags": ["Topic", "Subtopic"],
+                      "paragraphId": "p1",
+                      "imageBounds": { "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.25 }
+                    }
+                  ]
                 }
               ]
             }
+            **IMPORTANT**: If no clear section/part divisions exist, use a single section named "General" with all questions inside it.
         `;
 
         const finalPrompt = customPrompt ? `${basePrompt}\n\nADDITIONAL INSTRUCTIONS:\n${customPrompt}` : basePrompt;
@@ -374,36 +391,83 @@ export async function POST(req: NextRequest) {
                 if (parsed.examType && !extractedExamType) {
                     extractedExamType = parsed.examType;
                 }
-                const loadedQuestions = parsed.questions || [];
                 const loadedInstructions = parsed.instructions || [];
-                const loadedParagraphs = parsed.paragraphs || [];
-
-                // Add Meta to questions
-                const questionsWithMeta = loadedQuestions.map((q: any, idx: number) => ({
-                    ...q,
-                    id: `page${pageIndex}_q${idx + 1}_${Date.now()}`,
-                    page: pageIndex,
-                    correctAnswer: (q.correctAnswer || q.answer || '').replace(/Option\s?/i, '').trim(),
-                    marks: q.marks || (q.type === 'long_answer' ? 6 : q.type === 'short_answer' ? 3 : 1),
-                    paragraphId: q.paragraphId,
-                    imageBounds: q.imageBounds || null
-                }));
-
-                extractedQuestions.push(...questionsWithMeta);
                 extractedInstructions.push(...loadedInstructions);
 
-                // Map paragraphs to ensure consistent structure
-                const formattedParagraphs = loadedParagraphs.map((p: any) => ({
-                    id: p.id,
-                    title: p.title || p.text || 'Untitled Passage',
-                    content: p.content || p.text || ''
-                }));
-                extractedParagraphs.push(...formattedParagraphs);
+                // Handle both new sections[] format and legacy flat questions[] format
+                let sectionsFromPage: any[] = [];
+
+                if (parsed.sections && Array.isArray(parsed.sections) && parsed.sections.length > 0) {
+                    // New format: sections[] containing questions
+                    sectionsFromPage = parsed.sections;
+                } else if (parsed.questions && Array.isArray(parsed.questions)) {
+                    // Legacy format: flat questions[] — wrap in a "General" section
+                    sectionsFromPage = [{
+                        name: 'General',
+                        questions: parsed.questions,
+                        paragraphs: parsed.paragraphs || [],
+                        instructions: []
+                    }];
+                }
+
+                // Process each section and merge with existing by name
+                for (const section of sectionsFromPage) {
+                    const sectionName = section.name || 'General';
+                    const sectionQuestions = section.questions || [];
+                    const sectionParagraphs = section.paragraphs || [];
+                    const sectionInstructions = section.instructions || [];
+
+                    // Add meta to questions
+                    const questionsWithMeta = sectionQuestions.map((q: any, idx: number) => ({
+                        ...q,
+                        id: `page${pageIndex}_q${idx + 1}_${Date.now()}`,
+                        page: pageIndex,
+                        section: sectionName,
+                        correctAnswer: (q.correctAnswer || q.answer || '').replace(/Option\s?/i, '').trim(),
+                        marks: q.marks || (q.type === 'long_answer' ? 6 : q.type === 'short_answer' ? 3 : 1),
+                        paragraphId: q.paragraphId,
+                        imageBounds: q.imageBounds || null
+                    }));
+
+                    // Format paragraphs
+                    const formattedParagraphs = sectionParagraphs.map((p: any) => ({
+                        id: p.id,
+                        title: p.title || p.text || 'Untitled Passage',
+                        content: p.content || p.text || '',
+                        section: sectionName
+                    }));
+
+                    // Merge into extractedSections by name
+                    const existingSection = extractedSections.find((s: any) => s.name === sectionName);
+                    if (existingSection) {
+                        existingSection.questions.push(...questionsWithMeta);
+                        existingSection.paragraphs.push(...formattedParagraphs);
+                        if (sectionInstructions.length > 0) {
+                            existingSection.instructions = [...(existingSection.instructions || []), ...sectionInstructions];
+                        }
+                    } else {
+                        extractedSections.push({
+                            name: sectionName,
+                            questions: questionsWithMeta,
+                            paragraphs: formattedParagraphs,
+                            instructions: sectionInstructions
+                        });
+                    }
+
+                    // Also add to flat arrays for backward compat
+                    extractedQuestions.push(...questionsWithMeta);
+                    extractedParagraphs.push(...formattedParagraphs);
+                }
 
             } catch (err: any) {
                 console.error(`Error processing page ${pageIndex} with provider ${provider}:`, err.message);
-                console.error('Raw Text that failed parsing:', text.substring(0, 1000) + '...'); // Log first 1000 chars
-                // Continue to next page
+                console.error('Raw Text that failed parsing:', text.substring(0, 1000) + '...');
+                // Forward rate limit errors to client
+                if (err.message?.includes('429') || err.message?.includes('rate limit') || err.message?.includes('quota') || err.message?.includes('Resource has been exhausted')) {
+                    pageErrors.push(`Page ${pageIndex}: API rate limit reached — try again in a few minutes or switch to a different AI model.`);
+                } else {
+                    pageErrors.push(`Page ${pageIndex}: ${err.message}`);
+                }
             }
 
             pageIndex++;
@@ -416,9 +480,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             questions: extractedQuestions,
+            sections: extractedSections,
             instructions: extractedInstructions,
             paragraphs: extractedParagraphs,
-            examType: extractedExamType
+            examType: extractedExamType,
+            errors: pageErrors.length > 0 ? pageErrors : undefined
         });
 
     } catch (error: any) {
