@@ -70,10 +70,17 @@ export async function POST(req: NextRequest) {
                 const imgHeight = metadata.height || 1400;
 
                 // Calculate crop region from percentage-based bounds
-                const left = Math.max(0, Math.round(imageBounds.x * imgWidth));
-                const top = Math.max(0, Math.round(imageBounds.y * imgHeight));
-                const width = Math.min(Math.round(imageBounds.w * imgWidth), imgWidth - left);
-                const height = Math.min(Math.round(imageBounds.h * imgHeight), imgHeight - top);
+                // Add 5% margin on each side to avoid cutting labels/symbols
+                const margin = 0.05;
+                const bx = Math.max(0, imageBounds.x - margin);
+                const by = Math.max(0, imageBounds.y - margin);
+                const bw = Math.min(imageBounds.w + margin * 2, 1 - bx);
+                const bh = Math.min(imageBounds.h + margin * 2, 1 - by);
+
+                const left = Math.max(0, Math.round(bx * imgWidth));
+                const top = Math.max(0, Math.round(by * imgHeight));
+                const width = Math.min(Math.round(bw * imgWidth), imgWidth - left);
+                const height = Math.min(Math.round(bh * imgHeight), imgHeight - top);
 
                 if (width < 10 || height < 10) {
                     console.warn(`[extract-images] Crop region too small for question ${questionIndex}: ${width}x${height}`);
