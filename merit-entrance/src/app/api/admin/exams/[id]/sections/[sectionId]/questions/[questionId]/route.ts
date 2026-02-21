@@ -72,14 +72,32 @@ export async function PUT(
     `;
 
         // Update tags (Multi-tag)
+        // Tags can be UUIDs (from tag picker) or name strings (from AI extraction)
         if (tags && Array.isArray(tags)) {
             // Replace tags: delete existing and insert new
             await sql`DELETE FROM question_tags WHERE question_id = ${questionId}`;
             if (tags.length > 0) {
-                for (const tagId of tags) {
+                for (const tagValue of tags) {
+                    let resolvedTagId = tagValue;
+
+                    // Check if tagValue is a valid UUID format
+                    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tagValue);
+
+                    if (!isUUID) {
+                        // Tag is a name string (from AI) — find or create it
+                        const existing = await sql`SELECT id FROM tags WHERE LOWER(name) = LOWER(${tagValue}) LIMIT 1`;
+                        if (existing.length > 0) {
+                            resolvedTagId = existing[0].id;
+                        } else {
+                            const [newTag] = await sql`INSERT INTO tags (name) VALUES (${tagValue}) RETURNING id`;
+                            resolvedTagId = newTag.id;
+                            console.log(`Created new tag: "${tagValue}" -> ${resolvedTagId}`);
+                        }
+                    }
+
                     await sql`
                          INSERT INTO question_tags (question_id, tag_id)
-                         VALUES (${questionId}, ${tagId})
+                         VALUES (${questionId}, ${resolvedTagId})
                          ON CONFLICT (question_id, tag_id) DO NOTHING
                      `;
                 }

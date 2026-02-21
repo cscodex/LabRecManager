@@ -418,7 +418,7 @@ export default function EditExamPage() {
             const body: any = {
                 type: data.type,
                 text: { en: data.textEn, pa: data.textPa || data.textEn },
-                explanation: data.explanationEn ? { en: data.explanationEn, pa: data.explanationPa } : null,
+                explanation: { en: data.explanationEn || '', pa: data.explanationPa || '' },
                 marks: data.type === 'paragraph' ? 0 : data.marks,
                 negativeMarks: data.type === 'paragraph' ? 0 : data.negativeMarks,
                 difficulty: data.difficulty,
