@@ -300,11 +300,16 @@ export async function POST(req: NextRequest) {
                 -   Inline: \\( E = mc^2 \\)
                 -   Block: \\[ \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
                 -   Chemical: \\( H_2SO_4 \\)
-            -   **Images**: If a question has a diagram/image, insert placeholder: \`[IMAGE]\` at the end of the text.
-            -   **Image Bounding Box**: When you detect a diagram/image in a question, also return \`imageBounds\` with the approximate position of the image region on the page as percentages (0-1):
+            -   **Images**: If a question has a diagram/image/figure/graph/chart specifically tied to that question, insert placeholder: \`[IMAGE]\` at the end of the text.
+            -   **Image Bounding Box**: ONLY return \`imageBounds\` for actual **diagrams, graphs, charts, figures, or illustrations** that are part of a specific question. Do NOT return imageBounds for:
+                - Page headers, footers, or exam title areas
+                - General exam instructions or logos
+                - Watermarks or decorative elements
+                - Text-only content (even if formatted differently)
+                Return the approximate position as percentages (0-1):
                 \`"imageBounds": { "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.25 }\`
                 - x = left edge %, y = top edge %, w = width %, h = height %
-                - These coordinates help crop the actual image from the source page.
+                - If there is NO diagram/graph/figure for a question, do NOT include imageBounds at all.
             -   **Structural & Code Formatting**:
                 -   **Tables**: Detect any tabular data and convert it to valid HTML \`<table>\` structures with \`<thead>\`, \`<tbody>\`, \`<tr>\`, \`<th>\`, and \`<td>\`.
                 -   **Code Blocks**: Convert code snippets into \`<pre><code>...</code></pre>\` blocks. Preserve indentation and line breaks within these blocks.

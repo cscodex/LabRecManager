@@ -356,8 +356,20 @@ export default function ImportExamPage() {
                     .map((q, idx) => ({ questionIndex: idx, imageBounds: q.imageBounds, page: q.page }))
                     .filter(q => q.imageBounds && q.imageBounds.w > 0 && q.imageBounds.h > 0);
 
-                if (questionsWithImages.length > 0) {
-                    toast.loading(`Extracting ${questionsWithImages.length} image(s) from PDF...`, { id: 'img-toast' });
+                // Dedup: if multiple questions on the same page have nearly identical bounds, skip duplicates
+                const dedupedImages = questionsWithImages.filter((q, i) => {
+                    const isDup = questionsWithImages.some((other, j) =>
+                        j < i && other.page === q.page && q.imageBounds && other.imageBounds &&
+                        Math.abs(other.imageBounds.x - q.imageBounds.x) < 0.05 &&
+                        Math.abs(other.imageBounds.y - q.imageBounds.y) < 0.05 &&
+                        Math.abs(other.imageBounds.w - q.imageBounds.w) < 0.05 &&
+                        Math.abs(other.imageBounds.h - q.imageBounds.h) < 0.05
+                    );
+                    return !isDup;
+                });
+
+                if (dedupedImages.length > 0) {
+                    toast.loading(`Extracting ${dedupedImages.length} image(s) from PDF...`, { id: 'img-toast' });
                     try {
                         // Build pageImages array: page number -> base64
                         const selectedImages = pdfPages.filter((_, idx) => selectedPageIndices.includes(idx));
@@ -369,7 +381,7 @@ export default function ImportExamPage() {
                         const imgRes = await fetch('/api/ai/extract-images', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ pageImages, questions: questionsWithImages })
+                            body: JSON.stringify({ pageImages, questions: dedupedImages })
                         });
                         const imgData = await imgRes.json();
 
@@ -527,6 +539,44 @@ export default function ImportExamPage() {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // Insert a section break after a specific question index
+    const insertSectionBreak = (afterQuestionIdx: number) => {
+        const currentSection = questions[afterQuestionIdx]?.section || 'General';
+        const newSectionName = `Section ${extractedSections.length + 1}`;
+
+        // Update questions: everything after afterQuestionIdx in the same section goes to new section
+        setQuestions(prev => {
+            let passedBreak = false;
+            return prev.map((q, idx) => {
+                if (idx === afterQuestionIdx) {
+                    passedBreak = true;
+                    return q; // This question stays in current section
+                }
+                if (passedBreak && (q.section || 'General') === currentSection) {
+                    return { ...q, section: newSectionName };
+                }
+                return q;
+            });
+        });
+
+        // Add new section to extractedSections
+        setExtractedSections(prev => {
+            // Find insertion point: after the current section
+            const currentIdx = prev.findIndex(s => s.name === currentSection);
+            const newSection: ExtractedSection = {
+                name: newSectionName,
+                questions: [],
+                paragraphs: [],
+                instructions: []
+            };
+            const updated = [...prev];
+            updated.splice(currentIdx + 1, 0, newSection);
+            return updated;
+        });
+
+        toast.success(`Section break inserted! New section: "${newSectionName}"`);
     };
 
     // Helper for Inline Paragraph Rendering
@@ -933,6 +983,19 @@ export default function ImportExamPage() {
                                         )
                                     }
                                 </div >
+
+                                {/* Insert Section Break Button */}
+                                {idx < sectionQuestionIndices[sectionQuestionIndices.length - 1] && !isCollapsed && (
+                                    <div className="relative flex items-center justify-center my-4 opacity-0 hover:opacity-100 transition-opacity">
+                                        <hr className="absolute w-full border-indigo-100 border-dashed" />
+                                        <button
+                                            onClick={() => insertSectionBreak(idx)}
+                                            className="relative bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 shadow-sm transition-colors z-10"
+                                        >
+                                            <Plus className="w-3 h-3" /> Insert Section Break Here
+                                        </button>
+                                    </div>
+                                )}
                             </div >
                         );
                     })}

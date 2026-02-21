@@ -9,7 +9,7 @@ import { getDifficultyColor } from '@/lib/performance';
 import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
-    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle
+    MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle, List
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -123,6 +123,8 @@ export default function EditExamPage() {
     const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
     const [showBulkMarksModal, setShowBulkMarksModal] = useState(false);
     const [bulkMarks, setBulkMarks] = useState({ marks: '', negativeMarks: '' });
+    const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
+    const [bulkMoveTargetSectionId, setBulkMoveTargetSectionId] = useState('');
 
 
     // Refs for auto-save debouncing
@@ -533,6 +535,42 @@ export default function EditExamPage() {
                 } catch (e) { toast.error('Error removing questions'); }
             }
         });
+    };
+
+    // Bulk move selected questions to another section
+    const handleBulkMove = async () => {
+        if (!activeSectionId || !bulkMoveTargetSectionId || selectedQuestions.size === 0) return;
+
+        const targetSection = sections.find(s => s.id === bulkMoveTargetSectionId);
+
+        try {
+            const res = await fetch(`/api/admin/exams/${examId}/sections/${activeSectionId}/questions/bulk-move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionIds: Array.from(selectedQuestions),
+                    targetSectionId: bulkMoveTargetSectionId
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                toast.success(`Moved ${data.moved} question(s) to ${getText(targetSection?.name, language) || 'new section'}`);
+                setSelectedQuestions(new Set());
+                setShowBulkMoveModal(false);
+                setBulkMoveTargetSectionId('');
+                fetchSectionQuestions(activeSectionId); // Refresh current section to remove them
+                // Refresh target section if it was loaded
+                fetchSectionQuestions(bulkMoveTargetSectionId);
+                loadExam(); // Update exam stats
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to move questions');
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error('Error moving questions');
+        }
     };
 
     // Bulk update marks
@@ -1352,6 +1390,14 @@ export default function EditExamPage() {
                                                         >
                                                             <Edit2 className="w-3 h-3" /> Update Marks
                                                         </button>
+                                                        {sections.length > 1 && (
+                                                            <button
+                                                                onClick={() => setShowBulkMoveModal(true)}
+                                                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium px-2 py-1 bg-indigo-50 border border-indigo-200 rounded"
+                                                            >
+                                                                <List className="w-3 h-3" /> Move to Section
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => setSelectedQuestions(new Set())}
                                                             className="text-xs text-gray-500 hover:text-gray-700 font-medium"
@@ -1645,32 +1691,59 @@ export default function EditExamPage() {
 
                 {/* Bulk Marks Update Modal */}
                 <Modal isOpen={showBulkMarksModal} onClose={() => setShowBulkMarksModal(false)} title={`Update Marks (${selectedQuestions.size} questions)`} maxWidth="sm">
-                    <div className="space-y-4">
+                    <div className="p-6 space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Marks per Question</label>
+                            <label className="block text-sm font-medium mb-1">Marks (Optional)</label>
                             <input
                                 type="number"
+                                className="w-full px-3 py-2 border rounded"
+                                placeholder="Leave blank to keep unchanged"
                                 value={bulkMarks.marks}
                                 onChange={(e) => setBulkMarks({ ...bulkMarks, marks: e.target.value })}
-                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="e.g. 4"
-                                autoFocus
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Negative Marks</label>
+                            <label className="block text-sm font-medium mb-1">Negative Marks (Optional)</label>
                             <input
                                 type="number"
                                 step="0.25"
+                                className="w-full px-3 py-2 border rounded"
+                                placeholder="Leave blank to keep unchanged"
                                 value={bulkMarks.negativeMarks}
                                 onChange={(e) => setBulkMarks({ ...bulkMarks, negativeMarks: e.target.value })}
-                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="e.g. 1"
                             />
                         </div>
-                        <div className="flex gap-3 pt-2">
-                            <button onClick={() => setShowBulkMarksModal(false)} className="flex-1 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                            <button onClick={handleBulkMarksUpdate} className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Update Marks</button>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button onClick={() => setShowBulkMarksModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                            <button onClick={handleBulkMarksUpdate} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Update</button>
+                        </div>
+                    </div>
+                </Modal>
+
+                <Modal isOpen={showBulkMoveModal} onClose={() => setShowBulkMoveModal(false)} title={`Move ${selectedQuestions.size} question(s) to Section`} maxWidth="sm">
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Select Target Section</label>
+                            <select
+                                className="w-full px-3 py-2 border rounded-lg"
+                                value={bulkMoveTargetSectionId}
+                                onChange={(e) => setBulkMoveTargetSectionId(e.target.value)}
+                            >
+                                <option value="">-- Select Section --</option>
+                                {sections.filter(s => s.id !== activeSectionId).map((s, i) => (
+                                    <option key={s.id} value={s.id}>{getText(s.name, language) || `Section ${i + 1}`}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button onClick={() => { setShowBulkMoveModal(false); setBulkMoveTargetSectionId(''); }} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                            <button
+                                onClick={handleBulkMove}
+                                disabled={!bulkMoveTargetSectionId}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                Move Questions
+                            </button>
                         </div>
                     </div>
                 </Modal>
