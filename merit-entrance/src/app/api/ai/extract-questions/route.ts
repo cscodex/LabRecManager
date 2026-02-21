@@ -238,18 +238,31 @@ export async function POST(req: NextRequest) {
             -   Map this to one of the following codes: 'JEE_MAIN', 'JEE_ADV', 'NEET', 'UPSC_CSE', 'GATE', 'CAT', 'SOE', 'OTHER'.
             -   Return this single string value in the \`examType\` field.
 
+            **ANSWERING METHODOLOGY (CRITICAL)**:
+            -   For EVERY question, you MUST **solve the question first** by working through the solution step-by-step in your reasoning.
+            -   Only AFTER you have derived the solution should you mark the correct answer.
+            -   For MCQs: Solve the problem, arrive at the answer, THEN match it to the correct option letter.
+            -   For Fill in the Blanks: Solve/recall the answer, THEN fill it in.
+            -   For Short/Long Answer: Generate a complete model answer with logical steps.
+            -   This ensures answers are accurate and based on actual problem solving, NOT guessing from option patterns.
+            -   Put the step-by-step solution in the \`explanation\` field.
+
             **QUESTION EXTRACTION RULES**:
-            1.  **Multiple Choice Questions (MCW)**:
+            1.  **Multiple Choice Questions (MCQ)**:
                 -   Extract all questions with options.
                 -   **True/False Questions**: Treat these as MCQs with two options: "True" and "False".
                 -   Remove question numbering (e.g., "1.", "Q1").
                 -   Extract all options into the \`options\` array.
-                -   Identify the correct answer (Option letter or "True"/"False").
+                -   **Solve the question first**, then identify the correct option letter (e.g., "A", "B").
 
-            2.  **Short & Long Answer Questions**:
+            2.  **Fill in the Blank Questions**:
+                -   Extract the question text.
+                -   **Solve first**, then put the exact answer in \`correctAnswer\`.
+
+            3.  **Short & Long Answer Questions**:
                 -   Extract the full question text.
                 -   Set \`options\` to [].
-                -   **Model Answer**: Generate a concise "Model Answer" or "Key Points" for grading purposes. Put this in the \`answer\` field.
+                -   **Solve the question first**, then generate a concise "Model Answer" or "Key Points" for grading purposes. Put this in the \`answer\` field.
 
             **FIELDS TO EXTRACT PER QUESTION**:
             -   **text**: The full question text. Preserve formatting.
