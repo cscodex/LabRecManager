@@ -135,6 +135,10 @@ export default function EditExamPage() {
     const [isExtractingInstructions, setIsExtractingInstructions] = useState(false);
     const [pdfFile, setPdfFile] = useState<File | null>(null);
 
+    // Dynamic Original PDF combining
+    const [combinedPdfUrl, setCombinedPdfUrl] = useState<string | null>(null);
+    const [isCombiningPdf, setIsCombiningPdf] = useState(false);
+
     // Refs for auto-save debouncing
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const initialLoadRef = useRef(true);
@@ -224,6 +228,39 @@ export default function EditExamPage() {
             setLoadingQuestions(prev => ({ ...prev, [sectionId]: false }));
         }
     };
+
+    // Combine split PDFs effect
+    useEffect(() => {
+        if (activeTab === 'original_pdf' && exam?.source_pdf_url && exam.source_pdf_url.includes(',')) {
+            const combinePdfs = async () => {
+                if (combinedPdfUrl) return; // Already combined
+                setIsCombiningPdf(true);
+                try {
+                    const { PDFDocument } = await import('pdf-lib');
+                    const urls = exam?.source_pdf_url?.split(',') || [];
+                    const mergedPdf = await PDFDocument.create();
+
+                    for (const url of urls) {
+                        const response = await fetch(url.trim());
+                        const pdfBytes = await response.arrayBuffer();
+                        const pdfDoc = await PDFDocument.load(pdfBytes);
+                        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                        copiedPages.forEach((page) => mergedPdf.addPage(page));
+                    }
+
+                    const mergedPdfBytes = await mergedPdf.save();
+                    const mergedBlob = new Blob([mergedPdfBytes as any], { type: 'application/pdf' });
+                    setCombinedPdfUrl(URL.createObjectURL(mergedBlob));
+                } catch (error) {
+                    console.error('Failed to combine PDFs:', error);
+                    toast.error('Failed to combine multi-part PDF for viewing.');
+                } finally {
+                    setIsCombiningPdf(false);
+                }
+            };
+            combinePdfs();
+        }
+    }, [activeTab, exam?.source_pdf_url]);
 
 
     // Auto-save with debounce
@@ -1835,15 +1872,23 @@ export default function EditExamPage() {
                             )}
                         </div>
                     ) : activeTab === 'original_pdf' && exam?.source_pdf_url ? (
-                        <div className="flex flex-col gap-4">
-                            {exam?.source_pdf_url?.split(',').map((url, idx) => (
-                                <div key={idx} className="bg-white rounded-xl shadow-sm p-2 w-full h-[800px]">
-                                    {(exam?.source_pdf_url?.split(',')?.length ?? 0) > 1 && (
-                                        <h3 className="font-semibold text-gray-700 mb-2 px-2 pt-2">Original PDF - Part {idx + 1}</h3>
-                                    )}
-                                    <iframe src={url.trim()} className="w-full h-full rounded-lg" title={`Original PDF Part ${idx + 1}`} />
-                                </div>
-                            ))}
+                        <div className="bg-white rounded-xl shadow-sm p-2 w-full h-[800px]">
+                            {exam.source_pdf_url.includes(',') ? (
+                                isCombiningPdf ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-500">
+                                        <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-600" />
+                                        <p>Recombining multi-part PDF for viewing...</p>
+                                    </div>
+                                ) : combinedPdfUrl ? (
+                                    <iframe src={combinedPdfUrl} className="w-full h-full rounded-lg" title="Combined Original PDF" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-red-500">
+                                        Failed to load combined PDF.
+                                    </div>
+                                )
+                            ) : (
+                                <iframe src={exam.source_pdf_url} className="w-full h-full rounded-lg" title="Original PDF" />
+                            )}
                         </div>
                     ) : null}
                 </main>
