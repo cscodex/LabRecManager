@@ -98,28 +98,50 @@ export async function PUT(
 
         const { id } = await params;
         const body = await request.json();
-        const { title, description, instructions, gradingInstructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status, type } = body;
+        const { title, description, instructions, gradingInstructions, duration, totalMarks, passingMarks, negativeMarking, shuffleQuestions, securityMode, status, type, sourcePdfUrl } = body;
 
         console.log('Updating exam:', { id, title, type, description: !!description, instructions: !!instructions });
 
         const now = new Date().toISOString();
-        const update = await sql`
-      UPDATE exams SET
-        title = ${JSON.stringify(title)}::jsonb,
-        description = ${description ? JSON.stringify(description) : null}::jsonb,
-        instructions = ${instructions ? JSON.stringify(instructions) : null}::jsonb,
-        grading_instructions = ${gradingInstructions || null},
-        duration = ${duration},
-        total_marks = ${totalMarks},
-        passing_marks = ${passingMarks || null},
-        negative_marking = ${negativeMarking || null},
-        shuffle_questions = ${shuffleQuestions || false},
-        security_mode = ${securityMode || false},
-        status = ${status || 'draft'},
-        type = ${type || null},
-        updated_at = ${now}
-      WHERE id = ${id}
-    `;
+
+        if (sourcePdfUrl !== undefined) {
+            await sql`
+              UPDATE exams SET
+                title = ${JSON.stringify(title)}::jsonb,
+                description = ${description ? JSON.stringify(description) : null}::jsonb,
+                instructions = ${instructions ? JSON.stringify(instructions) : null}::jsonb,
+                grading_instructions = ${gradingInstructions || null},
+                duration = ${duration},
+                total_marks = ${totalMarks},
+                passing_marks = ${passingMarks || null},
+                negative_marking = ${negativeMarking || null},
+                shuffle_questions = ${shuffleQuestions || false},
+                security_mode = ${securityMode || false},
+                status = ${status || 'draft'},
+                type = ${type || null},
+                source_pdf_url = ${sourcePdfUrl},
+                updated_at = ${now}
+              WHERE id = ${id}
+            `;
+        } else {
+            await sql`
+              UPDATE exams SET
+                title = ${JSON.stringify(title)}::jsonb,
+                description = ${description ? JSON.stringify(description) : null}::jsonb,
+                instructions = ${instructions ? JSON.stringify(instructions) : null}::jsonb,
+                grading_instructions = ${gradingInstructions || null},
+                duration = ${duration},
+                total_marks = ${totalMarks},
+                passing_marks = ${passingMarks || null},
+                negative_marking = ${negativeMarking || null},
+                shuffle_questions = ${shuffleQuestions || false},
+                security_mode = ${securityMode || false},
+                status = ${status || 'draft'},
+                type = ${type || null},
+                updated_at = ${now}
+              WHERE id = ${id}
+            `;
+        }
 
         await logActivity('update_exam', `Updated exam: ${title.en || 'Unknown'}`, { examId: id, status, securityMode });
 

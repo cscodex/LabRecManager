@@ -63,6 +63,7 @@ interface Exam {
     shuffle_questions: boolean;
     security_mode?: boolean;
     status: string;
+    source_pdf_url?: string;
     type?: string;
     sections: Section[];
     schedules: { id: string; start_time: string; end_time: string }[];
@@ -81,7 +82,7 @@ export default function EditExamPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
-    const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections' | 'composition'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'instructions' | 'sections' | 'composition' | 'original_pdf'>('details');
 
     // Section Tabs Logic
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -999,6 +1000,17 @@ export default function EditExamPage() {
                             >
                                 <BarChart2 className="w-4 h-4 inline mr-1" /> Composition
                             </button>
+                            {exam?.source_pdf_url && (
+                                <button
+                                    onClick={() => setActiveTab('original_pdf')}
+                                    className={`px-4 py-2 rounded-t-lg text-sm font-medium ${activeTab === 'original_pdf'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    <FileText className="w-4 h-4 inline mr-1" /> Original PDF
+                                </button>
+                            )}
                         </div>
                     </div>
                 </header>
@@ -1119,6 +1131,66 @@ export default function EditExamPage() {
                                         <option value="SOE">School of Eminence</option>
                                         <option value="OTHER">Other</option>
                                     </select>
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Temporary: Add Original PDF</label>
+                                    <input
+                                        type="file"
+                                        accept="application/pdf"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+
+                                            const loadingToast = toast.loading('Uploading PDF...');
+                                            const uploadFormData = new FormData();
+                                            uploadFormData.append('file', file);
+                                            uploadFormData.append('folder', 'merit-entrance/exams/pdfs');
+
+                                            try {
+                                                const uploadRes = await fetch('/api/upload', {
+                                                    method: 'POST',
+                                                    body: uploadFormData,
+                                                });
+                                                const uploadData = await uploadRes.json();
+
+                                                if (uploadData.success) {
+                                                    // Immediately save to exam
+                                                    const saveRes = await fetch(`/api/admin/exams/${examId}`, {
+                                                        method: 'PUT',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
+                                                            description: formData.descriptionEn ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn } : null,
+                                                            instructions: formData.instructionsEn ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn } : null,
+                                                            gradingInstructions: formData.gradingInstructions,
+                                                            duration: formData.duration,
+                                                            totalMarks: sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0),
+                                                            passingMarks: formData.passingMarks,
+                                                            negativeMarking: formData.negativeMarking || null,
+                                                            shuffleQuestions: formData.shuffleQuestions,
+                                                            securityMode: formData.securityMode,
+                                                            status: formData.status,
+                                                            type: formData.type || null,
+                                                            sourcePdfUrl: uploadData.url
+                                                        }),
+                                                    });
+
+                                                    if (saveRes.ok) {
+                                                        toast.success('Original PDF Uploaded & Saved!', { id: loadingToast });
+                                                        // Reload exam to show the tab
+                                                        loadExam();
+                                                    } else {
+                                                        toast.error('Failed to link PDF to exam.', { id: loadingToast });
+                                                    }
+                                                } else {
+                                                    toast.error('Failed to upload PDF.', { id: loadingToast });
+                                                }
+                                            } catch (err) {
+                                                toast.error('Upload error', { id: loadingToast });
+                                            }
+                                        }}
+                                        className="w-full px-4 py-1.5 border rounded-lg file:mr-4 file:py-1 file:px-3 file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                    />
                                 </div>
                             </div>
 
@@ -1679,6 +1751,10 @@ export default function EditExamPage() {
                                 </div>
                             )}
                         </div>
+                    ) : activeTab === 'original_pdf' && exam?.source_pdf_url ? (
+                        <div className="bg-white rounded-xl shadow-sm p-2 w-full h-[800px]">
+                            <iframe src={exam.source_pdf_url} className="w-full h-full rounded-lg" title="Original PDF" />
+                        </div>
                     ) : null}
                 </main>
 
@@ -1930,7 +2006,7 @@ export default function EditExamPage() {
                     </div>
                 </Modal>
 
-            </div>
-        </MathJaxProvider>
+            </div >
+        </MathJaxProvider >
     );
 }
