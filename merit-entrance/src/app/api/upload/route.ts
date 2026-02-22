@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { neon } from '@neondatabase/serverless';
 import { v2 as cloudinary } from 'cloudinary';
 
 // Configure Cloudinary
@@ -12,10 +13,12 @@ cloudinary.config({
 export const config = {
     api: {
         bodyParser: {
-            sizeLimit: '20mb',
+            sizeLimit: '100mb',
         },
     },
 };
+
+const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 export async function POST(request: NextRequest) {
     try {
@@ -38,9 +41,23 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
-        // Check file size (10MB limit)
-        if (file.size > 10 * 1024 * 1024) {
-            return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+        // Check file size limit from DB
+        let maxUploadLimitMB = 10; // Default fallback
+        try {
+            const settingsResult = await sql`SELECT value FROM system_settings WHERE key = 'pdfUploadLimitMB'`;
+            if (settingsResult.length > 0) {
+                // Settings are usually JSON stringified in the DB, e.g. "20"
+                const parsedLimit = parseInt(settingsResult[0].value.replace(/"/g, ''));
+                if (!isNaN(parsedLimit) && parsedLimit > 0) {
+                    maxUploadLimitMB = parsedLimit;
+                }
+            }
+        } catch (dbError) {
+            console.warn('Failed to fetch upload limit from DB, using default 10MB', dbError);
+        }
+
+        if (file.size > maxUploadLimitMB * 1024 * 1024) {
+            return NextResponse.json({ error: `File too large (max ${maxUploadLimitMB}MB)` }, { status: 400 });
         }
 
         console.log('Uploading file:', { name: file.name, size: file.size, type: file.type, folder });
