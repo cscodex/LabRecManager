@@ -140,6 +140,9 @@ export default function EditExamPage() {
     const initialLoadRef = useRef(true);
     const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Temporary upload error state
+    const [tempUploadError, setTempUploadError] = useState<string | null>(null);
+
 
     const loadExam = useCallback(async () => {
         try {
@@ -1141,6 +1144,7 @@ export default function EditExamPage() {
                                             const file = e.target.files?.[0];
                                             if (!file) return;
 
+                                            setTempUploadError(null);
                                             const loadingToast = toast.loading('Uploading PDF...');
                                             const uploadFormData = new FormData();
                                             uploadFormData.append('file', file);
@@ -1181,17 +1185,29 @@ export default function EditExamPage() {
                                                         loadExam();
                                                     } else {
                                                         const saveData = await saveRes.json().catch(() => ({}));
-                                                        toast.error(saveData.error || saveData.details || 'Failed to link PDF to exam.', { id: loadingToast });
+                                                        const errMsg = saveData.error || saveData.details || 'Failed to link PDF to exam.';
+                                                        toast.error(errMsg, { id: loadingToast });
+                                                        setTempUploadError(errMsg);
                                                     }
                                                 } else {
-                                                    toast.error(uploadData.error || uploadData.details || 'Failed to upload PDF.', { id: loadingToast });
+                                                    const errMsg = uploadData.error || uploadData.details || 'Failed to upload PDF.';
+                                                    toast.error(errMsg, { id: loadingToast });
+                                                    setTempUploadError(errMsg);
                                                 }
                                             } catch (err: any) {
-                                                toast.error(err.message || 'Upload error', { id: loadingToast });
+                                                const errMsg = err.message || 'Upload error';
+                                                toast.error(errMsg, { id: loadingToast });
+                                                setTempUploadError(errMsg);
                                             }
                                         }}
                                         className="w-full px-4 py-1.5 border rounded-lg file:mr-4 file:py-1 file:px-3 file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                     />
+                                    {tempUploadError && (
+                                        <div className="mt-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
+                                            <p className="font-semibold">Upload Failed:</p>
+                                            <p className="whitespace-pre-wrap">{tempUploadError}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
