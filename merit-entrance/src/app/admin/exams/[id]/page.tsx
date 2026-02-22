@@ -1180,13 +1180,14 @@ export default function EditExamPage() {
                                                         // Reload exam to show the tab
                                                         loadExam();
                                                     } else {
-                                                        toast.error('Failed to link PDF to exam.', { id: loadingToast });
+                                                        const saveData = await saveRes.json().catch(() => ({}));
+                                                        toast.error(saveData.error || saveData.details || 'Failed to link PDF to exam.', { id: loadingToast });
                                                     }
                                                 } else {
-                                                    toast.error('Failed to upload PDF.', { id: loadingToast });
+                                                    toast.error(uploadData.error || uploadData.details || 'Failed to upload PDF.', { id: loadingToast });
                                                 }
-                                            } catch (err) {
-                                                toast.error('Upload error', { id: loadingToast });
+                                            } catch (err: any) {
+                                                toast.error(err.message || 'Upload error', { id: loadingToast });
                                             }
                                         }}
                                         className="w-full px-4 py-1.5 border rounded-lg file:mr-4 file:py-1 file:px-3 file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
