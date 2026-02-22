@@ -1146,51 +1146,117 @@ export default function EditExamPage() {
 
                                             setTempUploadError(null);
                                             const loadingToast = toast.loading('Uploading PDF...');
-                                            const uploadFormData = new FormData();
-                                            uploadFormData.append('file', file);
-                                            uploadFormData.append('folder', 'merit-entrance/exams/pdfs');
 
                                             try {
-                                                const uploadRes = await fetch('/api/upload', {
-                                                    method: 'POST',
-                                                    body: uploadFormData,
-                                                });
-                                                const uploadData = await uploadRes.json();
+                                                const MAX_SIZE = 10 * 1024 * 1024; // 10MB limit for Cloudinary Free
+                                                let uploadedUrls: string[] = [];
 
-                                                if (uploadData.success) {
-                                                    // Immediately save to exam
-                                                    const saveRes = await fetch(`/api/admin/exams/${examId}`, {
-                                                        method: 'PUT',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({
-                                                            title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
-                                                            description: formData.descriptionEn ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn } : null,
-                                                            instructions: formData.instructionsEn ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn } : null,
-                                                            gradingInstructions: formData.gradingInstructions,
-                                                            duration: formData.duration,
-                                                            totalMarks: sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0),
-                                                            passingMarks: formData.passingMarks,
-                                                            negativeMarking: formData.negativeMarking || null,
-                                                            shuffleQuestions: formData.shuffleQuestions,
-                                                            securityMode: formData.securityMode,
-                                                            status: formData.status,
-                                                            type: formData.type || null,
-                                                            sourcePdfUrl: uploadData.url
-                                                        }),
-                                                    });
+                                                if (file.size > MAX_SIZE) {
+                                                    toast.loading('File too large. Splitting PDF into smaller parts...', { id: loadingToast });
 
-                                                    if (saveRes.ok) {
-                                                        toast.success('Original PDF Uploaded & Saved!', { id: loadingToast });
-                                                        // Reload exam to show the tab
-                                                        loadExam();
-                                                    } else {
-                                                        const saveData = await saveRes.json().catch(() => ({}));
-                                                        const errMsg = saveData.error || saveData.details || 'Failed to link PDF to exam.';
-                                                        toast.error(errMsg, { id: loadingToast });
-                                                        setTempUploadError(errMsg);
+                                                    // Dynamically import pdf-lib to avoid blocking initial load
+                                                    const { PDFDocument } = await import('pdf-lib');
+
+                                                    const fileBytes = await file.arrayBuffer();
+                                                    const pdfDoc = await PDFDocument.load(fileBytes);
+                                                    const totalPages = pdfDoc.getPageCount();
+
+                                                    // Calculate how many chunks needed (target ~8MB per chunk)
+                                                    const numChunks = Math.ceil(file.size / (8 * 1024 * 1024));
+                                                    const pagesPerChunk = Math.ceil(totalPages / numChunks);
+
+                                                    for (let i = 0; i < numChunks; i++) {
+                                                        toast.loading(`Uploading part ${i + 1} of ${numChunks}...`, { id: loadingToast });
+                                                        const startPage = i * pagesPerChunk;
+                                                        const endPage = Math.min((i + 1) * pagesPerChunk, totalPages);
+
+                                                        const chunkPdf = await PDFDocument.create();
+                                                        const pagesToCopy = Array.from({ length: endPage - startPage }, (_, j) => startPage + j);
+                                                        const copiedPages = await chunkPdf.copyPages(pdfDoc, pagesToCopy);
+                                                        copiedPages.forEach(p => chunkPdf.addPage(p));
+
+                                                        const chunkBytes = await chunkPdf.save();
+                                                        const chunkFile = new File([chunkBytes as any], `${file.name.replace('.pdf', '')}_part${i + 1}.pdf`, { type: 'application/pdf' });
+
+                                                        const uploadFormData = new FormData();
+                                                        uploadFormData.append('file', chunkFile);
+                                                        uploadFormData.append('folder', 'merit-entrance/exams/pdfs');
+
+                                                        const uploadRes = await fetch('/api/upload', {
+                                                            method: 'POST',
+                                                            body: uploadFormData,
+                                                        });
+
+                                                        let uploadData;
+                                                        if (uploadRes.headers.get('content-type')?.includes('application/json')) {
+                                                            uploadData = await uploadRes.json();
+                                                        } else {
+                                                            const textErr = await uploadRes.text();
+                                                            throw new Error(textErr || `Server Error: ${uploadRes.status} ${uploadRes.statusText}`);
+                                                        }
+
+                                                        if (uploadRes.ok && uploadData?.success) {
+                                                            uploadedUrls.push(uploadData.url);
+                                                        } else {
+                                                            throw new Error(uploadData?.error || uploadData?.details || `Failed to upload part ${i + 1}`);
+                                                        }
                                                     }
                                                 } else {
-                                                    const errMsg = uploadData.error || uploadData.details || 'Failed to upload PDF.';
+                                                    // Upload normally if under limit
+                                                    const uploadFormData = new FormData();
+                                                    uploadFormData.append('file', file);
+                                                    uploadFormData.append('folder', 'merit-entrance/exams/pdfs');
+
+                                                    const uploadRes = await fetch('/api/upload', {
+                                                        method: 'POST',
+                                                        body: uploadFormData,
+                                                    });
+
+                                                    let uploadData;
+                                                    if (uploadRes.headers.get('content-type')?.includes('application/json')) {
+                                                        uploadData = await uploadRes.json();
+                                                    } else {
+                                                        const textErr = await uploadRes.text();
+                                                        throw new Error(textErr || `Server Error: ${uploadRes.status} ${uploadRes.statusText}`);
+                                                    }
+
+                                                    if (uploadRes.ok && uploadData?.success) {
+                                                        uploadedUrls.push(uploadData.url);
+                                                    } else {
+                                                        const errMsg = uploadData?.error || uploadData?.details || `Failed to upload PDF: ${uploadRes.statusText}`;
+                                                        throw new Error(errMsg);
+                                                    }
+                                                }
+
+                                                // Immediately save to exam
+                                                const combinedUrlString = uploadedUrls.join(',');
+                                                const saveRes = await fetch(`/api/admin/exams/${examId}`, {
+                                                    method: 'PUT',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
+                                                        description: formData.descriptionEn ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn } : null,
+                                                        instructions: formData.instructionsEn ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn } : null,
+                                                        gradingInstructions: formData.gradingInstructions,
+                                                        duration: formData.duration,
+                                                        totalMarks: sections.reduce((a, s) => a + (Number(s.section_marks) || 0), 0),
+                                                        passingMarks: formData.passingMarks,
+                                                        negativeMarking: formData.negativeMarking || null,
+                                                        shuffleQuestions: formData.shuffleQuestions,
+                                                        securityMode: formData.securityMode,
+                                                        status: formData.status,
+                                                        type: formData.type || null,
+                                                        sourcePdfUrl: combinedUrlString
+                                                    }),
+                                                });
+
+                                                if (saveRes.ok) {
+                                                    toast.success('Original PDF Uploaded & Saved!', { id: loadingToast });
+                                                    // Reload exam to show the tab
+                                                    loadExam();
+                                                } else {
+                                                    const saveData = await saveRes.json().catch(() => ({}));
+                                                    const errMsg = saveData.error || saveData.details || 'Failed to link PDF to exam.';
                                                     toast.error(errMsg, { id: loadingToast });
                                                     setTempUploadError(errMsg);
                                                 }
@@ -1769,8 +1835,15 @@ export default function EditExamPage() {
                             )}
                         </div>
                     ) : activeTab === 'original_pdf' && exam?.source_pdf_url ? (
-                        <div className="bg-white rounded-xl shadow-sm p-2 w-full h-[800px]">
-                            <iframe src={exam.source_pdf_url} className="w-full h-full rounded-lg" title="Original PDF" />
+                        <div className="flex flex-col gap-4">
+                            {exam?.source_pdf_url?.split(',').map((url, idx) => (
+                                <div key={idx} className="bg-white rounded-xl shadow-sm p-2 w-full h-[800px]">
+                                    {(exam?.source_pdf_url?.split(',')?.length ?? 0) > 1 && (
+                                        <h3 className="font-semibold text-gray-700 mb-2 px-2 pt-2">Original PDF - Part {idx + 1}</h3>
+                                    )}
+                                    <iframe src={url.trim()} className="w-full h-full rounded-lg" title={`Original PDF Part ${idx + 1}`} />
+                                </div>
+                            ))}
                         </div>
                     ) : null}
                 </main>
