@@ -18,6 +18,9 @@ export const config = {
     },
 };
 
+// Allow the API route to run for up to 5 minutes (for Vercel/Next.js)
+export const maxDuration = 300;
+
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
 export async function POST(request: NextRequest) {
@@ -73,6 +76,7 @@ export async function POST(request: NextRequest) {
         const result = await cloudinary.uploader.upload(dataUri, {
             folder: folder,
             resource_type: 'auto',
+            timeout: 120000, // 120 seconds timeout for large PDFs
         });
 
         console.log('Upload successful:', result.secure_url);
