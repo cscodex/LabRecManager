@@ -146,6 +146,17 @@ export async function POST(req: NextRequest) {
                 `;
             }
 
+            const { sourcePdfUrl } = body;
+            if (sourcePdfUrl) {
+                await sql`
+                    UPDATE exams 
+                    SET 
+                        source_pdf_url = ${sourcePdfUrl},
+                        updated_at = NOW()
+                    WHERE id = ${targetExamId}
+                `;
+            }
+
             if (hasMultiSections) {
                 // Create new sections for each AI-detected section and append to existing exam
                 const existingOrderResult = await sql`SELECT COALESCE(MAX("order"), 0) as max_order FROM sections WHERE exam_id = ${targetExamId}`;
@@ -193,7 +204,7 @@ export async function POST(req: NextRequest) {
             }
         } else {
             // Mode: new exam
-            const { title, duration, totalMarks } = body;
+            const { title, duration, totalMarks, sourcePdfUrl } = body;
             if (!title) {
                 return NextResponse.json({ error: 'Missing exam title' }, { status: 400 });
             }
@@ -210,7 +221,7 @@ export async function POST(req: NextRequest) {
             const examResult = await sql`
                 INSERT INTO exams (
                     title, description, duration, total_marks, instructions,
-                    status, created_by, created_at, updated_at
+                    status, created_by, created_at, updated_at, source_pdf_url
                 ) VALUES (
                     ${JSON.stringify({ en: title })}::jsonb,
                     ${JSON.stringify({ en: 'Imported via AI' })}::jsonb,
@@ -220,7 +231,8 @@ export async function POST(req: NextRequest) {
                     'draft',
                     ${session.id},
                     NOW(),
-                    NOW()
+                    NOW(),
+                    ${sourcePdfUrl || null}
                 ) RETURNING id
             `;
             targetExamId = examResult[0].id;

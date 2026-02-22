@@ -452,6 +452,30 @@ export default function ImportExamPage() {
             setIsSaving(true);
             const loadingToast = toast.loading(importMode === 'new' ? 'Creating exam...' : 'Adding questions...');
 
+            let sourcePdfUrl = null;
+            if (file) {
+                toast.loading('Uploading original PDF...', { id: loadingToast });
+                const formDataUpload = new FormData();
+                formDataUpload.append('file', file);
+                formDataUpload.append('folder', 'merit-entrance/exams/pdfs');
+                try {
+                    const uploadRes = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formDataUpload,
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        sourcePdfUrl = uploadData.url;
+                    } else {
+                        toast.error('Failed to upload PDF, continuing without it.');
+                    }
+                } catch (e) {
+                    console.error('PDF upload error', e);
+                    toast.error('Failed to upload PDF, continuing without it.');
+                }
+                toast.loading('Saving exam details...', { id: loadingToast });
+            }
+
             const payload = {
                 mode: importMode,
                 questions: questions
@@ -508,11 +532,13 @@ export default function ImportExamPage() {
                     title: examDetails.title,
                     duration: examDetails.duration,
                     totalMarks: examDetails.totalMarks,
-                    instructions: importInstructions ? extractedInstructions : []
+                    instructions: importInstructions ? extractedInstructions : [],
+                    sourcePdfUrl: sourcePdfUrl
                 } : {
                     examId: selectedExamId,
                     sectionId: selectedSectionId,
-                    instructions: importInstructions ? extractedInstructions : []
+                    instructions: importInstructions ? extractedInstructions : [],
+                    sourcePdfUrl
                 }),
                 paragraphs: extractedParagraphs
             };
