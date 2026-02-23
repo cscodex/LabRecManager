@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { auth } from '@/lib/next-auth';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
@@ -31,8 +32,29 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
 export async function getSession(): Promise<JWTPayload | null> {
     const cookieStore = await cookies();
     const token = cookieStore.get('merit_token')?.value;
-    if (!token) return null;
-    return verifyToken(token);
+
+    if (token) {
+        const payload = await verifyToken(token);
+        if (payload) return payload;
+    }
+
+    // Fallback to NextAuth Google session
+    try {
+        const nextAuthSession = await auth();
+        if (nextAuthSession?.user) {
+            return {
+                id: nextAuthSession.user.id || '',
+                email: nextAuthSession.user.email || undefined,
+                rollNumber: (nextAuthSession.user as any).rollNumber || undefined,
+                name: nextAuthSession.user.name || 'Student',
+                role: 'student',
+            };
+        }
+    } catch (e) {
+        console.error('NextAuth session check error:', e);
+    }
+
+    return null;
 }
 
 export async function setSession(payload: JWTPayload): Promise<void> {
