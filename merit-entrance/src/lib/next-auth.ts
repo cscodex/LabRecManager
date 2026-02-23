@@ -12,6 +12,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }),
     ],
     trustHost: true,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
     pages: {
         signIn: '/',
         error: '/',
