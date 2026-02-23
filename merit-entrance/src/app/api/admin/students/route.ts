@@ -14,7 +14,7 @@ export async function GET() {
 
         const students = await sql`
       SELECT 
-        id, roll_number, name, name_regional, email, phone, class, school, is_active, email_verified, created_at
+        id, roll_number, name, name_regional, email, phone, "class", school, is_active, email_verified, created_at
       FROM students
       ORDER BY created_at DESC
     `;
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         const passwordHash = await bcrypt.hash(password, 10);
 
         const result = await sql`
-      INSERT INTO students (roll_number, name, name_regional, email, phone, class, school, password_hash, is_active)
+      INSERT INTO students (roll_number, name, name_regional, email, phone, "class", school, password_hash, is_active)
       VALUES (${rollNumber}, ${name}, ${nameRegional || null}, ${email || null}, ${phone || null}, ${studentClass || null}, ${school || null}, ${passwordHash}, true)
       RETURNING id
     `;
@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest) {
                 name_regional = ${nameRegional || null},
                 email = ${email || null},
                 phone = ${phone || null},
-                class = ${studentClass || null},
+                "class" = ${studentClass || null},
                 school = ${school || null},
                 is_active = ${isActive},
                 email_verified = ${body.emailVerified !== undefined ? body.emailVerified : true}

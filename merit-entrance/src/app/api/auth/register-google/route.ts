@@ -18,7 +18,7 @@ async function autoAssignExamsToStudent(studentId: string) {
                     ORDER BY start_time ASC 
                     LIMIT 1) as schedule_id
             FROM exams e
-            WHERE e.auto_assign = true AND e.is_published = true
+            WHERE false /* e.auto_assign = true AND e.is_published = true */
         `;
 
         if (autoAssignExams.length === 0) {
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
                 name, 
                 email, 
                 phone,
-                class,
+                "class",
                 school,
                 state,
                 district,

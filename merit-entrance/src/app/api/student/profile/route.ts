@@ -18,7 +18,7 @@ export async function GET() {
         const studentInfo = await sql`
             SELECT 
                 id, roll_number, name, name_regional, email, phone, 
-                photo_url, class, school, is_active, created_at
+                photo_url, "class", school, is_active, created_at
             FROM students 
             WHERE id = ${studentId}
         `;
@@ -196,7 +196,7 @@ export async function PUT(request: Request) {
             SET 
                 email = COALESCE(${email || null}, email),
                 phone = COALESCE(${phone || null}, phone),
-                class = COALESCE(${studentClass || null}, class),
+                "class" = COALESCE(${studentClass || null}, "class"),
                 school = COALESCE(${school || null}, school)
             WHERE id = ${studentId}
         `;
@@ -205,7 +205,7 @@ export async function PUT(request: Request) {
         const updatedStudent = await sql`
             SELECT 
                 id, roll_number, name, name_regional, email, phone, 
-                photo_url, class, school, is_active, created_at
+                photo_url, "class", school, is_active, created_at
             FROM students 
             WHERE id = ${studentId}
         `;
