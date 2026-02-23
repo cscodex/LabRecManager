@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye,
-    ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, X
+    ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, X, Files, Loader2, CheckSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/store';
@@ -71,6 +71,13 @@ export default function QuestionsBankPage() {
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [viewingQuestion, setViewingQuestion] = useState<Question | null>(null);
+
+    // Duplicates State
+    const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
+    const [duplicateGroups, setDuplicateGroups] = useState<any[][]>([]);
+    const [isFindingDuplicates, setIsFindingDuplicates] = useState(false);
+    const [selectedDuplicates, setSelectedDuplicates] = useState<Set<string>>(new Set());
+    const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
 
     // Global stats from API
     const [globalStats, setGlobalStats] = useState<any>({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0, difficultyDistribution: {}, typeDistribution: {} });
@@ -264,6 +271,59 @@ export default function QuestionsBankPage() {
         });
     };
 
+    const handleFindDuplicates = async () => {
+        setIsFindingDuplicates(true);
+        setShowDuplicatesModal(true);
+        setDuplicateGroups([]);
+        setSelectedDuplicates(new Set());
+        try {
+            const res = await fetch('/api/admin/questions/find-duplicates');
+            const data = await res.json();
+            if (data.success) {
+                setDuplicateGroups(data.groups);
+            } else {
+                toast.error(data.error || 'Failed to find duplicates');
+                setShowDuplicatesModal(false);
+            }
+        } catch (e) {
+            toast.error('Error finding duplicates');
+            setShowDuplicatesModal(false);
+        } finally {
+            setIsFindingDuplicates(false);
+        }
+    };
+
+    const handleBulkDeleteDuplicates = async () => {
+        if (selectedDuplicates.size === 0) return;
+        confirm({
+            title: 'Delete Duplicate Questions',
+            message: `Are you sure you want to delete ${selectedDuplicates.size} selected duplicate questions?`,
+            variant: 'danger',
+            onConfirm: async () => {
+                setIsDeletingDuplicates(true);
+                try {
+                    const res = await fetch('/api/admin/questions/bulk-delete', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ questionIds: Array.from(selectedDuplicates) })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        toast.success(`Deleted ${data.deletedCount} duplicates`);
+                        setShowDuplicatesModal(false);
+                        loadQuestions();
+                    } else {
+                        toast.error(data.error || 'Failed to delete');
+                    }
+                } catch (e) {
+                    toast.error('Error deleting duplicates');
+                } finally {
+                    setIsDeletingDuplicates(false);
+                }
+            }
+        });
+    };
+
     // Helper to map Question to FormData
     const getInitialFormData = (q: Question | null): QuestionFormData | undefined => {
         if (!q) return undefined;
@@ -346,13 +406,22 @@ export default function QuestionsBankPage() {
                         <h1 className="text-2xl font-bold text-gray-900">Question Bank</h1>
                         <p className="text-gray-500">Manage all questions in one place</p>
                     </div>
-                    <button
-                        onClick={handleAddNew}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        <Plus className="w-5 h-5" />
-                        Add Question
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleFindDuplicates}
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                        >
+                            <Files className="w-5 h-5" />
+                            Find Duplicates
+                        </button>
+                        <button
+                            onClick={handleAddNew}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Add Question
+                        </button>
+                    </div>
                 </div>
 
                 {/* Summary Scorecard */}
@@ -731,6 +800,114 @@ export default function QuestionsBankPage() {
                             </div>
                         </div>
                     )}
+                </Modal>
+
+                {/* Duplicates Modal */}
+                <Modal
+                    isOpen={showDuplicatesModal}
+                    onClose={() => !isDeletingDuplicates && setShowDuplicatesModal(false)}
+                    title="Potential Duplicate Questions"
+                    maxWidth="4xl"
+                >
+                    <div className="p-6">
+                        {isFindingDuplicates ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                                <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+                                <p>Scanning database for fuzzy duplicates...</p>
+                            </div>
+                        ) : duplicateGroups.length === 0 ? (
+                            <div className="text-center py-12">
+                                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                                <h3 className="text-lg font-medium text-gray-900">No Duplicates Found</h3>
+                                <p className="text-gray-500 mt-1">Your question bank looks clean based on our similarity checks.</p>
+                                <button onClick={() => setShowDuplicatesModal(false)} className="mt-6 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Close</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex gap-3 text-sm">
+                                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                    <div>
+                                        <p className="font-semibold">Review Carefully</p>
+                                        <p>These questions have over 85% textual similarity. Select the redundant copies you wish to delete.</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+                                    {duplicateGroups.map((group, groupIndex) => (
+                                        <div key={groupIndex} className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                                            <div className="bg-gray-50 border-b px-4 py-3 flex justify-between items-center">
+                                                <h4 className="font-medium text-gray-800">Match Group {groupIndex + 1} ({group.length} items)</h4>
+                                                <button
+                                                    onClick={() => {
+                                                        const newSet = new Set(selectedDuplicates);
+                                                        // select all except first
+                                                        for (let i = 1; i < group.length; i++) {
+                                                            newSet.add(group[i].id);
+                                                        }
+                                                        setSelectedDuplicates(newSet);
+                                                    }}
+                                                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                                >
+                                                    <CheckSquare className="w-4 h-4" /> Keep First & Select Rest
+                                                </button>
+                                            </div>
+                                            <div className="divide-y">
+                                                {group.map((q, idx) => (
+                                                    <div key={q.id} className="p-4 flex gap-4 hover:bg-gray-50">
+                                                        <div className="flex-shrink-0 pt-1">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                checked={selectedDuplicates.has(q.id)}
+                                                                onChange={(e) => {
+                                                                    const newSet = new Set(selectedDuplicates);
+                                                                    if (e.target.checked) newSet.add(q.id);
+                                                                    else newSet.delete(q.id);
+                                                                    setSelectedDuplicates(newSet);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs px-2 py-0.5 rounded border bg-blue-50 text-blue-700">{getTypeLabel(q.type)}</span>
+                                                                <span className="text-xs text-gray-500 font-mono">{q.id.split('-')[0]}...</span>
+                                                            </div>
+                                                            <div className="text-sm text-gray-800 line-clamp-3">
+                                                                <MathText text={getText(q.text, language)} inline />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="border-t pt-4 flex justify-between items-center">
+                                    <div className="text-sm font-medium text-gray-700">
+                                        {selectedDuplicates.size} questions selected for deletion
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowDuplicatesModal(false)}
+                                            disabled={isDeletingDuplicates}
+                                            className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleBulkDeleteDuplicates}
+                                            disabled={isDeletingDuplicates || selectedDuplicates.size === 0}
+                                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            {isDeletingDuplicates ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                            Delete Selected
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </Modal>
 
                 <DialogComponent />

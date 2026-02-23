@@ -8,7 +8,7 @@ import { formatDateTimeIST, getText } from '@/lib/utils';
 import {
     BookOpen, Plus, Edit, Trash2, Eye, Users,
     Clock, FileText, ChevronLeft, MoreVertical,
-    Search, ChevronRight
+    Search, ChevronRight, Wand2, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,6 +39,15 @@ export default function AdminExamsPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 12;
 
+    // Auto-Generate State
+    const [showGenerateModal, setShowGenerateModal] = useState(false);
+    const [blueprints, setBlueprints] = useState<any[]>([]);
+    const [genBlueprintId, setGenBlueprintId] = useState('');
+    const [genTitle, setGenTitle] = useState('');
+    const [genDesc, setGenDesc] = useState('');
+    const [genDuration, setGenDuration] = useState('60');
+    const [isGenerating, setIsGenerating] = useState(false);
+
     useEffect(() => {
         if (!_hasHydrated) return;
         if (!isAuthenticated || !['admin', 'superadmin'].includes(user?.role || '')) {
@@ -59,6 +68,50 @@ export default function AdminExamsPage() {
             toast.error('Failed to load exams');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleOpenGenerate = async () => {
+        setShowGenerateModal(true);
+        try {
+            const res = await fetch('/api/admin/blueprints');
+            const data = await res.json();
+            if (data.success) setBlueprints(data.data);
+        } catch (e) {
+            toast.error('Failed to load blueprints');
+        }
+    };
+
+    const handleGenerate = async () => {
+        if (!genBlueprintId || !genTitle || !genDuration) {
+            toast.error('Please fill all required fields');
+            return;
+        }
+        setIsGenerating(true);
+        try {
+            const res = await fetch('/api/admin/exams/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    blueprintId: genBlueprintId,
+                    title: { en: genTitle, pa: genTitle }, // basic bilingual shape
+                    description: genDesc ? { en: genDesc, pa: genDesc } : undefined,
+                    duration: genDuration,
+                    createdById: user?.id
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Exam generated successfully!');
+                setShowGenerateModal(false);
+                loadExams();
+            } else {
+                toast.error(data.error || 'Generation failed');
+            }
+        } catch (e) {
+            toast.error('Error generating exam');
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -125,6 +178,13 @@ export default function AdminExamsPage() {
                         </div>
                     </div>
                     <div className="flex gap-3">
+                        <button
+                            onClick={handleOpenGenerate}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                        >
+                            <Wand2 className="w-4 h-4" />
+                            Auto-Generate
+                        </button>
                         <Link
                             href="/admin/exams/import"
                             className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition shadow-sm"
@@ -324,6 +384,101 @@ export default function AdminExamsPage() {
                                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                             >
                                 Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Generate Exam Modal */}
+            {showGenerateModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl max-w-lg w-full p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-gray-900">Auto-Generate Exam</h3>
+                            <button onClick={() => setShowGenerateModal(false)} className="text-gray-500 hover:bg-gray-100 p-2 rounded-lg">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Blueprint *</label>
+                                <select
+                                    value={genBlueprintId}
+                                    onChange={e => setGenBlueprintId(e.target.value)}
+                                    className="w-full border rounded-lg p-2 bg-white"
+                                >
+                                    <option value="">-- Select --</option>
+                                    {blueprints.map(bp => (
+                                        <option key={bp.id} value={bp.id}>{bp.name}</option>
+                                    ))}
+                                </select>
+                                {genBlueprintId && (() => {
+                                    const selectedBp = blueprints.find(bp => bp.id === genBlueprintId);
+                                    if (!selectedBp) return null;
+                                    let q = 0;
+                                    let m = 0;
+                                    selectedBp.sections?.forEach((s: any) => {
+                                        s.rules?.forEach((r: any) => {
+                                            q += Number(r.numberOfQuestions);
+                                            m += Number(r.numberOfQuestions) * Number(r.marksPerQuestion);
+                                        });
+                                    });
+                                    return (
+                                        <div className="mt-2 text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-100 flex gap-4">
+                                            <span><strong>{selectedBp.sections?.length || 0}</strong> Sections</span>
+                                            <span><strong>{q}</strong> Questions</span>
+                                            <span><strong>{m}</strong> Total Marks</span>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Exam Title *</label>
+                                <input
+                                    type="text"
+                                    value={genTitle}
+                                    onChange={e => setGenTitle(e.target.value)}
+                                    className="w-full border rounded-lg p-2"
+                                    placeholder="e.g. Generated Weekly Test"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <textarea
+                                    value={genDesc}
+                                    onChange={e => setGenDesc(e.target.value)}
+                                    className="w-full border rounded-lg p-2"
+                                    rows={2}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (mins) *</label>
+                                <input
+                                    type="number"
+                                    value={genDuration}
+                                    onChange={e => setGenDuration(e.target.value)}
+                                    className="w-full border rounded-lg p-2"
+                                    min="1"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                            <button
+                                onClick={() => setShowGenerateModal(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                disabled={isGenerating}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleGenerate}
+                                disabled={isGenerating}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isGenerating ? 'Generating...' : <><Wand2 className="w-4 h-4" /> Generate</>}
                             </button>
                         </div>
                     </div>

@@ -10,7 +10,7 @@ import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
     MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle, List,
-    AlertCircle, Check, Loader2
+    AlertCircle, Check, Loader2, Download, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -138,6 +138,17 @@ export default function EditExamPage() {
     // Dynamic Original PDF combining
     const [combinedPdfUrl, setCombinedPdfUrl] = useState<string | null>(null);
     const [isCombiningPdf, setIsCombiningPdf] = useState(false);
+
+    // Download PDF Generation Modal
+    const [showDownloadPdfModal, setShowDownloadPdfModal] = useState(false);
+    const [pdfSettings, setPdfSettings] = useState({
+        schoolName: 'Merit Entrance Exam',
+        examNameOption: '',
+        showPageNumbers: true,
+        showDateTime: true,
+        compactSpacing: false
+    });
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
     // Refs for auto-save debouncing
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -957,6 +968,13 @@ export default function EditExamPage() {
                                 >
                                     <Upload className="w-4 h-4" />
                                     Master Import
+                                </button>
+                                <button
+                                    onClick={() => setShowDownloadPdfModal(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Download PDF
                                 </button>
                                 <Link
                                     href={`/admin/exams/${examId}/preview`}
@@ -2140,6 +2158,102 @@ export default function EditExamPage() {
                         )}
                     </div>
                 </Modal>
+
+                {/* Download PDF Settings Modal */}
+                {showDownloadPdfModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <div className="bg-white rounded-xl w-full max-w-md p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold">Download Exam PDF</h3>
+                                <button onClick={() => setShowDownloadPdfModal(false)} className="text-gray-500 hover:bg-gray-100 p-2 rounded-lg">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">School / Organization Name</label>
+                                    <input
+                                        type="text"
+                                        value={pdfSettings.schoolName}
+                                        onChange={e => setPdfSettings({ ...pdfSettings, schoolName: e.target.value })}
+                                        className="w-full border rounded-lg p-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Exam Name (Optional overrides original)</label>
+                                    <input
+                                        type="text"
+                                        value={pdfSettings.examNameOption}
+                                        onChange={e => setPdfSettings({ ...pdfSettings, examNameOption: e.target.value })}
+                                        placeholder={typeof exam?.title === 'string' ? exam?.title : exam?.title?.en || 'Exam Title'}
+                                        className="w-full border rounded-lg p-2"
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2">
+                                    <label className="text-sm font-medium text-gray-700">Compact Spacing Layout</label>
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4"
+                                        checked={pdfSettings.compactSpacing}
+                                        onChange={e => setPdfSettings({ ...pdfSettings, compactSpacing: e.target.checked })}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between pt-2">
+                                    <label className="text-sm font-medium text-gray-700">Show Page Numbers</label>
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4"
+                                        checked={pdfSettings.showPageNumbers}
+                                        onChange={e => setPdfSettings({ ...pdfSettings, showPageNumbers: e.target.checked })}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between pt-2">
+                                    <label className="text-sm font-medium text-gray-700">Show Date/Time in Footer</label>
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4"
+                                        checked={pdfSettings.showDateTime}
+                                        onChange={e => setPdfSettings({ ...pdfSettings, showDateTime: e.target.checked })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                                <button
+                                    onClick={() => setShowDownloadPdfModal(false)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                    disabled={isDownloadingPdf}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsDownloadingPdf(true);
+                                        const params = new URLSearchParams({
+                                            schoolName: pdfSettings.schoolName,
+                                            examNameOption: pdfSettings.examNameOption,
+                                            showPageNumbers: pdfSettings.showPageNumbers.toString(),
+                                            showDateTime: pdfSettings.showDateTime.toString(),
+                                            compactSpacing: pdfSettings.compactSpacing.toString()
+                                        });
+                                        // Trigger file download using window.location
+                                        window.location.href = `/api/admin/exams/${examId}/pdf?${params.toString()}`;
+                                        setTimeout(() => {
+                                            setIsDownloadingPdf(false);
+                                            setShowDownloadPdfModal(false);
+                                        }, 2000);
+                                    }}
+                                    disabled={isDownloadingPdf}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                                >
+                                    {isDownloadingPdf ? 'Generating...' : <><Download className="w-4 h-4" /> Download PDF</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             </div >
         </MathJaxProvider >

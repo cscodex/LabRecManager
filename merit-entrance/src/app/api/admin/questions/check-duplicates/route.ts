@@ -23,27 +23,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true, duplicateIndices: [] });
         }
 
-        // Use neon sql query to check text->>'en'
-        // We assume questions are stored with 'en' key in JSON text column
-        // Neon uses tagged template literals for parameterized queries
-        // BUT arrays in WHERE IN clause need careful handling with neon/postgres
-        // Typically: WHERE text->>'en' = ANY($1::text[])
-
+        // Use pg_trgm similarity to check for fuzzy matches (> 0.85 threshold)
         const duplicates = await sql`
-            SELECT id, text 
-            FROM questions 
-            WHERE text->>'en' = ANY(${questionTexts}::text[])
+            SELECT i.input_text
+            FROM questions q
+            JOIN UNNEST(${questionTexts}::text[]) AS i(input_text)
+            ON similarity(q.text->>'en', i.input_text) > 0.85
         `;
 
-        // Initialize a Set of duplicate texts for O(1) lookups
-        const duplicateTexts = new Set(duplicates.map((d: any) => {
-            // Handle potential variations in JSON structure if necessary
-            if (d.text && typeof d.text === 'object' && 'en' in d.text) {
-                return d.text.en;
-            }
-            // Fallback for string or different structure
-            return typeof d.text === 'string' ? d.text : '';
-        }));
+        // Create a Set of input texts that were flagged as duplicates
+        const duplicateTexts = new Set(duplicates.map((d: any) => d.input_text));
 
         // Map back to original indices
         const duplicateIndices: number[] = [];

@@ -17,6 +17,7 @@ model Admin {
   createdAt    DateTime @default(now()) @map("created_at")
   exams        Exam[]
   assignmentLogs ExamAssignmentLog[]
+  examBlueprints ExamBlueprint[]
   
   @@map("admins")
 }
@@ -65,6 +66,7 @@ model Exam {
   type             String?      @db.VarChar(50)
   securityMode     Boolean      @default(false) @map("security_mode")
   instructions     Json?
+  sourcePdfUrl     String?      @map("source_pdf_url")
   createdById      String       @map("created_by") @db.Uuid
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
@@ -133,6 +135,7 @@ model Tag {
   name      String        @unique
   createdAt DateTime      @default(now()) @map("created_at")
   questions QuestionTag[]
+  blueprintRules BlueprintRule[] @relation("BlueprintRuleToTag")
 
   @@map("tags")
 }
@@ -310,4 +313,49 @@ model SystemSetting {
   updatedAt   DateTime @updatedAt @map("updated_at")
   
   @@map("system_settings")
+}
+
+// ============ EXAM AUTOMATION (BLUEPRINTS) ============
+model ExamBlueprint {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String?
+  createdById String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy   Admin              @relation(fields: [createdById], references: [id])
+  sections    BlueprintSection[]
+  rules       BlueprintRule[]
+
+  @@map("exam_blueprints")
+}
+
+model BlueprintSection {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blueprintId String   @map("blueprint_id") @db.Uuid
+  name        Json     
+  order       Int
+  
+  blueprint   ExamBlueprint   @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  rules       BlueprintRule[]
+
+  @@map("blueprint_sections")
+}
+
+model BlueprintRule {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blueprintId      String        @map("blueprint_id") @db.Uuid
+  sectionId        String        @map("section_id") @db.Uuid
+  questionType     String        // mcq_single, fill_blank, numerical, short_answer, long_answer, true_false
+  numberOfQuestions Int
+  marksPerQuestion Decimal       @map("marks_per_question") @db.Decimal(5,2)
+  negativeMarks    Decimal?      @map("negative_marks") @db.Decimal(5,2)
+  difficulty       Int?          // 1-5 scale, optional
+
+  blueprint        ExamBlueprint    @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  section          BlueprintSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  topicTags        Tag[]            @relation("BlueprintRuleToTag")
+
+  @@map("blueprint_rules")
 }

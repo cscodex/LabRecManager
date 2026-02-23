@@ -56,6 +56,7 @@ interface Exam {
     shuffle_questions: boolean;
     status: string;
     sections: Section[];
+    source_pdf_url?: string;
 }
 
 export default function ViewExamPage() {
@@ -68,6 +69,7 @@ export default function ViewExamPage() {
     const [loading, setLoading] = useState(true);
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [instructionsOpen, setInstructionsOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'sections' | 'original_pdf'>('sections');
 
     const loadExam = useCallback(async () => {
         try {
@@ -292,181 +294,206 @@ export default function ViewExamPage() {
                         </div>
                     </div>
 
-                    {/* Section Tabs & Questions */}
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-blue-600" />
-                            Sections & Questions
-                        </h2>
-
-                        {/* Tab Bar */}
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                            {exam.sections.sort((a, b) => a.order - b.order).map((section) => (
-                                <button
-                                    key={section.id}
-                                    onClick={() => setActiveSectionId(section.id)}
-                                    className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${activeSectionId === section.id
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    {getText(section.name, language)}
-                                    <span className="ml-2 px-1.5 py-0.5 bg-black/10 rounded text-xs opacity-80">
-                                        {section.questions.length}
-                                    </span>
-                                </button>
-                            ))}
+                    {/* Main Tabs */}
+                    {exam.source_pdf_url && (
+                        <div className="flex gap-1 border-b border-gray-200">
+                            <button
+                                onClick={() => setActiveTab('sections')}
+                                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'sections' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                            >
+                                Sections & Questions
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('original_pdf')}
+                                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'original_pdf' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                            >
+                                <FileText className="w-4 h-4" /> Original PDF
+                            </button>
                         </div>
+                    )}
 
-                        {/* Active Section Content */}
-                        {(() => {
-                            const activeSection = exam.sections.find(s => s.id === activeSectionId);
-                            if (!activeSection) return null;
-                            return (
-                                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                                    {/* Section Info Bar */}
-                                    <div className="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold">
-                                                {activeSection.order}
-                                            </span>
-                                            <div>
-                                                <h3 className="font-semibold text-gray-900">{getText(activeSection.name, language)}</h3>
-                                                <p className="text-xs text-gray-500">
-                                                    {activeSection.questions.length} questions
-                                                    {activeSection.duration && ` • ${activeSection.duration} min`}
-                                                </p>
+                    {activeTab === 'sections' ? (
+                        <div className="space-y-4">
+                            {!exam.source_pdf_url && (
+                                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                    Sections & Questions
+                                </h2>
+                            )}
+
+                            {/* Tab Bar */}
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                {exam.sections.sort((a, b) => a.order - b.order).map((section) => (
+                                    <button
+                                        key={section.id}
+                                        onClick={() => setActiveSectionId(section.id)}
+                                        className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${activeSectionId === section.id
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        {getText(section.name, language)}
+                                        <span className="ml-2 px-1.5 py-0.5 bg-black/10 rounded text-xs opacity-80">
+                                            {section.questions.length}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Active Section Content */}
+                            {(() => {
+                                const activeSection = exam.sections.find(s => s.id === activeSectionId);
+                                if (!activeSection) return null;
+                                return (
+                                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                        {/* Section Info Bar */}
+                                        <div className="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold">
+                                                    {activeSection.order}
+                                                </span>
+                                                <div>
+                                                    <h3 className="font-semibold text-gray-900">{getText(activeSection.name, language)}</h3>
+                                                    <p className="text-xs text-gray-500">
+                                                        {activeSection.questions.length} questions
+                                                        {activeSection.duration && ` • ${activeSection.duration} min`}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Questions List */}
-                                    <div className="divide-y">
-                                        {activeSection.questions.sort((a, b) => a.order - b.order).map((question, qIdx) => (
-                                            <div key={question.id} className="p-6">
-                                                {/* Question Header */}
-                                                <div className="flex items-start gap-4 mb-4">
-                                                    <span className="w-8 h-8 bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">
-                                                        {qIdx + 1}
-                                                    </span>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                            {getQuestionTypeBadge(question.type)}
-                                                            {getDifficultyBadge(question.difficulty)}
-                                                            <span className="text-sm text-gray-500">
-                                                                +{question.marks} marks
-                                                                {question.negative_marks && (
-                                                                    <span className="text-red-500 ml-1">-{question.negative_marks}</span>
+                                        {/* Questions List */}
+                                        <div className="divide-y">
+                                            {activeSection.questions.sort((a, b) => a.order - b.order).map((question, qIdx) => (
+                                                <div key={question.id} className="p-6">
+                                                    {/* Question Header */}
+                                                    <div className="flex items-start gap-4 mb-4">
+                                                        <span className="w-8 h-8 bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                                            {qIdx + 1}
+                                                        </span>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                                {getQuestionTypeBadge(question.type)}
+                                                                {getDifficultyBadge(question.difficulty)}
+                                                                <span className="text-sm text-gray-500">
+                                                                    +{question.marks} marks
+                                                                    {question.negative_marks && (
+                                                                        <span className="text-red-500 ml-1">-{question.negative_marks}</span>
+                                                                    )}
+                                                                </span>
+                                                                {question.tags && question.tags.length > 0 && (
+                                                                    <div className="flex items-center gap-1 ml-2">
+                                                                        {question.tags.map(tag => (
+                                                                            <span key={tag.id} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] border border-gray-200">
+                                                                                {tag.name}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
                                                                 )}
-                                                            </span>
-                                                            {question.tags && question.tags.length > 0 && (
-                                                                <div className="flex items-center gap-1 ml-2">
-                                                                    {question.tags.map(tag => (
-                                                                        <span key={tag.id} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] border border-gray-200">
-                                                                            {tag.name}
-                                                                        </span>
-                                                                    ))}
+                                                            </div>
+                                                            <div className="text-gray-900">
+                                                                <MathText text={getText(question.text, language)} />
+                                                            </div>
+
+                                                            {/* Paragraph content */}
+                                                            {question.type === 'paragraph' && question.paragraph_text && (
+                                                                <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg max-h-80 overflow-y-auto">
+                                                                    <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Passage Content</p>
+                                                                    <div className="text-gray-700 prose prose-sm max-w-none whitespace-pre-wrap break-words">
+                                                                        <MathText text={getText(question.paragraph_text, language)} />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {question.image_url && (
+                                                                <div className="relative h-40 w-full mb-4">
+                                                                    <Image
+                                                                        src={question.image_url}
+                                                                        alt="Question"
+                                                                        fill
+                                                                        className="object-contain rounded border"
+                                                                    />
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <div className="text-gray-900">
-                                                            <MathText text={getText(question.text, language)} />
-                                                        </div>
-
-                                                        {/* Paragraph content */}
-                                                        {question.type === 'paragraph' && question.paragraph_text && (
-                                                            <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg max-h-80 overflow-y-auto">
-                                                                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider sticky top-0 bg-blue-50 pb-1">📖 Passage Content</p>
-                                                                <div className="text-gray-700 prose prose-sm max-w-none whitespace-pre-wrap break-words">
-                                                                    <MathText text={getText(question.paragraph_text, language)} />
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {question.image_url && (
-                                                            <div className="relative h-40 w-full mb-4">
-                                                                <Image
-                                                                    src={question.image_url}
-                                                                    alt="Question"
-                                                                    fill
-                                                                    className="object-contain rounded border"
-                                                                />
-                                                            </div>
-                                                        )}
                                                     </div>
+
+                                                    {/* Options or Fill Blank Answer */}
+                                                    {question.type === 'fill_blank' ? (
+                                                        <div className="ml-12 bg-green-50 border border-green-200 rounded-lg p-3">
+                                                            <p className="text-sm text-green-700">
+                                                                <strong>Correct Answer(s):</strong>{' '}
+                                                                <MathText text={question.correct_answer.join(', ')} inline />
+                                                            </p>
+                                                        </div>
+                                                    ) : question.options && (
+                                                        <div className="ml-12 space-y-2">
+                                                            {question.options.map((opt) => {
+                                                                const isCorrect = question.correct_answer.includes(opt.id);
+                                                                return (
+                                                                    <div
+                                                                        key={opt.id}
+                                                                        className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect
+                                                                            ? 'bg-green-50 border-green-300'
+                                                                            : 'bg-white border-gray-200'
+                                                                            }`}
+                                                                    >
+                                                                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium ${isCorrect
+                                                                            ? 'bg-green-500 text-white'
+                                                                            : 'bg-gray-200 text-gray-600'
+                                                                            }`}>
+                                                                            {opt.id.toUpperCase()}
+                                                                        </span>
+                                                                        <span className="flex-1 text-gray-800">
+                                                                            <MathText text={getText(opt.text, language)} inline />
+                                                                        </span>
+                                                                        {opt.image_url && (
+                                                                            <div className="relative h-12 w-auto">
+                                                                                <Image
+                                                                                    src={opt.image_url}
+                                                                                    alt=""
+                                                                                    width={100}
+                                                                                    height={48}
+                                                                                    className="max-h-12 w-auto rounded object-contain"
+                                                                                />
+                                                                            </div>
+                                                                        )}
+                                                                        {isCorrect && (
+                                                                            <CheckCircle className="w-5 h-5 text-green-500" />
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Explanation - Always Visible */}
+                                                    {question.explanation && (question.explanation.en || question.explanation.pa) && (
+                                                        <div className="ml-12 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                            <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
+                                                            <div className="text-sm text-blue-800 whitespace-pre-wrap">
+                                                                <MathText text={getText(question.explanation, language)} />
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                            ))}
 
-                                                {/* Options or Fill Blank Answer */}
-                                                {question.type === 'fill_blank' ? (
-                                                    <div className="ml-12 bg-green-50 border border-green-200 rounded-lg p-3">
-                                                        <p className="text-sm text-green-700">
-                                                            <strong>Correct Answer(s):</strong>{' '}
-                                                            <MathText text={question.correct_answer.join(', ')} inline />
-                                                        </p>
-                                                    </div>
-                                                ) : question.options && (
-                                                    <div className="ml-12 space-y-2">
-                                                        {question.options.map((opt) => {
-                                                            const isCorrect = question.correct_answer.includes(opt.id);
-                                                            return (
-                                                                <div
-                                                                    key={opt.id}
-                                                                    className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect
-                                                                        ? 'bg-green-50 border-green-300'
-                                                                        : 'bg-white border-gray-200'
-                                                                        }`}
-                                                                >
-                                                                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium ${isCorrect
-                                                                        ? 'bg-green-500 text-white'
-                                                                        : 'bg-gray-200 text-gray-600'
-                                                                        }`}>
-                                                                        {opt.id.toUpperCase()}
-                                                                    </span>
-                                                                    <span className="flex-1 text-gray-800">
-                                                                        <MathText text={getText(opt.text, language)} inline />
-                                                                    </span>
-                                                                    {opt.image_url && (
-                                                                        <div className="relative h-12 w-auto">
-                                                                            <Image
-                                                                                src={opt.image_url}
-                                                                                alt=""
-                                                                                width={100}
-                                                                                height={48}
-                                                                                className="max-h-12 w-auto rounded object-contain"
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                    {isCorrect && (
-                                                                        <CheckCircle className="w-5 h-5 text-green-500" />
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-
-                                                {/* Explanation - Always Visible */}
-                                                {question.explanation && (question.explanation.en || question.explanation.pa) && (
-                                                    <div className="ml-12 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                        <p className="text-xs font-semibold text-blue-600 mb-1">Explanation</p>
-                                                        <div className="text-sm text-blue-800 whitespace-pre-wrap">
-                                                            <MathText text={getText(question.explanation, language)} />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-
-                                        {activeSection.questions.length === 0 && (
-                                            <div className="p-6 text-center text-gray-400">
-                                                No questions in this section
-                                            </div>
-                                        )}
+                                            {activeSection.questions.length === 0 && (
+                                                <div className="p-6 text-center text-gray-400">
+                                                    No questions in this section
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
+                                );
+                            })()}
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl shadow-sm p-4 w-full h-[800px]">
+                            <iframe src={exam.source_pdf_url} className="w-full h-full rounded-lg" title="Original PDF" />
+                        </div>
+                    )}
                 </main>
             </div>
         </MathJaxProvider>

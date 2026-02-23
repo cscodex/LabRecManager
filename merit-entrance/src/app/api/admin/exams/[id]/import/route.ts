@@ -78,7 +78,7 @@ export async function POST(
             }
         }
 
-        const sectionMap = new Map(sections.map(s => [s.id, s]));
+        const sectionMap = new Map(sections.map((s: any) => [s.id, s]));
 
         // 2. Process questions
         let importedCount = 0;

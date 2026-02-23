@@ -20,7 +20,8 @@ import {
     ChevronRight,
     ChevronLeft,
     Tag,
-    BookOpen
+    BookOpen,
+    Layers
 } from 'lucide-react';
 import Clock from '@/components/Clock';
 
@@ -54,6 +55,7 @@ export default function AdminLayout({
     const navItems = [
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/exams', label: 'Exams', icon: FileText },
+        { href: '/admin/blueprints', label: 'Blueprints', icon: Layers },
         { href: '/admin/students', label: 'Students', icon: Users },
         { href: '/admin/tags', label: 'Tags', icon: Tag },
         { href: '/admin/questions', label: 'Question Bank', icon: BookOpen },

@@ -10,16 +10,7 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '100mb',
-        },
-    },
-};
 
-// Allow the API route to run for up to 5 minutes (for Vercel/Next.js)
-export const maxDuration = 300;
 
 const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
 
