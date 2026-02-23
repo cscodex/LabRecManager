@@ -131,8 +131,13 @@ function RegistrationContent() {
             const data = await response.json();
 
             if (response.ok) {
-                toast.success('Registration successful! Please verify your email.');
-                router.push(`/student/verify-email?email=${encodeURIComponent(formData.email)}&pending=true`);
+                if (googleId) {
+                    toast.success('Registration successful! Signing you in...');
+                    signIn('google', { callbackUrl: '/student/dashboard' });
+                } else {
+                    toast.success('Registration successful! Please verify your email.');
+                    router.push(`/student/verify-email?email=${encodeURIComponent(formData.email)}&pending=true`);
+                }
             } else {
                 toast.error(data.error || 'Registration failed');
             }

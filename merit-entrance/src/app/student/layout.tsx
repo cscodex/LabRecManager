@@ -22,10 +22,14 @@ export default function StudentLayout({
     }, [pathname]);
 
     // Don't show layout on exam attempt page or results page to prevent distractions/cheating
-    // But show it on history, dashboard, profile
-    const isExamPage = pathname.includes('/attempt');
+    // Also don't show on auth pages where user is not logged in yet
+    const isHiddenLayoutPage = pathname.includes('/attempt') ||
+        pathname.includes('/register') ||
+        pathname.includes('/verify-email') ||
+        pathname.includes('/reset-password') ||
+        pathname.includes('/forgot-password');
 
-    if (isExamPage) {
+    if (isHiddenLayoutPage) {
         return <>{children}</>;
     }
 

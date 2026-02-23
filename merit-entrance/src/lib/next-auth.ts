@@ -36,10 +36,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                     const student = existing[0];
 
-                    // Check if email is verified
+                    // Check if email is verified. If signing in with Google, we can safely mark it as verified.
                     if (!student.email_verified) {
-                        // Redirect to verification page
-                        return `/student/verify-email?email=${encodeURIComponent(user.email)}&pending=true`;
+                        await sql`
+                            UPDATE students
+                            SET email_verified = true
+                            WHERE id = ${student.id}
+                        `;
+                        student.email_verified = true;
                     }
 
                     // Update google_id if not set

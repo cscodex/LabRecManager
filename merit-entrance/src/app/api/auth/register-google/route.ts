@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
                 ${district || null},
                 ${passwordHash}, 
                 true,
-                false,
+                ${googleId ? true : false},
                 ${verificationToken},
                 ${verificationExpires.toISOString()},
                 ${googleId || null}
@@ -125,8 +125,11 @@ export async function POST(request: NextRequest) {
             console.log(`Auto-assigned ${autoAssignedCount} exams to new student ${newStudent.id}`);
         }
 
-        // Send verification email
-        const emailSent = await sendVerificationEmail(email, name, verificationToken);
+        // Send verification email only if not google oauth
+        let emailSent = true;
+        if (!googleId) {
+            emailSent = await sendVerificationEmail(email, name, verificationToken);
+        }
 
         if (!emailSent) {
             console.error('Failed to send verification email to:', email);
