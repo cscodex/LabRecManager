@@ -41,49 +41,36 @@ export async function POST(request: Request) {
             for (const rule of blueprintSection.rules) {
                 const { topicTags, questionType, numberOfQuestions, difficulty, marksPerQuestion, negativeMarks } = rule;
 
-                const tagsCount = topicTags?.length || 1;
-                let baseQuestionsPerTag = Math.floor(numberOfQuestions / tagsCount);
-                let remainder = numberOfQuestions % tagsCount;
-
                 const selectedIds: string[] = [];
-                let tagsToProcess = topicTags && topicTags.length > 0 ? topicTags : [{ id: null, name: 'Any' }];
 
-                for (let i = 0; i < tagsToProcess.length; i++) {
-                    const tag = tagsToProcess[i];
-                    // Distribute remainder arbitrarily
-                    const questionsToFetchForThisTag = baseQuestionsPerTag + (remainder > 0 ? 1 : 0);
-                    if (remainder > 0) remainder--;
+                const whereClause: any = {
+                    sectionId: null, // From question bank
+                    type: questionType,
+                };
 
-                    if (questionsToFetchForThisTag === 0) continue;
-
-                    const whereClause: any = {
-                        sectionId: null, // From question bank
-                        type: questionType,
-                    };
-
-                    if (tag.id) {
-                        whereClause.tags = { some: { tagId: tag.id } };
-                    }
-                    if (difficulty) {
-                        whereClause.difficulty = difficulty;
-                    }
-
-                    const matchingIds = await prisma.question.findMany({
-                        where: whereClause,
-                        select: { id: true }
-                    });
-
-                    if (matchingIds.length < questionsToFetchForThisTag) {
-                        return NextResponse.json({
-                            success: false,
-                            error: `Not enough questions in Question Bank for Rule (Type: ${questionType}, Tag: ${tag.name}). Needed ${questionsToFetchForThisTag}, Found ${matchingIds.length} in section '${(blueprintSection.name as any)?.en || 'Unknown'}'.`
-                        }, { status: 400 });
-                    }
-
-                    // Shuffle in JS
-                    const shuffled = matchingIds.sort(() => 0.5 - Math.random());
-                    selectedIds.push(...shuffled.slice(0, questionsToFetchForThisTag).map(q => q.id));
+                if (topicTags && topicTags.length > 0) {
+                    whereClause.tags = { some: { tagId: { in: topicTags.map((t: any) => t.id) } } };
                 }
+                if (difficulty) {
+                    whereClause.difficulty = difficulty;
+                }
+
+                const matchingIds = await prisma.question.findMany({
+                    where: whereClause,
+                    select: { id: true }
+                });
+
+                if (matchingIds.length < numberOfQuestions) {
+                    const tagNames = topicTags && topicTags.length > 0 ? topicTags.map((t: any) => t.name).join(', ') : 'Any';
+                    return NextResponse.json({
+                        success: false,
+                        error: `Not enough unique questions available for Rule (Type: ${questionType}, Tags: ${tagNames}). Needed ${numberOfQuestions}, Found ${matchingIds.length} in section '${(blueprintSection.name as any)?.en || 'Unknown'}'.`
+                    }, { status: 400 });
+                }
+
+                // Shuffle in JS
+                const shuffled = matchingIds.sort(() => 0.5 - Math.random());
+                selectedIds.push(...shuffled.slice(0, numberOfQuestions).map(q => q.id));
 
                 // Fetch full questions to copy
                 const questions = await prisma.question.findMany({

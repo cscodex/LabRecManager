@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
+import { Bold, Italic, Underline, List, ListOrdered } from 'lucide-react';
 
 // Comprehensive symbol categories for PCM and Biology
 const SYMBOL_CATEGORIES = {
@@ -274,6 +275,31 @@ export default function ScientificEditor({
         }, 0);
     }, [value, onChange]);
 
+    // Insert formatting tags around selected text
+    const insertFormat = useCallback((prefix: string, suffix: string = '') => {
+        const editor = editorRef.current;
+        if (!editor) return;
+
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const selectedText = value.substring(start, end);
+
+        const newText = prefix + selectedText + suffix;
+        const newValue = value.substring(0, start) + newText + value.substring(end);
+
+        onChange(newValue);
+
+        // Restore cursor position inside the tags
+        setTimeout(() => {
+            editor.focus();
+            if (selectedText.length > 0) {
+                editor.setSelectionRange(start, start + newText.length);
+            } else {
+                editor.setSelectionRange(start + prefix.length, start + prefix.length);
+            }
+        }, 0);
+    }, [value, onChange]);
+
     // Filter symbols by search query
     type SymbolItem = { symbol: string; name: string };
     type SymbolCategories = Record<string, SymbolItem[]>;
@@ -296,25 +322,75 @@ export default function ScientificEditor({
         <div className={`scientific-editor border border-gray-300 rounded-lg overflow-hidden ${className}`}>
             {/* Toolbar */}
             <div className="bg-gray-100 border-b border-gray-300 p-2">
-                <div className="flex flex-wrap gap-2 mb-2">
-                    <button
-                        onClick={() => { setShowSymbols(true); setShowTemplates(false); }}
-                        className={`px-3 py-1 rounded text-sm font-medium ${showSymbols && !showTemplates ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
-                    >
-                        🔢 Symbols
-                    </button>
-                    <button
-                        onClick={() => { setShowTemplates(true); setShowSymbols(false); }}
-                        className={`px-3 py-1 rounded text-sm font-medium ${showTemplates ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
-                    >
-                        📝 Templates
-                    </button>
-                    <button
-                        onClick={() => { setShowSymbols(false); setShowTemplates(false); }}
-                        className={`px-3 py-1 rounded text-sm font-medium ${!showSymbols && !showTemplates ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
-                    >
-                        ✏️ Editor Only
-                    </button>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { setShowSymbols(true); setShowTemplates(false); }}
+                            className={`px-3 py-1 rounded text-sm font-medium ${showSymbols && !showTemplates ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
+                        >
+                            🔢 Symbols
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setShowTemplates(true); setShowSymbols(false); }}
+                            className={`px-3 py-1 rounded text-sm font-medium ${showTemplates ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
+                        >
+                            📝 Templates
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setShowSymbols(false); setShowTemplates(false); }}
+                            className={`px-3 py-1 rounded text-sm font-medium ${!showSymbols && !showTemplates ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
+                        >
+                            ✏️ Editor Only
+                        </button>
+                    </div>
+
+                    {/* Text Formatting Controls */}
+                    <div className="flex items-center gap-1 bg-white border border-gray-300 rounded p-1">
+                        <button
+                            type="button"
+                            onClick={() => insertFormat('<b>', '</b>')}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-700 transition-colors"
+                            title="Bold"
+                        >
+                            <Bold className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => insertFormat('<i>', '</i>')}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-700 transition-colors"
+                            title="Italic"
+                        >
+                            <Italic className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => insertFormat('<u>', '</u>')}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-700 transition-colors"
+                            title="Underline"
+                        >
+                            <Underline className="w-4 h-4" />
+                        </button>
+                        <div className="w-px h-5 bg-gray-300 mx-1"></div>
+                        <button
+                            type="button"
+                            onClick={() => insertFormat('• ', '')}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-700 transition-colors"
+                            title="Bullet List"
+                        >
+                            <List className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => insertFormat('1. ', '')}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-700 transition-colors"
+                            title="Numbered List"
+                        >
+                            <ListOrdered className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Symbol Picker */}
@@ -337,6 +413,7 @@ export default function ScientificEditor({
                                 {Object.keys(SYMBOL_CATEGORIES).map((category) => (
                                     <button
                                         key={category}
+                                        type="button"
                                         onClick={() => setActiveCategory(category)}
                                         className={`px-2 py-1 text-xs rounded ${activeCategory === category
                                             ? 'bg-blue-600 text-white'
@@ -360,6 +437,7 @@ export default function ScientificEditor({
                                         {symbols.map((item, idx) => (
                                             <button
                                                 key={idx}
+                                                type="button"
                                                 onClick={() => insertSymbol(item.symbol)}
                                                 title={item.name}
                                                 className="w-8 h-8 flex items-center justify-center text-lg bg-gray-50 hover:bg-blue-100 rounded border border-gray-200 hover:border-blue-400 transition-colors"
@@ -381,6 +459,7 @@ export default function ScientificEditor({
                             {Object.keys(TEMPLATES).map((cat) => (
                                 <button
                                     key={cat}
+                                    type="button"
                                     onClick={() => setActiveTemplateCategory(cat)}
                                     className={`px-3 py-1 text-sm rounded capitalize ${activeTemplateCategory === cat
                                         ? 'bg-green-600 text-white'
@@ -396,6 +475,7 @@ export default function ScientificEditor({
                                 {TEMPLATES[activeTemplateCategory as keyof typeof TEMPLATES].map((template, idx) => (
                                     <button
                                         key={idx}
+                                        type="button"
                                         onClick={() => insertTemplate(template.content)}
                                         className="text-left px-3 py-2 bg-gray-50 hover:bg-green-50 rounded border border-gray-200 hover:border-green-400 transition-colors"
                                     >

@@ -18,8 +18,23 @@ model Admin {
   exams        Exam[]
   assignmentLogs ExamAssignmentLog[]
   examBlueprints ExamBlueprint[]
+  notes        AdminNote[]
   
   @@map("admins")
+}
+
+model AdminNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String   @db.VarChar(255)
+  content   Json     
+  authorId  String   @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author    Admin    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("admin_notes")
 }
 
 
