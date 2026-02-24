@@ -70,6 +70,7 @@ interface QuestionEditorProps {
     onSave: (data: QuestionFormData) => Promise<void>;
     onCancel: () => void;
     isSaving?: boolean;
+    availableParagraphs?: { id: string; textEn: string }[];
 }
 
 export default function QuestionEditor({
@@ -77,7 +78,8 @@ export default function QuestionEditor({
     tags,
     onSave,
     onCancel,
-    isSaving = false
+    isSaving = false,
+    availableParagraphs = []
 }: QuestionEditorProps) {
 
     const createEmptyQuestion = (): QuestionFormData => ({
@@ -574,6 +576,23 @@ export default function QuestionEditor({
                             <option value="long_answer">Long Answer</option>
                             <option value="paragraph">Paragraph</option>
                         </select>
+                        {formData.type !== 'paragraph' && availableParagraphs && availableParagraphs.length > 0 && (
+                            <>
+                                <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                                <select
+                                    value={formData.parentId || ''}
+                                    onChange={e => setFormData({ ...formData, parentId: e.target.value })}
+                                    className="px-3 py-1 border rounded-lg text-sm max-w-xs"
+                                >
+                                    <option value="">No Paragraph Link</option>
+                                    {availableParagraphs.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                            Link: {p.textEn.replace(/<[^>]*>?/gm, '').substring(0, 30)}...
+                                        </option>
+                                    ))}
+                                </select>
+                            </>
+                        )}
                         <button onClick={onCancel} className="p-2 hover:bg-white rounded-full"><X className="w-5 h-5" /></button>
                     </div>
                 </div>

@@ -724,7 +724,7 @@ export default function ExamAttemptPage() {
                 )}
 
                 {/* Top Header */}
-                <header className="bg-blue-900 text-white px-4 py-2 flex items-center justify-between">
+                <header className="bg-blue-900 text-white px-4 py-2 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-4">
                         <h1 className="font-bold text-lg">{getText(examData.title, language)}</h1>
                     </div>
@@ -744,7 +744,7 @@ export default function ExamAttemptPage() {
                 </header>
 
                 {/* Section Tabs */}
-                <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto">
+                <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
                     {sections.map((section, idx) => (
                         <button
                             key={section.id}
@@ -833,9 +833,9 @@ export default function ExamAttemptPage() {
 
                                     {/* Question Text */}
                                     <div className="mb-6">
-                                        <p className="text-lg text-gray-900 leading-relaxed">
-                                            {getText(currentQuestion.text, language)}
-                                        </p>
+                                        <div className="text-lg text-gray-900 leading-relaxed">
+                                            <MathText text={getText(currentQuestion.text, language)} />
+                                        </div>
                                         {currentQuestion.imageUrl && (
                                             <div className="relative h-64 w-full mt-4 max-w-md">
                                                 {imageLoading && (
@@ -879,7 +879,7 @@ export default function ExamAttemptPage() {
                                                             {option.id.toUpperCase()}
                                                         </span>
                                                         <span className="flex-1 text-gray-800">
-                                                            {getText(option.text, language)}
+                                                            <MathText text={getText(option.text, language)} />
                                                         </span>
                                                     </button>
                                                 );

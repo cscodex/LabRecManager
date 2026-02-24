@@ -10,6 +10,8 @@ import {
     Clock, ArrowLeft, ChevronDown, ChevronUp, Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
+import { MathText } from '@/components/MathText';
 
 interface ExamResult {
     exam: {
@@ -129,292 +131,298 @@ export default function ResultsPage() {
     const percentage = Math.round((attempt.totalScore / exam.totalMarks) * 100);
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="bg-white shadow-sm">
-                <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link href="/student/dashboard" className="text-gray-500 hover:text-gray-700">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <div>
-                            <h1 className="text-xl font-bold text-gray-900">Exam Results</h1>
-                            <p className="text-sm text-gray-500">{getText(exam.title, language)}</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => setLanguage(language === 'en' ? 'pa' : 'en')}
-                        className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
-                    >
-                        <Globe className="w-4 h-4" />
-                        {language === 'en' ? 'English' : 'ਪੰਜਾਬੀ'}
-                    </button>
-                </div>
-            </header>
-
-            <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-                {/* Score Card */}
-                <div className={`rounded-2xl p-6 text-white ${attempt.passed === true ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
-                    attempt.passed === false ? 'bg-gradient-to-r from-red-500 to-rose-600' :
-                        'bg-gradient-to-r from-blue-500 to-indigo-600'
-                    }`}>
-                    <div className="flex items-center gap-4 mb-4">
-                        <Trophy className="w-12 h-12" />
-                        <div>
-                            <p className="text-lg opacity-90">Your Score</p>
-                            <p className="text-4xl font-bold">
-                                {attempt.totalScore} / {exam.totalMarks}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-8 text-sm">
-                        <div>
-                            <p className="opacity-75">Percentage</p>
-                            <p className="text-xl font-semibold">{percentage}%</p>
-                        </div>
-                        {exam.passingMarks && (
+        <MathJaxProvider>
+            <div className="min-h-screen bg-gray-50">
+                {/* Header */}
+                <header className="bg-white shadow-sm">
+                    <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Link href="/student/dashboard" className="text-gray-500 hover:text-gray-700">
+                                <ArrowLeft className="w-5 h-5" />
+                            </Link>
                             <div>
-                                <p className="opacity-75">Status</p>
-                                <p className="text-xl font-semibold">
-                                    {attempt.passed ? '✓ Passed' : '✗ Failed'}
+                                <h1 className="text-xl font-bold text-gray-900">Exam Results</h1>
+                                <p className="text-sm text-gray-500">{getText(exam.title, language)}</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setLanguage(language === 'en' ? 'pa' : 'en')}
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50"
+                        >
+                            <Globe className="w-4 h-4" />
+                            {language === 'en' ? 'English' : 'ਪੰਜਾਬੀ'}
+                        </button>
+                    </div>
+                </header>
+
+                <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+                    {/* Score Card */}
+                    <div className={`rounded-2xl p-6 text-white ${attempt.passed === true ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
+                        attempt.passed === false ? 'bg-gradient-to-r from-red-500 to-rose-600' :
+                            'bg-gradient-to-r from-blue-500 to-indigo-600'
+                        }`}>
+                        <div className="flex items-center gap-4 mb-4">
+                            <Trophy className="w-12 h-12" />
+                            <div>
+                                <p className="text-lg opacity-90">Your Score</p>
+                                <p className="text-4xl font-bold">
+                                    {attempt.totalScore} / {exam.totalMarks}
                                 </p>
                             </div>
-                        )}
-                        <div>
-                            <p className="opacity-75">Submitted</p>
-                            <p className="text-sm">{formatDateTimeIST(attempt.submittedAt)}</p>
+                        </div>
+
+                        <div className="flex gap-8 text-sm">
+                            <div>
+                                <p className="opacity-75">Percentage</p>
+                                <p className="text-xl font-semibold">{percentage}%</p>
+                            </div>
+                            {exam.passingMarks && (
+                                <div>
+                                    <p className="opacity-75">Status</p>
+                                    <p className="text-xl font-semibold">
+                                        {attempt.passed ? '✓ Passed' : '✗ Failed'}
+                                    </p>
+                                </div>
+                            )}
+                            <div>
+                                <p className="opacity-75">Submitted</p>
+                                <p className="text-sm">{formatDateTimeIST(attempt.submittedAt)}</p>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-xl p-4 text-center shadow-sm">
-                        <p className="text-3xl font-bold text-blue-600">{stats.totalQuestions}</p>
-                        <p className="text-sm text-gray-500">Total Questions</p>
-                    </div>
-                    <div className="bg-white rounded-xl p-4 text-center shadow-sm">
-                        <p className="text-3xl font-bold text-green-600">{stats.correct}</p>
-                        <p className="text-sm text-gray-500">Correct</p>
-                    </div>
-                    <div className="bg-white rounded-xl p-4 text-center shadow-sm">
-                        <p className="text-3xl font-bold text-red-600">{stats.incorrect}</p>
-                        <p className="text-sm text-gray-500">Incorrect</p>
-                    </div>
-                    <div className="bg-white rounded-xl p-4 text-center shadow-sm">
-                        <p className="text-3xl font-bold text-gray-400">{stats.unattempted}</p>
-                        <p className="text-sm text-gray-500">Unattempted</p>
-                    </div>
-                </div>
-
-                {/* Questions Review */}
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="p-4 border-b">
-                        <h2 className="font-semibold text-gray-900">Detailed Review</h2>
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-xl p-4 text-center shadow-sm">
+                            <p className="text-3xl font-bold text-blue-600">{stats.totalQuestions}</p>
+                            <p className="text-sm text-gray-500">Total Questions</p>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 text-center shadow-sm">
+                            <p className="text-3xl font-bold text-green-600">{stats.correct}</p>
+                            <p className="text-sm text-gray-500">Correct</p>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 text-center shadow-sm">
+                            <p className="text-3xl font-bold text-red-600">{stats.incorrect}</p>
+                            <p className="text-sm text-gray-500">Incorrect</p>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 text-center shadow-sm">
+                            <p className="text-3xl font-bold text-gray-400">{stats.unattempted}</p>
+                            <p className="text-sm text-gray-500">Unattempted</p>
+                        </div>
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex overflow-x-auto border-b bg-gray-50 no-scrollbar">
-                        {sections.map((section) => (
-                            <button
-                                key={section.id}
-                                onClick={() => setActiveSectionId(section.id)}
-                                className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeSectionId === section.id
-                                    ? 'border-blue-600 text-blue-600 bg-white'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                                    }`}
-                            >
-                                {getText(section.name, language)}
-                            </button>
-                        ))}
-                    </div>
+                    {/* Questions Review */}
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-4 border-b">
+                            <h2 className="font-semibold text-gray-900">Detailed Review</h2>
+                        </div>
 
-                    {/* Active Section Content */}
-                    <div>
-                        {sections.map(section => {
-                            if (section.id !== activeSectionId) return null;
+                        {/* Tabs */}
+                        <div className="flex overflow-x-auto border-b bg-gray-50 no-scrollbar">
+                            {sections.map((section) => (
+                                <button
+                                    key={section.id}
+                                    onClick={() => setActiveSectionId(section.id)}
+                                    className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeSectionId === section.id
+                                        ? 'border-blue-600 text-blue-600 bg-white'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                >
+                                    {getText(section.name, language)}
+                                </button>
+                            ))}
+                        </div>
 
-                            // Filter out paragraph type questions - they are containers, not answerable
-                            const sectionQuestions = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
+                        {/* Active Section Content */}
+                        <div>
+                            {sections.map(section => {
+                                if (section.id !== activeSectionId) return null;
 
-                            // Helper to get parent paragraph text
-                            const getParentParagraphText = (q: ExamResult['questions'][0]) => {
-                                if (!q.parentId) return null;
-                                const parent = questions.find(p => p.id === q.parentId);
-                                return parent?.paragraphText || null;
-                            };
+                                // Filter out paragraph type questions - they are containers, not answerable
+                                const sectionQuestions = questions.filter(q => q.sectionId === section.id && q.type !== 'paragraph');
 
-                            if (sectionQuestions.length === 0) {
+                                // Helper to get parent paragraph text
+                                const getParentParagraphText = (q: ExamResult['questions'][0]) => {
+                                    if (!q.parentId) return null;
+                                    const parent = questions.find(p => p.id === q.parentId);
+                                    return parent?.paragraphText || null;
+                                };
+
+                                if (sectionQuestions.length === 0) {
+                                    return (
+                                        <div key={section.id} className="p-8 text-center text-gray-500">
+                                            No answerable questions in this section.
+                                        </div>
+                                    );
+                                }
+
                                 return (
-                                    <div key={section.id} className="p-8 text-center text-gray-500">
-                                        No answerable questions in this section.
+                                    <div key={section.id}>
+                                        {sectionQuestions.map((q, idx) => {
+                                            const isExpanded = expandedQuestions.has(q.id);
+                                            const parentParagraph = getParentParagraphText(q);
+
+                                            return (
+                                                <div key={q.id} className="border-b last:border-b-0">
+                                                    <button
+                                                        onClick={() => toggleQuestion(q.id)}
+                                                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left transition-colors"
+                                                    >
+                                                        <span className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium ${q.isCorrect === true ? 'bg-green-100 text-green-700' :
+                                                            q.isCorrect === false ? 'bg-red-100 text-red-700' :
+                                                                'bg-gray-100 text-gray-500'
+                                                            }`}>
+                                                            {idx + 1}
+                                                        </span>
+                                                        <span className="flex-1 text-gray-800 line-clamp-2 md:line-clamp-1">
+                                                            {getText(q.text, language)}
+                                                        </span>
+                                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                                            {q.isCorrect === true && <CheckCircle className="w-5 h-5 text-green-500" />}
+                                                            {q.isCorrect === false && <XCircle className="w-5 h-5 text-red-500" />}
+                                                            {q.isCorrect === null && <MinusCircle className="w-5 h-5 text-gray-400" />}
+                                                            <span className={`text-sm font-medium min-w-[30px] text-right ${q.marksAwarded > 0 ? 'text-green-600' :
+                                                                q.marksAwarded < 0 ? 'text-red-600' :
+                                                                    'text-gray-400'
+                                                                }`}>
+                                                                {q.marksAwarded > 0 ? '+' : ''}{q.marksAwarded}
+                                                            </span>
+                                                            {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                                        </div>
+                                                    </button>
+
+                                                    {isExpanded && (
+                                                        <div className="px-4 pb-4 pt-1 bg-gray-50">
+                                                            {/* Parent paragraph text for sub-questions */}
+                                                            {parentParagraph && (
+                                                                <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                                    <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
+                                                                    <div
+                                                                        className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
+                                                                        dangerouslySetInnerHTML={{ __html: getText(parentParagraph, language) }}
+                                                                    />
+                                                                </div>
+                                                            )}
+
+                                                            <div className="ml-11">
+                                                                {/* Render HTML content for question text if needed, or just text */}
+                                                                <div className="text-gray-900 font-medium mb-3">
+                                                                    <MathText text={getText(q.text, language)} />
+                                                                </div>
+
+                                                                {/* Subjective Question Feedback */}
+                                                                {
+                                                                    (q.type === 'short_answer' || q.type === 'long_answer' || q.type === 'fill_blank') && (
+                                                                        <div className="mb-4 space-y-4">
+                                                                            {/* Student Answer */}
+                                                                            <div className={`p-4 rounded-lg border ${q.marksAwarded > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                                                                <p className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-70">Your Answer</p>
+                                                                                <p className="text-gray-900 whitespace-pre-wrap">{(q.studentAnswer && q.studentAnswer[0]) ? <MathText text={q.studentAnswer[0]} /> : <span className="text-gray-400 italic">No answer provided</span>}</p>
+                                                                            </div>
+
+                                                                            {/* Model Answer (if correct answer is text) */}
+                                                                            <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                                                                                <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-blue-700">Model Answer</p>
+                                                                                <p className="text-blue-900 whitespace-pre-wrap"><MathText text={q.correctAnswer.join(', ')} /></p>
+                                                                            </div>
+
+                                                                            {/* AI Feedback */}
+                                                                            {q.aiFeedback && (
+                                                                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                                                                    <div className="flex items-center justify-between mb-3">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className="text-lg">🤖</span>
+                                                                                            <h3 className="font-semibold text-purple-900">AI Evaluation</h3>
+                                                                                        </div>
+                                                                                        <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-sm font-bold">
+                                                                                            Score: {q.aiFeedback.score} / {q.marks}
+                                                                                        </span>
+                                                                                    </div>
+
+                                                                                    <div className="space-y-3 text-sm">
+                                                                                        <div>
+                                                                                            <p className="font-medium text-purple-800 mb-1">Feedback:</p>
+                                                                                            <p className="text-purple-700">{q.aiFeedback.feedback}</p>
+                                                                                        </div>
+                                                                                        {q.aiFeedback.improvements && (
+                                                                                            <div>
+                                                                                                <p className="font-medium text-purple-800 mb-1">Suggested Improvements:</p>
+                                                                                                <p className="text-purple-700 italic">{q.aiFeedback.improvements}</p>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )
+                                                                }
+
+                                                                {/* MCQ Options Rendering */}
+                                                                {q.options && (q.type === 'mcq_single' || q.type === 'mcq_multiple') && (
+                                                                    <div className="space-y-2 mb-4">
+                                                                        {q.options.map(opt => {
+                                                                            const isCorrect = q.correctAnswer.includes(opt.id);
+                                                                            const wasSelected = q.studentAnswer?.includes(opt.id);
+
+                                                                            return (
+                                                                                <div
+                                                                                    key={opt.id}
+                                                                                    className={`flex items-start gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-300' :
+                                                                                        wasSelected && !isCorrect ? 'bg-red-50 border-red-300' :
+                                                                                            'bg-white border-gray-200'
+                                                                                        }`}
+                                                                                >
+                                                                                    <span className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center text-xs font-medium mt-0.5 ${isCorrect ? 'bg-green-500 border-green-500 text-white' :
+                                                                                        wasSelected ? 'bg-red-500 border-red-500 text-white' :
+                                                                                            'border-gray-300 text-gray-500'
+                                                                                        }`}>
+                                                                                        {opt.id.toUpperCase()}
+                                                                                    </span>
+                                                                                    <span className="flex-1 text-gray-700">
+                                                                                        <MathText text={getText(opt.text, language)} />
+                                                                                    </span>
+                                                                                    {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
+                                                                                    {wasSelected && !isCorrect && <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+
+                                                                {q.explanation && (
+                                                                    <div className="bg-blue-50 border border-t-4 border-blue-500 rounded-r-lg rounded-b-lg p-4 shadow-sm">
+                                                                        <p className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
+                                                                            <span>💡 Explanation</span>
+                                                                        </p>
+                                                                        <div className="text-sm text-blue-800 whitespace-pre-wrap leading-relaxed">
+                                                                            <MathText text={getText(q.explanation, language)} />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 );
-                            }
-
-                            return (
-                                <div key={section.id}>
-                                    {sectionQuestions.map((q, idx) => {
-                                        const isExpanded = expandedQuestions.has(q.id);
-                                        const parentParagraph = getParentParagraphText(q);
-
-                                        return (
-                                            <div key={q.id} className="border-b last:border-b-0">
-                                                <button
-                                                    onClick={() => toggleQuestion(q.id)}
-                                                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left transition-colors"
-                                                >
-                                                    <span className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium ${q.isCorrect === true ? 'bg-green-100 text-green-700' :
-                                                        q.isCorrect === false ? 'bg-red-100 text-red-700' :
-                                                            'bg-gray-100 text-gray-500'
-                                                        }`}>
-                                                        {idx + 1}
-                                                    </span>
-                                                    <span className="flex-1 text-gray-800 line-clamp-2 md:line-clamp-1">
-                                                        {getText(q.text, language)}
-                                                    </span>
-                                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                                        {q.isCorrect === true && <CheckCircle className="w-5 h-5 text-green-500" />}
-                                                        {q.isCorrect === false && <XCircle className="w-5 h-5 text-red-500" />}
-                                                        {q.isCorrect === null && <MinusCircle className="w-5 h-5 text-gray-400" />}
-                                                        <span className={`text-sm font-medium min-w-[30px] text-right ${q.marksAwarded > 0 ? 'text-green-600' :
-                                                            q.marksAwarded < 0 ? 'text-red-600' :
-                                                                'text-gray-400'
-                                                            }`}>
-                                                            {q.marksAwarded > 0 ? '+' : ''}{q.marksAwarded}
-                                                        </span>
-                                                        {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                                                    </div>
-                                                </button>
-
-                                                {isExpanded && (
-                                                    <div className="px-4 pb-4 pt-1 bg-gray-50">
-                                                        {/* Parent paragraph text for sub-questions */}
-                                                        {parentParagraph && (
-                                                            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                                                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">📖 Reading Passage</p>
-                                                                <div
-                                                                    className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
-                                                                    dangerouslySetInnerHTML={{ __html: getText(parentParagraph, language) }}
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        <div className="ml-11">
-                                                            {/* Render HTML content for question text if needed, or just text */}
-                                                            <div className="text-gray-900 font-medium mb-3" dangerouslySetInnerHTML={{ __html: getText(q.text, language) }} />
-
-                                                            {/* Subjective Question Feedback */}
-                                                            {
-                                                                (q.type === 'short_answer' || q.type === 'long_answer' || q.type === 'fill_blank') && (
-                                                                    <div className="mb-4 space-y-4">
-                                                                        {/* Student Answer */}
-                                                                        <div className={`p-4 rounded-lg border ${q.marksAwarded > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                                                                            <p className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-70">Your Answer</p>
-                                                                            <p className="text-gray-900 whitespace-pre-wrap">{(q.studentAnswer && q.studentAnswer[0]) || <span className="text-gray-400 italic">No answer provided</span>}</p>
-                                                                        </div>
-
-                                                                        {/* Model Answer (if correct answer is text) */}
-                                                                        <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
-                                                                            <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-blue-700">Model Answer</p>
-                                                                            <p className="text-blue-900 whitespace-pre-wrap">{q.correctAnswer}</p>
-                                                                        </div>
-
-                                                                        {/* AI Feedback */}
-                                                                        {q.aiFeedback && (
-                                                                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                                                                                <div className="flex items-center justify-between mb-3">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <span className="text-lg">🤖</span>
-                                                                                        <h3 className="font-semibold text-purple-900">AI Evaluation</h3>
-                                                                                    </div>
-                                                                                    <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-sm font-bold">
-                                                                                        Score: {q.aiFeedback.score} / {q.marks}
-                                                                                    </span>
-                                                                                </div>
-
-                                                                                <div className="space-y-3 text-sm">
-                                                                                    <div>
-                                                                                        <p className="font-medium text-purple-800 mb-1">Feedback:</p>
-                                                                                        <p className="text-purple-700">{q.aiFeedback.feedback}</p>
-                                                                                    </div>
-                                                                                    {q.aiFeedback.improvements && (
-                                                                                        <div>
-                                                                                            <p className="font-medium text-purple-800 mb-1">Suggested Improvements:</p>
-                                                                                            <p className="text-purple-700 italic">{q.aiFeedback.improvements}</p>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )
-                                                            }
-
-                                                            {/* MCQ Options Rendering */}
-                                                            {q.options && (q.type === 'mcq_single' || q.type === 'mcq_multiple') && (
-                                                                <div className="space-y-2 mb-4">
-                                                                    {q.options.map(opt => {
-                                                                        const isCorrect = q.correctAnswer.includes(opt.id);
-                                                                        const wasSelected = q.studentAnswer?.includes(opt.id);
-
-                                                                        return (
-                                                                            <div
-                                                                                key={opt.id}
-                                                                                className={`flex items-start gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-300' :
-                                                                                    wasSelected && !isCorrect ? 'bg-red-50 border-red-300' :
-                                                                                        'bg-white border-gray-200'
-                                                                                    }`}
-                                                                            >
-                                                                                <span className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center text-xs font-medium mt-0.5 ${isCorrect ? 'bg-green-500 border-green-500 text-white' :
-                                                                                    wasSelected ? 'bg-red-500 border-red-500 text-white' :
-                                                                                        'border-gray-300 text-gray-500'
-                                                                                    }`}>
-                                                                                    {opt.id.toUpperCase()}
-                                                                                </span>
-                                                                                <span className="flex-1 text-gray-700">
-                                                                                    {getText(opt.text, language)}
-                                                                                </span>
-                                                                                {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
-                                                                                {wasSelected && !isCorrect && <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            )}
-
-                                                            {q.explanation && (
-                                                                <div className="bg-blue-50 border border-t-4 border-blue-500 rounded-r-lg rounded-b-lg p-4 shadow-sm">
-                                                                    <p className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
-                                                                        <span>💡 Explanation</span>
-                                                                    </p>
-                                                                    <div className="text-sm text-blue-800 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: getText(q.explanation, language) }} />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })}
+                            })}
+                        </div>
                     </div>
-                </div>
 
-                {/* Back Button */}
-                <div className="text-center pt-4">
-                    <Link
-                        href="/student/dashboard"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Dashboard
-                    </Link>
-                </div>
-            </main>
-        </div>
+                    {/* Back Button */}
+                    <div className="text-center pt-4">
+                        <Link
+                            href="/student/dashboard"
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to Dashboard
+                        </Link>
+                    </div>
+                </main>
+            </div>
+        </MathJaxProvider>
     );
 }

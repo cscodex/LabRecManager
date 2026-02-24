@@ -46,6 +46,7 @@ interface Question {
     negative_marks?: number;
     image_url?: string;
     parent_id?: string;
+    order?: number;
     paragraph_text?: Record<string, string>;
     subQuestions?: any[];
 }
@@ -485,7 +486,8 @@ export default function EditExamPage() {
                 difficulty: data.difficulty,
                 imageUrl: data.imageUrl,
                 tags: data.tags,
-                parentId: data.parentId || null
+                parentId: data.parentId || null,
+                order: isEdit ? editingQuestion?.order : (sectionQuestions[activeSectionId]?.length || 0) + 1
             };
 
             if (data.type === 'paragraph') {
@@ -1970,6 +1972,16 @@ export default function EditExamPage() {
                         onSave={handleQuestionSave}
                         onCancel={() => setShowQuestionModal(false)}
                         isSaving={isSavingQuestion}
+                        availableParagraphs={
+                            (activeSectionId && sectionQuestions[activeSectionId])
+                                ? sectionQuestions[activeSectionId]
+                                    .filter(q => q.type === 'paragraph' && q.id !== editingQuestion?.id)
+                                    .map(q => ({
+                                        id: q.id,
+                                        textEn: typeof q.text === 'object' ? (q.text as any).en || '' : String(q.text)
+                                    }))
+                                : []
+                        }
                     />
                 </Modal>
 
