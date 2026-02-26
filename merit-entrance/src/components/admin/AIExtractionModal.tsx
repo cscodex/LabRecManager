@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, Check, RefreshCw, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Camera, Upload, X, Check, RefreshCw, Loader2, Image as ImageIcon, Sparkles, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MathText } from '@/components/MathText';
 import { QuestionFormData } from './QuestionEditor';
@@ -18,6 +18,8 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [extractedData, setExtractedData] = useState<any>(null);
+    const [imageQuality, setImageQuality] = useState<{ quality?: number; imageType?: string; enhanced?: boolean } | null>(null);
+    const [isReEnhancing, setIsReEnhancing] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
@@ -43,6 +45,8 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
         setStep('upload');
         setImage(null);
         setExtractedData(null);
+        setImageQuality(null);
+        setIsReEnhancing(false);
         onClose();
     };
 
@@ -221,6 +225,10 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                             mappedData.imageUrl = imgData.images[0];
                             setExtractedData({ ...mappedData }); // Re-set with imageUrl
                             toast.success('Image extracted and uploaded!');
+                            // Store quality info
+                            if (imgData.enhancement && imgData.enhancement[0]) {
+                                setImageQuality(imgData.enhancement[0]);
+                            }
                         }
                     } catch (imgErr) {
                         console.error('Image extraction failed:', imgErr);
@@ -247,6 +255,56 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
             onExtract(extractedData);
             handleClose();
         }
+    };
+
+    // --- Re-enhance Image ---
+    const handleReEnhance = async () => {
+        if (!extractedData?.imageUrl) return;
+
+        setIsReEnhancing(true);
+        try {
+            // Fetch the already-cropped image from Cloudinary and convert to base64
+            const imgFetch = await fetch(extractedData.imageUrl);
+            const blob = await imgFetch.blob();
+            const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+            });
+
+            // Send the cropped image (not the original page) for re-enhancement
+            const imgRes = await fetch('/api/ai/extract-images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pageImages: [{ page: 1, base64 }],
+                    questions: [{ questionIndex: 0, imageBounds: { x: 0, y: 0, w: 1, h: 1 }, page: 1 }],
+                    enhanceImages: true,
+                    forceEnhance: true
+                })
+            });
+            const imgData = await imgRes.json();
+            if (imgData.success && imgData.images && imgData.images[0]) {
+                setExtractedData((prev: any) => ({ ...prev, imageUrl: imgData.images[0] }));
+                if (imgData.enhancement && imgData.enhancement[0]) {
+                    setImageQuality(imgData.enhancement[0]);
+                }
+                toast.success(imgData.enhancement?.[0]?.enhanced ? 'Image re-enhanced with AI!' : 'Enhancement attempted (original used)');
+            } else {
+                toast.error('Re-enhancement failed');
+            }
+        } catch (err) {
+            console.error('Re-enhance error:', err);
+            toast.error('Re-enhancement failed');
+        } finally {
+            setIsReEnhancing(false);
+        }
+    };
+
+    const getQualityColor = (q: number) => {
+        if (q >= 8) return 'bg-green-100 text-green-800 border-green-200';
+        if (q >= 5) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-red-100 text-red-800 border-red-200';
     };
 
     return (
@@ -349,7 +407,40 @@ export default function AIExtractionModal({ isOpen, onClose, onExtract }: AIExtr
                                 </div>
                                 {extractedData.imageUrl && (
                                     <div className="mt-3 p-3 bg-white rounded border border-blue-100">
-                                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Image</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-[10px] font-semibold text-gray-400 uppercase">Extracted Image</p>
+                                                {imageQuality && (
+                                                    <>
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getQualityColor(imageQuality.quality || 0)}`}>
+                                                            Quality: {imageQuality.quality}/10
+                                                        </span>
+                                                        {imageQuality.imageType && (
+                                                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
+                                                                {imageQuality.imageType.replace(/_/g, ' ')}
+                                                            </span>
+                                                        )}
+                                                        {imageQuality.enhanced && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 border border-violet-200 flex items-center gap-0.5">
+                                                                <Sparkles className="w-3 h-3" /> AI Enhanced
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={handleReEnhance}
+                                                disabled={isReEnhancing}
+                                                className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:opacity-90 disabled:opacity-50 transition-all"
+                                                title="Force AI to regenerate a cleaner version of this image"
+                                            >
+                                                {isReEnhancing ? (
+                                                    <><Loader2 className="w-3 h-3 animate-spin" /> Enhancing...</>
+                                                ) : (
+                                                    <><Zap className="w-3 h-3" /> Re-enhance with AI</>
+                                                )}
+                                            </button>
+                                        </div>
                                         <img src={extractedData.imageUrl} alt="Question diagram" className="max-w-full max-h-48 rounded border border-gray-200" />
                                     </div>
                                 )}

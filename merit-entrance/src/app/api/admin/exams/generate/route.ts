@@ -44,7 +44,6 @@ export async function POST(request: Request) {
                 const selectedIds: string[] = [];
 
                 const whereClause: any = {
-                    sectionId: null, // From question bank
                     type: questionType,
                 };
 
@@ -97,7 +96,7 @@ export async function POST(request: Request) {
             });
         }
 
-        // 3. Create the Exam
+        // 3. Create the Exam (no nested create to avoid Neon HTTP transaction error)
         const exam = await prisma.exam.create({
             data: {
                 title,
@@ -106,46 +105,31 @@ export async function POST(request: Request) {
                 totalMarks,
                 createdById,
                 status: 'draft',
-                sections: {
-                    create: examSectionsToCreate.map(sec => ({
-                        name: sec.name,
-                        order: sec.order
-                    }))
-                }
-            },
-            include: {
-                sections: true
             }
         });
 
-        // 4. Duplicate questions into the new sections
-        for (const secData of examSectionsToCreate) {
-            const createdSection = exam.sections.find((s: any) => s.order === secData.order);
-            if (!createdSection) continue;
+        // 4. Create sections one by one (no transaction needed)
+        const createdSections: any[] = [];
+        for (const sec of examSectionsToCreate) {
+            const section = await prisma.section.create({
+                data: {
+                    examId: exam.id,
+                    name: sec.name,
+                    order: sec.order
+                }
+            });
+            createdSections.push({ ...section, questions: sec.questions });
+        }
 
+        // 5. Link questions to exam sections via section_questions
+        for (const secData of createdSections) {
             let orderCounter = 1;
             for (const cq of secData.questions) {
                 const og = cq.original;
-
-                await prisma.question.create({
-                    data: {
-                        sectionId: createdSection.id,
-                        type: og.type,
-                        text: og.text,
-                        options: og.options || null,
-                        correctAnswer: og.correctAnswer,
-                        explanation: og.explanation || null,
-                        marks: cq.marks,
-                        difficulty: og.difficulty,
-                        negativeMarks: cq.negativeMarks,
-                        imageUrl: og.imageUrl || null,
-                        paragraphId: og.paragraphId || null,
-                        order: orderCounter++,
-                        tags: {
-                            create: og.tags.map((t: any) => ({ tagId: t.tagId }))
-                        }
-                    }
-                });
+                await prisma.$executeRawUnsafe(
+                    `INSERT INTO "section_questions" ("section_id", "question_id", "marks", "negative_marks", "order") VALUES ($1, $2, $3, $4, $5)`,
+                    secData.id, og.id, cq.marks, cq.negativeMarks, orderCounter++
+                );
             }
         }
 

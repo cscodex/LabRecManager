@@ -37,16 +37,23 @@ export async function POST(
         // Combine original IDs and child IDs (deduplicate)
         const allIds = Array.from(new Set([...questionIds, ...childIds]));
 
-        // 2. Get the current max order in the target section
+        // 2. Get the current max order in the target section (from section_questions)
         const maxOrderResult = await sql`
             SELECT COALESCE(MAX("order"), 0) as max_order 
-            FROM questions 
+            FROM section_questions 
             WHERE section_id = ${targetSectionId}
         `;
         const targetMaxOrder = parseInt(maxOrderResult[0].max_order) || 0;
 
-        // 3. MOVE: Set section_id to targetSectionId and append to the end of the section
-        // We add a random/variable amount to the order to spread them out at the end, or just set them all to max + 1
+        // 3. MOVE: Update section_questions junction links
+        await sql`
+            UPDATE section_questions 
+            SET section_id = ${targetSectionId}, "order" = ${targetMaxOrder + 10}
+            WHERE question_id = ANY(${allIds}::uuid[]) 
+            AND section_id = ${sectionId}
+        `;
+
+        // Also update base question section_id for backward compatibility
         const result = await sql`
             UPDATE questions 
             SET 

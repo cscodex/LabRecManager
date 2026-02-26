@@ -66,9 +66,10 @@ export async function GET(req: NextRequest) {
                     ) as tags,
                     (
                         SELECT COUNT(DISTINCT e2.id)
-                        FROM sections s2
+                        FROM section_questions sq2
+                        JOIN sections s2 ON sq2.section_id = s2.id
                         JOIN exams e2 ON s2.exam_id = e2.id
-                        WHERE s2.id = q.section_id
+                        WHERE sq2.question_id = q.id
                     ) as usage_count
                 FROM questions q
                 LEFT JOIN sections s ON q.section_id = s.id
@@ -96,9 +97,10 @@ export async function GET(req: NextRequest) {
                     ) as tags,
                     (
                         SELECT COUNT(DISTINCT e2.id)
-                        FROM sections s2
+                        FROM section_questions sq2
+                        JOIN sections s2 ON sq2.section_id = s2.id
                         JOIN exams e2 ON s2.exam_id = e2.id
-                        WHERE s2.id = q.section_id
+                        WHERE sq2.question_id = q.id
                     ) as usage_count
                 FROM questions q
                 LEFT JOIN sections s ON q.section_id = s.id
@@ -119,7 +121,7 @@ export async function GET(req: NextRequest) {
                 COUNT(*) as total_questions,
                 COUNT(CASE WHEN q.correct_answer IS NOT NULL AND q.correct_answer::text != '[]' AND q.correct_answer::text != 'null' THEN 1 END) as with_answers,
                 COUNT(CASE WHEN q.explanation IS NOT NULL AND q.explanation::text != 'null' AND q.explanation::text != '{}' THEN 1 END) as with_explanations,
-                COUNT(CASE WHEN q.section_id IS NOT NULL THEN 1 END) as used_in_exams
+                (SELECT COUNT(DISTINCT sq2.section_id) FROM section_questions sq2) as used_in_exams
             FROM questions q
             WHERE q.parent_id IS NULL
         `;
@@ -243,9 +245,22 @@ export async function POST(req: NextRequest) {
 
         const questionId = result[0].id;
 
-        // Insert Tags
+        // Insert Tags — handles both UUIDs and tag names (from AI extraction)
         if (tags && tags.length > 0) {
-            for (const tagId of tags) {
+            for (const tag of tags) {
+                let tagId = tag;
+                // Check if it's a UUID or a tag name
+                const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag);
+                if (!isUUID) {
+                    // Find or create tag by name
+                    const existing = await sql`SELECT id FROM tags WHERE LOWER(name) = LOWER(${tag}) LIMIT 1`;
+                    if (existing.length > 0) {
+                        tagId = existing[0].id;
+                    } else {
+                        const newTag = await sql`INSERT INTO tags (name) VALUES (${tag}) RETURNING id`;
+                        tagId = newTag[0].id;
+                    }
+                }
                 await sql`INSERT INTO question_tags (question_id, tag_id) VALUES (${questionId}, ${tagId}) ON CONFLICT DO NOTHING`;
             }
         }

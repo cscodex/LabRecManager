@@ -44,19 +44,31 @@ export async function POST(
             ) RETURNING id
         `;
 
+        // Also create junction entry for paragraph question
+        await sql`
+            INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+            VALUES (${sectionId}, ${paragraphQ.id}, 0, 0, ${nextOrder})
+        `;
+
         // 2. Create Sub-Questions
         const createdSubQuestions = [];
         for (let i = 0; i < subQuestions.length; i++) {
             const sq = subQuestions[i];
             const correctAnswerJson = JSON.stringify(sq.correctAnswer || []);
+            const subOrder = nextOrder + i + 1;
             const [createdSq] = await sql`
                 INSERT INTO questions (
                     type, text, options, correct_answer, explanation, marks, difficulty, negative_marks, "order", section_id, parent_id
                 ) VALUES (
                     ${sq.type}, ${JSON.stringify(sq.text)}, ${JSON.stringify(sq.options)}, 
                     ${correctAnswerJson}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
-                    ${sq.difficulty || 1}, ${sq.negativeMarks}, ${nextOrder + i + 1}, ${sectionId}, ${paragraphQ.id}
+                    ${sq.difficulty || 1}, ${sq.negativeMarks}, ${subOrder}, ${sectionId}, ${paragraphQ.id}
                 ) RETURNING id
+            `;
+            // Also create junction entry for sub-question
+            await sql`
+                INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+                VALUES (${sectionId}, ${createdSq.id}, ${sq.marks}, ${sq.negativeMarks || null}, ${subOrder})
             `;
             createdSubQuestions.push(createdSq);
         }

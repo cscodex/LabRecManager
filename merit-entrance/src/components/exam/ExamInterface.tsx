@@ -24,7 +24,7 @@ interface Question {
     id: string;
     type: string;
     text: Record<string, string>;
-    options: { id: string; text: Record<string, string> }[] | null;
+    options: { id: string; text: Record<string, string>; imageUrl?: string }[] | null;
     imageUrl?: string;
     order: number;
     sectionId: string;

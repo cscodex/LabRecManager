@@ -22,6 +22,8 @@ interface Section {
 interface Option {
     id: string;
     text: Record<string, string>;
+    image_url?: string;
+    imageUrl?: string;
 }
 
 interface Question {
@@ -96,14 +98,30 @@ export default function ExamAttemptPage() {
     // All answerable questions (excluding paragraphs) for counts
     const answerableQuestions = questions.filter(q => q.type !== 'paragraph');
 
-    // Helper to get parent paragraph text for a sub-question
+    // Helper to get paragraph text for a question — checks parent link AND own paragraph
     const getParentParagraphText = (question: Question | undefined) => {
-        if (!question?.parentId) return null;
-        const parent = questions.find(q => q.id === question.parentId);
-        return {
-            text: parent?.paragraphText || null,
-            title: parent?.paragraphTitle || null
-        };
+        if (!question) return null;
+
+        // Case 1: Question has its own paragraphText (linked directly via paragraph_id)
+        if (question.paragraphText) {
+            return {
+                text: question.paragraphText,
+                title: question.paragraphTitle || null
+            };
+        }
+
+        // Case 2: Question has parentId → look up parent's paragraphText
+        if (question.parentId) {
+            const parent = questions.find(q => q.id === question.parentId);
+            if (parent?.paragraphText) {
+                return {
+                    text: parent.paragraphText,
+                    title: parent.paragraphTitle || null
+                };
+            }
+        }
+
+        return null;
     };
 
     useEffect(() => {
@@ -880,6 +898,9 @@ export default function ExamAttemptPage() {
                                                         </span>
                                                         <span className="flex-1 text-gray-800">
                                                             <MathText text={getText(option.text, language)} />
+                                                            {(option.image_url || option.imageUrl) && (
+                                                                <img src={option.image_url || option.imageUrl} alt="" className="mt-2 max-w-[180px] max-h-[100px] object-contain rounded border" />
+                                                            )}
                                                         </span>
                                                     </button>
                                                 );

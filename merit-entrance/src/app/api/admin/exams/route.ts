@@ -26,7 +26,7 @@ export async function GET() {
         e.type,
         a.name as created_by_name,
         (SELECT COUNT(*) FROM sections WHERE exam_id = e.id) as section_count,
-        (SELECT COUNT(*) FROM questions q JOIN sections s ON q.section_id = s.id WHERE s.exam_id = e.id) as question_count,
+        (SELECT COUNT(*) FROM section_questions sq JOIN sections s ON sq.section_id = s.id WHERE s.exam_id = e.id) as question_count,
         (SELECT COUNT(*) FROM exam_assignments WHERE exam_id = e.id) as assigned_count
       FROM exams e
       LEFT JOIN admins a ON e.created_by = a.id

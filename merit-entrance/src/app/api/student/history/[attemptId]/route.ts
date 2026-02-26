@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
                 q.id as question_id,
                 q.text,
                 q.type,
-                q.marks,
+                sq.marks,
                 q.options,
                 q.correct_answer,
                 q.explanation,
@@ -72,14 +72,15 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
                 p.id as passage_id,
                 parent_q.text as parent_text,
                 COALESCE(qta.tags, '[]'::json) as tags
-            FROM questions q
-            JOIN sections s ON q.section_id = s.id
+            FROM section_questions sq
+            JOIN questions q ON q.id = sq.question_id
+            JOIN sections s ON sq.section_id = s.id
             LEFT JOIN paragraphs p ON q.paragraph_id = p.id
             LEFT JOIN questions parent_q ON q.parent_id = parent_q.id AND parent_q.type = 'paragraph'
             LEFT JOIN question_responses qr ON qr.question_id = q.id AND qr.attempt_id = ${attemptId}
             LEFT JOIN question_tags_agg qta ON q.id = qta.question_id
             WHERE s.exam_id = ${attempt[0].exam_id} AND q.type != 'paragraph'
-            ORDER BY s."order" ASC, q."order" ASC
+            ORDER BY s."order" ASC, sq."order" ASC
         `;
 
         const formattedQuestions = fullDetails.map((q) => ({
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest, { params }: { params: { attemptI
             text: q.text,
             type: q.type,
             marks: q.marks,
-            options: q.options,
+            options: q.options ? (Array.isArray(q.options) ? q.options : (typeof q.options === 'string' ? JSON.parse(q.options) : q.options)).map((o: any) => ({ ...o, imageUrl: o.image_url || o.imageUrl })) : null,
             correctAnswer: q.correct_answer,
             explanation: q.explanation,
             imageUrl: q.image_url,

@@ -18,7 +18,11 @@ export async function GET(
 
         const questions = await sql`
       SELECT 
-        q.*, 
+        q.*,
+        sq.marks as sq_marks,
+        sq.negative_marks as sq_negative_marks,
+        sq."order" as sq_order,
+        sq.id as sq_id,
         p.content as paragraph_text,
         COALESCE(
           (
@@ -29,10 +33,11 @@ export async function GET(
           ), 
           '[]'::jsonb
         ) as tags
-      FROM questions q
+      FROM section_questions sq
+      JOIN questions q ON q.id = sq.question_id
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
-      WHERE q.section_id = ${sectionId}
-      ORDER BY q."order"
+      WHERE sq.section_id = ${sectionId}
+      ORDER BY sq."order"
     `;
 
         const safeParse = (val: any) => {
@@ -56,6 +61,10 @@ export async function GET(
             success: true,
             questions: questions.map(q => ({
                 ...q,
+                // Override marks/negative_marks/order with junction table values
+                marks: q.sq_marks ?? q.marks,
+                negative_marks: q.sq_negative_marks ?? q.negative_marks,
+                order: q.sq_order ?? q.order,
                 text: safeParse(q.text),
                 options: q.options ? safeParse(q.options) : null,
                 correct_answer: safeParse(q.correct_answer),
@@ -134,6 +143,12 @@ export async function POST(
     `;
 
         const questionId = result[0].id;
+
+        // Also create the junction table association
+        await sql`
+          INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+          VALUES (${sectionId}, ${questionId}, ${marks || 1}, ${negativeMarks || null}, ${order || 1})
+        `;
 
         // Insert tags if present (Multi-tag)
         // Tags can be UUIDs (from tag picker) or name strings (from AI extraction)

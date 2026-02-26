@@ -24,10 +24,13 @@ export async function PUT(
             );
         }
 
-        // Execute updates concurrently
+        // Execute updates concurrently (both base question and junction table)
         await Promise.all(
             items.map((item: { id: string; order: number }) =>
-                sql`UPDATE questions SET "order" = ${item.order} WHERE id = ${item.id}`
+                Promise.all([
+                    sql`UPDATE questions SET "order" = ${item.order} WHERE id = ${item.id}`,
+                    sql`UPDATE section_questions SET "order" = ${item.order} WHERE question_id = ${item.id} AND section_id = ${params.sectionId}`
+                ])
             )
         );
 

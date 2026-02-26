@@ -250,14 +250,25 @@ export async function POST(req: NextRequest) {
             -   Map this to one of the following codes: 'JEE_MAIN', 'JEE_ADV', 'NEET', 'UPSC_CSE', 'GATE', 'CAT', 'SOE', 'OTHER'.
             -   Return this single string value in the \`examType\` field.
 
-            **ANSWERING METHODOLOGY (CRITICAL)**:
-            -   For EVERY question, you MUST **solve the question first** by working through the solution step-by-step in your reasoning.
-            -   Only AFTER you have derived the solution should you mark the correct answer.
-            -   For MCQs: Solve the problem, arrive at the answer, THEN match it to the correct option letter.
-            -   For Fill in the Blanks: Solve/recall the answer, THEN fill it in.
-            -   For Short/Long Answer: Generate a complete model answer with logical steps.
-            -   This ensures answers are accurate and based on actual problem solving, NOT guessing from option patterns.
-            -   Put the step-by-step solution in the \`explanation\` field.
+            **ANSWERING METHODOLOGY (CRITICAL — READ CAREFULLY)**:
+            -   For EVERY MCQ question, you MUST follow this EXACT 3-step process:
+            
+            **STEP 1 — SOLVE**: Work through the problem step-by-step. Derive the numerical answer, concept, or conclusion FIRST. Write this in the \`explanation\` field.
+            
+            **STEP 2 — MATCH**: After solving, RE-READ EVERY option (A, B, C, D) carefully. Find which option matches your derived answer. This is CRITICAL — do NOT skip this step.
+            
+            **STEP 3 — VERIFY**: Double-check that the option you selected actually matches your solution. If your answer is "24" and option C says "24", then correctAnswer = "C" (NOT "24").
+            
+            **COMMON MISTAKES TO AVOID**:
+            -   ❌ DO NOT put the answer value in correctAnswer (e.g., "24", "True", "Newton's law")
+            -   ❌ DO NOT put the full option text in correctAnswer (e.g., "A) 24 units")
+            -   ❌ DO NOT guess the answer from option patterns — SOLVE FIRST
+            -   ✅ DO put ONLY the option LETTER in correctAnswer (e.g., "A", "B", "C", "D")
+            -   ✅ DO put the step-by-step solution in the \`explanation\` field
+            -   ✅ DO verify your selected option matches your derived answer
+            
+            For Fill in the Blanks: Solve/recall the answer, THEN put the exact answer text in \`correctAnswer\`.
+            For Short/Long Answer: Generate a complete model answer. Put this in the \`answer\` field (NOT correctAnswer).
 
             **QUESTION EXTRACTION RULES**:
             1.  **Multiple Choice Questions (MCQ)**:
@@ -279,9 +290,12 @@ export async function POST(req: NextRequest) {
             **FIELDS TO EXTRACT PER QUESTION**:
             -   **text**: The full question text. Preserve formatting.
             -   **type**: "mcq" (includes True/False), "fill_blank", "short_answer", "long_answer".
-            -   **options**: Array of strings (e.g. ["A) ...", "B) ..."] or ["True", "False"]).
-            -   **correctAnswer**: ONLY for MCQ and fill_blank types. The correct option letter (e.g., "A") or the blank's answer text. Leave empty/null for short_answer and long_answer.
-            -   **answer**: ONLY for short_answer and long_answer types. A concise model answer or key points for grading. Leave empty/null for MCQ and fill_blank.
+            -   **options**: Array of strings. Each option MUST start with its letter prefix: ["A) ...", "B) ...", "C) ...", "D) ..."].
+            -   **correctAnswer**: 
+                -   For MCQ: MUST be ONLY the option LETTER ("A", "B", "C", or "D"). NOT the option text, NOT the answer value.
+                -   For fill_blank: The exact answer text.
+                -   For short/long answer: Leave null.
+            -   **answer**: ONLY for short_answer and long_answer types. A concise model answer for grading. Leave null for MCQ and fill_blank.
             -   **explanation**: Detailed step-by-step explanation of how to arrive at the answer.
             -   **marks**: 
                 -   Extract explicit marks if available (e.g., "[2]", "(3 marks)").
@@ -341,10 +355,10 @@ export async function POST(req: NextRequest) {
                     {
                       "type": "mcq" | "fill_blank" | "short_answer" | "long_answer",
                       "text": "Question text...",
-                      "options": ["A) ...", "B) ..."], 
-                      "correctAnswer": "A (MCQ/fill_blank only, null for short/long)",
-                      "answer": "Model answer text (short/long answer only, null for MCQ/fill)",
-                      "explanation": "Step-by-step solution...",
+                      "options": ["A) First option", "B) Second option", "C) Third option", "D) Fourth option"], 
+                      "correctAnswer": "B",
+                      "answer": null,
+                      "explanation": "Step 1: ... Step 2: ... Therefore the answer is 42, which matches option B.",
                       "marks": 1,
                       "tags": ["Topic", "Subtopic"],
                       "paragraphId": "p1",

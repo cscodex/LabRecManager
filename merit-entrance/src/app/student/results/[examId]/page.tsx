@@ -39,7 +39,7 @@ interface ExamResult {
         sectionId: string;
         type: string;
         text: Record<string, string>;
-        options: { id: string; text: Record<string, string> }[] | null;
+        options: { id: string; text: Record<string, string>; image_url?: string; imageUrl?: string }[] | null;
         correctAnswer: string[];
         explanation: Record<string, string> | null;
         marks: number;
@@ -380,6 +380,9 @@ export default function ResultsPage() {
                                                                                     </span>
                                                                                     <span className="flex-1 text-gray-700">
                                                                                         <MathText text={getText(opt.text, language)} />
+                                                                                        {(opt.image_url || opt.imageUrl) && (
+                                                                                            <img src={opt.image_url || opt.imageUrl} alt="" className="mt-1 max-w-[150px] max-h-[80px] object-contain rounded border" />
+                                                                                        )}
                                                                                     </span>
                                                                                     {isCorrect && <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />}
                                                                                     {wasSelected && !isCorrect && <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}

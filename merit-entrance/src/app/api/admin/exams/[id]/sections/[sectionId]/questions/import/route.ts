@@ -100,7 +100,6 @@ export async function POST(
                         )
                     `;
 
-                    // Create paragraph question
                     await sql`
                         INSERT INTO questions (
                             id, section_id, type, text, paragraph_id, options, correct_answer, 
@@ -118,6 +117,12 @@ export async function POST(
                             ${0},
                             ${currentOrder}
                         )
+                    `;
+
+                    // Also create junction entry
+                    await sql`
+                        INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+                        VALUES (${sectionId}, ${questionId}, ${0}, ${0}, ${currentOrder})
                     `;
 
                     // Handle Tags for Paragraph
@@ -259,6 +264,12 @@ export async function POST(
                         ${currentOrder},
                         ${parentId}
                     )
+                `;
+
+                // Also create junction entry
+                await sql`
+                    INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+                    VALUES (${sectionId}, ${questionId}, ${q.marks || 1}, ${q.negativeMarks || 0}, ${currentOrder})
                 `;
 
                 // Handle Tags

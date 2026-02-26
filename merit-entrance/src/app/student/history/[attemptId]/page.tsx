@@ -301,6 +301,9 @@ export default function DetailedResultPage({ params }: { params: { attemptId: st
                                                                 <span className="flex-1">
                                                                     {isObject && <span className="font-semibold mr-2">{optId.toUpperCase()}.</span>}
                                                                     {optText}
+                                                                    {isObject && (opt.image_url || opt.imageUrl) && (
+                                                                        <img src={opt.image_url || opt.imageUrl} alt="" className="mt-1 max-w-[150px] max-h-[80px] object-contain rounded border" />
+                                                                    )}
                                                                 </span>
                                                                 {isAnswer && <span className="ml-auto text-[10px] font-bold text-green-600 uppercase tracking-wider">Correct</span>}
                                                                 {isSelected && !isAnswer && <span className="ml-auto text-[10px] font-bold text-red-600 uppercase tracking-wider">You</span>}

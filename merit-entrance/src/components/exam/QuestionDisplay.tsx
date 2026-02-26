@@ -7,6 +7,7 @@ import { useAuthStore, useExamStore } from '@/lib/store';
 interface Option {
     id: string;
     text: Record<string, string>;
+    imageUrl?: string;
 }
 
 interface QuestionDisplayProps {
@@ -218,11 +219,20 @@ export default function QuestionDisplay({ question, totalQuestions, parentParagr
                                 </span>
 
                                 {/* Option Text */}
-                                <MathText
-                                    className={cn("flex-1 text-gray-700", language === 'pa' && "text-lg")}
-                                    text={getText(option.text, language)}
-                                    inline
-                                />
+                                <div className="flex-1">
+                                    <MathText
+                                        className={cn("text-gray-700", language === 'pa' && "text-lg")}
+                                        text={getText(option.text, language)}
+                                        inline
+                                    />
+                                    {option.imageUrl && (
+                                        <img
+                                            src={option.imageUrl}
+                                            alt={`Option ${optionLabel}`}
+                                            className="mt-2 max-w-[200px] max-h-[120px] object-contain rounded border"
+                                        />
+                                    )}
+                                </div>
 
                                 {/* Radio/Checkbox indicator */}
                                 {question.type === 'mcq_single' ? (

@@ -187,26 +187,27 @@ export async function GET(
       ORDER BY "order"
     `;
 
-        // Get questions for all sections
+        // Get questions for all sections (via section_questions junction)
         const questions = await sql`
       SELECT 
         q.id,
-        q.section_id,
+        sq.section_id,
         q.type,
         q.text,
         q.options,
-        q.marks,
-        q.negative_marks,
+        sq.marks,
+        sq.negative_marks,
         q.image_url,
-        q."order",
+        sq."order",
         p.content as paragraph_text,
         p.text as paragraph_title,
         q.parent_id
-      FROM questions q
-      JOIN sections s ON q.section_id = s.id
+      FROM section_questions sq
+      JOIN questions q ON q.id = sq.question_id
+      JOIN sections s ON sq.section_id = s.id
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
       WHERE s.exam_id = ${examId}
-      ORDER BY s."order", q."order"
+      ORDER BY s."order", sq."order"
     `;
 
         // Get existing responses
@@ -252,7 +253,7 @@ export async function GET(
                 sectionId: q.section_id,
                 type: q.type,
                 text: typeof q.text === 'string' ? JSON.parse(q.text) : q.text,
-                options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : null,
+                options: q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options).map((o: any) => ({ ...o, imageUrl: o.image_url || o.imageUrl })) : null,
                 marks: q.marks,
                 negativeMarks: q.negative_marks,
                 imageUrl: q.image_url,

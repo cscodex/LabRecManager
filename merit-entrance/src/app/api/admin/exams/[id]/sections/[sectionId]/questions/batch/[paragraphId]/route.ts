@@ -61,11 +61,10 @@ export async function PUT(
 
         const idsToDelete = existingIds.filter(id => !receivedIds.includes(id));
 
-        // Delete removed sub-questions
+        // Delete removed sub-questions (from junction and base table)
         if (idsToDelete.length > 0) {
-            await sql`
-                DELETE FROM questions WHERE id = ANY(${idsToDelete})
-            `;
+            await sql`DELETE FROM section_questions WHERE question_id = ANY(${idsToDelete})`;
+            await sql`DELETE FROM questions WHERE id = ANY(${idsToDelete})`;
         }
 
         // Get paragraph order for sequencing
@@ -76,6 +75,7 @@ export async function PUT(
         for (let i = 0; i < subQuestions.length; i++) {
             const sq = subQuestions[i];
             const correctAnswerJson = JSON.stringify(sq.correctAnswer || []);
+            const subOrder = paraOrder + i + 1;
             if (sq.id) {
                 // Update existing
                 await sql`
@@ -87,19 +87,29 @@ export async function PUT(
                         explanation = ${JSON.stringify(sq.explanation)},
                         marks = ${sq.marks},
                         negative_marks = ${sq.negativeMarks},
-                        "order" = ${paraOrder + i + 1}
+                        "order" = ${subOrder}
                     WHERE id = ${sq.id}
+                `;
+                // Also update junction
+                await sql`
+                    UPDATE section_questions SET marks = ${sq.marks}, negative_marks = ${sq.negativeMarks}, "order" = ${subOrder}
+                    WHERE question_id = ${sq.id} AND section_id = ${sectionId}
                 `;
             } else {
                 // Create new
-                await sql`
+                const [created] = await sql`
                     INSERT INTO questions (
                         type, text, options, correct_answer, explanation, marks, negative_marks, "order", section_id, parent_id
                     ) VALUES (
                         ${sq.type}, ${JSON.stringify(sq.text)}, ${JSON.stringify(sq.options)}, 
                         ${correctAnswerJson}, ${JSON.stringify(sq.explanation)}, ${sq.marks}, 
-                        ${sq.negativeMarks}, ${paraOrder + i + 1}, ${sectionId}, ${parentId}
-                    )
+                        ${sq.negativeMarks}, ${subOrder}, ${sectionId}, ${parentId}
+                    ) RETURNING id
+                `;
+                // Also create junction entry
+                await sql`
+                    INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+                    VALUES (${sectionId}, ${created.id}, ${sq.marks}, ${sq.negativeMarks || null}, ${subOrder})
                 `;
             }
         }

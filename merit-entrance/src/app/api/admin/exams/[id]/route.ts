@@ -24,8 +24,9 @@ export async function GET(
         a.name as created_by_name,
         (
             SELECT COALESCE(AVG(q.difficulty), 1.0)
-            FROM questions q
-            JOIN sections s ON q.section_id = s.id
+            FROM section_questions sq
+            JOIN sections s ON sq.section_id = s.id
+            JOIN questions q ON sq.question_id = q.id
             WHERE s.exam_id = e.id
         ) as avg_difficulty
       FROM exams e
@@ -44,12 +45,13 @@ export async function GET(
         s.name,
         s."order",
         s.duration,
-        (SELECT COUNT(*) FROM questions WHERE section_id = s.id) as question_count,
-        (SELECT COALESCE(SUM(marks), 0) FROM questions WHERE section_id = s.id) as section_marks,
+        (SELECT COUNT(*) FROM section_questions WHERE section_id = s.id) as question_count,
+        (SELECT COALESCE(SUM(sq.marks), 0) FROM section_questions sq WHERE sq.section_id = s.id) as section_marks,
         (
-            SELECT COALESCE(AVG(difficulty), 1.0) 
-            FROM questions 
-            WHERE section_id = s.id
+            SELECT COALESCE(AVG(q.difficulty), 1.0) 
+            FROM section_questions sq
+            JOIN questions q ON sq.question_id = q.id
+            WHERE sq.section_id = s.id
         ) as avg_difficulty
       FROM sections s
       WHERE s.exam_id = ${id}

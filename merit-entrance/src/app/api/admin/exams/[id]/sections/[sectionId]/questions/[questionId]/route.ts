@@ -68,8 +68,17 @@ export async function PUT(
         "order" = ${order || 1},
         parent_id = ${parentId || null},
         paragraph_id = ${paragraphId}
-      WHERE id = ${questionId} AND section_id = ${sectionId}
+      WHERE id = ${questionId}
     `;
+
+        // Also update the junction table for section-specific marks/order
+        await sql`
+          UPDATE section_questions SET
+            marks = ${marks || 1},
+            negative_marks = ${negativeMarks || null},
+            "order" = ${order || 1}
+          WHERE section_id = ${sectionId} AND question_id = ${questionId}
+        `;
 
         // Update tags (Multi-tag)
         // Tags can be UUIDs (from tag picker) or name strings (from AI extraction)
@@ -188,15 +197,19 @@ export async function DELETE(
         // DELINK: Remove question from section without deleting from database
         // This keeps the question in the question bank for future use
 
-        // 1. Delink children (sub-questions) if this is a paragraph parent
+        // 1. Remove children junction links if this is a paragraph parent
         const children = await sql`SELECT id FROM questions WHERE parent_id = ${questionId}`;
         if (children.length > 0) {
             for (const child of children) {
+                await sql`DELETE FROM section_questions WHERE question_id = ${child.id} AND section_id = ${sectionId}`;
                 await sql`UPDATE questions SET section_id = NULL WHERE id = ${child.id}`;
             }
         }
 
-        // 2. Delink the question itself (set section_id to NULL)
+        // 2. Remove the junction link
+        await sql`DELETE FROM section_questions WHERE question_id = ${questionId} AND section_id = ${sectionId}`;
+
+        // 3. Also set section_id to NULL on the base question for backward compatibility
         await sql`UPDATE questions SET section_id = NULL WHERE id = ${questionId} AND section_id = ${sectionId}`;
 
         return NextResponse.json({ success: true });

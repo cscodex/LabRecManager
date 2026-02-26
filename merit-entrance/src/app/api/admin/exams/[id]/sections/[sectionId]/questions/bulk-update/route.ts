@@ -29,19 +29,14 @@ export async function PATCH(
         let updated = 0;
 
         for (const qId of questionIds) {
-            const setClauses: string[] = [];
             if (marks !== undefined) {
-                await sql`
-                    UPDATE questions SET marks = ${marks}
-                    WHERE id = ${qId} AND section_id = ${sectionId}
-                `;
+                await sql`UPDATE questions SET marks = ${marks} WHERE id = ${qId}`;
+                await sql`UPDATE section_questions SET marks = ${marks} WHERE question_id = ${qId} AND section_id = ${sectionId}`;
                 updated++;
             }
             if (negativeMarks !== undefined) {
-                await sql`
-                    UPDATE questions SET negative_marks = ${negativeMarks}
-                    WHERE id = ${qId} AND section_id = ${sectionId}
-                `;
+                await sql`UPDATE questions SET negative_marks = ${negativeMarks} WHERE id = ${qId}`;
+                await sql`UPDATE section_questions SET negative_marks = ${negativeMarks} WHERE question_id = ${qId} AND section_id = ${sectionId}`;
             }
         }
 

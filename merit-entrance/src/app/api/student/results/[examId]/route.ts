@@ -55,30 +55,31 @@ export async function GET(
       ORDER BY "order"
     `;
 
-        // Get questions with responses
+        // Get questions with responses (via section_questions junction)
         const questions = await sql`
       SELECT 
         q.id,
-        q.section_id,
+        sq.section_id,
         q.type,
         q.text,
         q.options,
         q.correct_answer,
         q.explanation,
-        q.marks,
-        q."order",
+        sq.marks,
+        sq."order",
         p.content as paragraph_text,
         q.parent_id,
         qr.answer as student_answer,
         qr.is_correct,
         qr.marks_awarded,
         qr.ai_feedback
-      FROM questions q
-      JOIN sections s ON q.section_id = s.id
+      FROM section_questions sq
+      JOIN questions q ON q.id = sq.question_id
+      JOIN sections s ON sq.section_id = s.id
       LEFT JOIN paragraphs p ON q.paragraph_id = p.id
       LEFT JOIN question_responses qr ON qr.question_id = q.id AND qr.attempt_id = ${attempt.id}
       WHERE s.exam_id = ${examId}
-      ORDER BY s."order", q."order"
+      ORDER BY s."order", sq."order"
     `;
 
         // Calculate stats (exclude paragraph type as they are not answerable)

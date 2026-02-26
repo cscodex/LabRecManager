@@ -33,8 +33,14 @@ export async function POST(
         // Combine original IDs and child IDs (deduplicate)
         const allIds = Array.from(new Set([...questionIds, ...childIds]));
 
-        // 2. DELINK: Set section_id to NULL instead of deleting
-        // This keeps the questions in the database for future use in the question bank
+        // 2. DELINK: Remove from section_questions junction
+        await sql`
+            DELETE FROM section_questions
+            WHERE question_id = ANY(${allIds}::uuid[]) 
+            AND section_id = ${sectionId}
+        `;
+
+        // Also set section_id to NULL on base question for backward compatibility
         const result = await sql`
             UPDATE questions 
             SET section_id = NULL

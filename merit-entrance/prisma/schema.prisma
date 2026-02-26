@@ -115,6 +115,7 @@ model Section {
   
   exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
   questions Question[]
+  sectionQuestions SectionQuestion[]
   
   @@map("sections")
 }
@@ -141,6 +142,7 @@ model Question {
   subQuestions  Question[] @relation("QuestionToQuestion")
   responses QuestionResponse[]
   tags      QuestionTag[]
+  sectionQuestions SectionQuestion[]
   
   @@map("questions")
 }
@@ -163,6 +165,22 @@ model QuestionTag {
 
   @@id([questionId, tagId])
   @@map("question_tags")
+}
+
+model SectionQuestion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId     String   @map("section_id") @db.Uuid
+  questionId    String   @map("question_id") @db.Uuid
+  marks         Int      @default(1)
+  negativeMarks Decimal? @map("negative_marks") @db.Decimal(3,2)
+  order         Int
+
+  section       Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  question      Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+  @@index([questionId])
+  @@map("section_questions")
 }
 
 model Paragraph {

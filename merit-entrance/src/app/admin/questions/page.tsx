@@ -778,7 +778,10 @@ export default function QuestionsBankPage() {
                                                 return (
                                                     <div key={opt.id} className={`flex items-center gap-2 p-2 rounded border ${isC ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
                                                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${isC ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{opt.id?.toUpperCase()}</span>
-                                                        <span className="text-sm"><MathText text={getText(opt.text, language)} inline /></span>
+                                                        <div className="flex-1">
+                                                            <span className="text-sm"><MathText text={getText(opt.text, language)} inline /></span>
+                                                            {(opt.image_url || opt.imageUrl) && <img src={opt.image_url || opt.imageUrl} alt="" className="mt-1 h-10 w-auto rounded border" />}
+                                                        </div>
                                                         {isC && <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />}
                                                     </div>
                                                 );

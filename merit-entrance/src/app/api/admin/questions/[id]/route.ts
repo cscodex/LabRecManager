@@ -144,7 +144,18 @@ export async function PUT(
         await sql`DELETE FROM question_tags WHERE question_id = ${id}`;
 
         if (tags && tags.length > 0) {
-            for (const tagId of tags) {
+            for (const tag of tags) {
+                let tagId = tag;
+                const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tag);
+                if (!isUUID) {
+                    const existing = await sql`SELECT id FROM tags WHERE LOWER(name) = LOWER(${tag}) LIMIT 1`;
+                    if (existing.length > 0) {
+                        tagId = existing[0].id;
+                    } else {
+                        const newTag = await sql`INSERT INTO tags (name) VALUES (${tag}) RETURNING id`;
+                        tagId = newTag[0].id;
+                    }
+                }
                 await sql`INSERT INTO question_tags (question_id, tag_id) VALUES (${id}, ${tagId}) ON CONFLICT DO NOTHING`;
             }
         }

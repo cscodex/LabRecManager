@@ -56,11 +56,12 @@ export async function POST(
         const examData = await sql`SELECT grading_instructions FROM exams WHERE id = ${examId}`;
         const gradingInstructions = examData[0]?.grading_instructions;
 
-        // Get all questions and their correct answers
+        // Get all questions and their correct answers (via section_questions junction)
         const questions = await sql`
-      SELECT q.id, q.type, q.text, q.correct_answer, q.marks, q.negative_marks, q.explanation
-      FROM questions q
-      JOIN sections s ON q.section_id = s.id
+      SELECT q.id, q.type, q.text, q.correct_answer, sq.marks, sq.negative_marks, q.explanation
+      FROM section_questions sq
+      JOIN questions q ON q.id = sq.question_id
+      JOIN sections s ON sq.section_id = s.id
       WHERE s.exam_id = ${examId}
     `;
 
