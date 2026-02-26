@@ -5,15 +5,15 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import {
     Plus, X, Trash2, CheckCircle, Save, FileText,
-    Image as ImageIcon, Upload, Hash, AlertCircle
+    Image as ImageIcon, Upload, Hash, AlertCircle, Sparkles, Zap, Loader2, Crop
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Image from 'next/image';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import 'react-quill-new/dist/quill.snow.css';
 import RichTextEditor from '@/components/RichTextEditor';
 import AIExtractionModal from './AIExtractionModal';
+import ImageCropper from './ImageCropper';
 import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
 import { MathText } from '@/components/MathText';
 
@@ -121,6 +121,9 @@ export default function QuestionEditor({
     });
     const [uploading, setUploading] = useState(false);
     const [showAIModal, setShowAIModal] = useState(false);
+    const [imageQuality, setImageQuality] = useState<{ quality?: number; imageType?: string; enhanced?: boolean } | null>(null);
+    const [isEnhancing, setIsEnhancing] = useState(false);
+    const [isCropping, setIsCropping] = useState(false);
 
     // For Paragraph Mode
     const [isParaMode, setIsParaMode] = useState(initialData?.type === 'paragraph');
@@ -237,6 +240,85 @@ export default function QuestionEditor({
         }
 
         onSave(dataToSave);
+    };
+
+    // --- Image Enhancement ---
+    const handleEnhanceImage = async (aiRedraw: boolean = false) => {
+        if (!formData.imageUrl) return;
+        setIsEnhancing(true);
+        try {
+            // Fetch current image from Cloudinary and convert to base64
+            const imgFetch = await fetch(formData.imageUrl);
+            const blob = await imgFetch.blob();
+            const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+            });
+
+            const res = await fetch('/api/ai/extract-images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pageImages: [{ page: 1, base64 }],
+                    questions: [{ questionIndex: 0, imageBounds: { x: 0, y: 0, w: 1, h: 1 }, page: 1, questionText: formData.textEn || '' }],
+                    enhanceImages: true,
+                    forceEnhance: true,
+                    aiRedraw
+                })
+            });
+            const data = await res.json();
+            if (data.success && data.images && data.images[0]) {
+                setFormData(prev => ({ ...prev, imageUrl: data.images[0] }));
+                if (data.enhancement && data.enhancement[0]) {
+                    setImageQuality(data.enhancement[0]);
+                }
+                toast.success(data.enhancement?.[0]?.enhanced
+                    ? (aiRedraw ? '🎨 AI Redraw complete!' : '✅ Image cleaned up!')
+                    : 'Quality checked (original kept)');
+            } else {
+                toast.error('Enhancement failed');
+            }
+        } catch (err) {
+            console.error('Enhance error:', err);
+            toast.error('Enhancement failed');
+        } finally {
+            setIsEnhancing(false);
+        }
+    };
+
+    const getQualityColor = (q: number) => {
+        if (q >= 8) return 'bg-green-100 text-green-800 border-green-200';
+        if (q >= 5) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-red-100 text-red-800 border-red-200';
+    };
+
+    // --- Image Crop Handler ---
+    const handleCropApply = async (croppedBase64: string) => {
+        setIsCropping(false);
+        setIsEnhancing(true); // reuse spinner state
+        try {
+            // Upload cropped image to Cloudinary
+            const blob = await fetch(croppedBase64).then(r => r.blob());
+            const file = new File([blob], 'cropped.png', { type: 'image/png' });
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('folder', 'merit-entrance/question-images');
+            const res = await fetch('/api/upload', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.url) {
+                setFormData(prev => ({ ...prev, imageUrl: data.url }));
+                setImageQuality(null);
+                toast.success('Image cropped successfully!');
+            } else {
+                toast.error('Upload failed after crop');
+            }
+        } catch (err) {
+            console.error('Crop upload error:', err);
+            toast.error('Crop failed');
+        } finally {
+            setIsEnhancing(false);
+        }
     };
 
     // --- Paragraph Helpers ---
@@ -624,9 +706,73 @@ export default function QuestionEditor({
                         <div>
                             <label className="block text-sm font-medium mb-1">Image</label>
                             {formData.imageUrl && (
-                                <div className="relative w-full h-32 mb-2 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                                    <Image src={formData.imageUrl} alt="Question" layout="fill" objectFit="contain" />
-                                    <button onClick={() => setFormData({ ...formData, imageUrl: '' })} className="absolute top-1 right-1 bg-white p-1 rounded-full shadow"><X className="w-4 h-4" /></button>
+                                <div className="mb-2">
+                                    {isCropping ? (
+                                        <ImageCropper
+                                            imageUrl={formData.imageUrl}
+                                            onCrop={handleCropApply}
+                                            onCancel={() => setIsCropping(false)}
+                                        />
+                                    ) : (
+                                        <>
+                                            <div className="relative w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={formData.imageUrl} alt="Question" className="max-w-full max-h-full object-contain" />
+                                                <button onClick={() => { setFormData({ ...formData, imageUrl: '' }); setImageQuality(null); }} className="absolute top-1 right-1 bg-white p-1 rounded-full shadow z-10"><X className="w-4 h-4" /></button>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                {imageQuality && (
+                                                    <>
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getQualityColor(imageQuality.quality || 0)}`}>
+                                                            Quality: {imageQuality.quality}/10
+                                                        </span>
+                                                        {imageQuality.imageType && (
+                                                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
+                                                                {imageQuality.imageType.replace(/_/g, ' ')}
+                                                            </span>
+                                                        )}
+                                                        {imageQuality.enhanced && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 border border-violet-200 flex items-center gap-0.5">
+                                                                <Sparkles className="w-3 h-3" /> AI Enhanced
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                )}
+                                                <button
+                                                    onClick={() => setIsCropping(true)}
+                                                    disabled={isEnhancing}
+                                                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-all"
+                                                    title="Crop image from any side"
+                                                >
+                                                    <Crop className="w-3 h-3" /> Crop
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEnhanceImage(false)}
+                                                    disabled={isEnhancing}
+                                                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-gradient-to-r from-gray-700 to-gray-900 text-white hover:opacity-90 disabled:opacity-50 transition-all"
+                                                    title="Clean up: white background + sharpen (preserves text)"
+                                                >
+                                                    {isEnhancing ? (
+                                                        <><Loader2 className="w-3 h-3 animate-spin" /> Processing...</>
+                                                    ) : (
+                                                        <><Zap className="w-3 h-3" /> Clean Up</>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEnhanceImage(true)}
+                                                    disabled={isEnhancing}
+                                                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:opacity-90 disabled:opacity-50 transition-all"
+                                                    title="AI Redraw: regenerate diagram with AI (may change text)"
+                                                >
+                                                    {isEnhancing ? (
+                                                        <><Loader2 className="w-3 h-3 animate-spin" /> Processing...</>
+                                                    ) : (
+                                                        <><Sparkles className="w-3 h-3" /> AI Redraw</>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
                             <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">
@@ -768,7 +914,8 @@ export default function QuestionEditor({
                                         {/* Option Image Upload */}
                                         {opt.imageUrl && (
                                             <div className="relative w-full h-16 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
-                                                <Image src={opt.imageUrl} alt="" width={120} height={64} className="max-h-16 w-auto object-contain" />
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={opt.imageUrl} alt="" className="max-h-16 w-auto object-contain" />
                                                 <button
                                                     onClick={() => {
                                                         const newOpts = [...formData.options];
