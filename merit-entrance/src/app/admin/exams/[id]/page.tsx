@@ -150,6 +150,7 @@ export default function EditExamPage() {
         compactSpacing: false
     });
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
     // Refs for auto-save debouncing
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -772,62 +773,22 @@ export default function EditExamPage() {
     const handleImportQuestions = async (selectedIds: string[]) => {
         if (!activeSectionId) return;
         try {
-            // Need a batch import endpoint or loop. 
-            // The user wanted "API Support: Ensure backend supports copying questions"
-            // We can implement a simple loop client-side or better a new endpoint.
-            // Let's implement a loop reusing the POST endpoint for now, or if we have a COPY endpoint use that.
-            // Implementing a loop is safer without touching API code right now, though less efficient.
-            // Wait, copying from bank means creating a NEW connection or duplicating?
-            // Usually in this system, questions are linked to sections. If we "import", we probably want to COPY them so they are independent? 
-            // OR do we link them? "Question Bank" suggests a repository.
-            // The current DB schema has `section_id` in `questions`. So a question belongs to ONE section.
-            // So we MUST COPY (Clone) the question to import it into this section.
-
-            // To do this efficiently, I'd prefer an API `POST /api/admin/exams/.../questions/import` taking `sourceQuestionIds`.
-            // But I cannot easily change API right now without seeing it.
-            // I will implement client-side cloning loop for now. It fetches source Q, then POSTs as new Q.
-            // This is slow but works without backend changes.
-            // Actually, I can use the `handleQuestionSave` logic but I need source data.
-
-            // Allow `QuestionBankPicker` to just return IDs. I'll fetch them and then post them.
-            // Better: `QuestionBankPicker` is for "Import". I'll add `import-questions` endpoint later or just do it here.
-            // Given I need to finish this, I'll do a simple loop.
-
-            const promise = Promise.all(selectedIds.map(async (id) => {
-                // 1. Fetch source
-                const srcRes = await fetch(`/api/admin/questions/${id}`);
-                const srcData = await srcRes.json();
-                if (!srcData.success) return;
-                const q = srcData.question;
-
-                // 2. Post to section (cloning)
-                // Map to API body format
-                const body: any = {
-                    type: q.type,
-                    text: q.text,
-                    options: q.options,
-                    correctAnswer: q.correct_answer,
-                    explanation: q.explanation,
-                    marks: q.marks,
-                    negativeMarks: q.negative_marks,
-                    difficulty: q.difficulty,
-                    imageUrl: q.image_url,
-                    tags: q.tags?.map((t: any) => t.id) || [],
-                    paragraphText: q.paragraph_text,
-                    subQuestions: q.subQuestions
-                };
-
-                await fetch(`/api/admin/exams/${examId}/sections/${activeSectionId}/questions`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-            }));
+            // Use the new /link endpoint to associate existing bank questions
+            // with this section via section_questions junction (no cloning)
+            const promise = fetch(`/api/admin/exams/${examId}/sections/${activeSectionId}/questions/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ questionIds: selectedIds })
+            }).then(async (res) => {
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Link failed');
+                return data;
+            });
 
             await toast.promise(promise, {
-                loading: 'Importing questions...',
-                success: 'Questions imported!',
-                error: 'Failed to import some questions'
+                loading: 'Linking questions to section...',
+                success: (data: any) => `${data.linked} questions linked${data.skipped > 0 ? `, ${data.skipped} already existed` : ''}`,
+                error: 'Failed to link questions'
             });
 
             setShowPickerModal(false);
@@ -1812,6 +1773,7 @@ export default function EditExamPage() {
                                                                                             <div key={opt.id} className={`text-sm px-3 py-1.5 rounded border flex items-center gap-2 ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-100 text-gray-600'}`}>
                                                                                                 <span className="text-xs font-bold opacity-60">{String.fromCharCode(65 + i)}.</span>
                                                                                                 <span className="truncate"><MathText text={getText(opt.text, language)} inline /></span>
+                                                                                                {(opt.image_url || opt.imageUrl) && <img src={opt.image_url || opt.imageUrl} alt="" className="h-8 w-auto rounded object-contain" />}
                                                                                                 {isCorrect && <CheckSquare className="w-3 h-3 ml-auto text-green-600" />}
                                                                                             </div>
                                                                                         )
@@ -2174,95 +2136,136 @@ export default function EditExamPage() {
                 {/* Download PDF Settings Modal */}
                 {showDownloadPdfModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                        <div className="bg-white rounded-xl w-full max-w-md p-6">
+                        <div className={`bg-white rounded-xl ${pdfPreviewUrl ? 'w-full max-w-5xl h-[90vh]' : 'w-full max-w-md'} p-6 flex flex-col`}>
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold">Download Exam PDF</h3>
-                                <button onClick={() => setShowDownloadPdfModal(false)} className="text-gray-500 hover:bg-gray-100 p-2 rounded-lg">
+                                <h3 className="text-lg font-bold">
+                                    {pdfPreviewUrl ? 'PDF Preview' : 'Download Exam PDF'}
+                                </h3>
+                                <button onClick={() => { setShowDownloadPdfModal(false); setPdfPreviewUrl(null); }} className="text-gray-500 hover:bg-gray-100 p-2 rounded-lg">
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">School / Organization Name</label>
-                                    <input
-                                        type="text"
-                                        value={pdfSettings.schoolName}
-                                        onChange={e => setPdfSettings({ ...pdfSettings, schoolName: e.target.value })}
-                                        className="w-full border rounded-lg p-2"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Exam Name (Optional overrides original)</label>
-                                    <input
-                                        type="text"
-                                        value={pdfSettings.examNameOption}
-                                        onChange={e => setPdfSettings({ ...pdfSettings, examNameOption: e.target.value })}
-                                        placeholder={typeof exam?.title === 'string' ? exam?.title : exam?.title?.en || 'Exam Title'}
-                                        className="w-full border rounded-lg p-2"
-                                    />
-                                </div>
+                            {pdfPreviewUrl ? (
+                                <>
+                                    {/* Preview iframe */}
+                                    <div className="flex-1 border rounded-lg overflow-hidden mb-4">
+                                        <iframe
+                                            src={pdfPreviewUrl}
+                                            className="w-full h-full"
+                                            title="PDF Preview"
+                                        />
+                                    </div>
+                                    <div className="flex justify-between pt-4 border-t">
+                                        <button
+                                            onClick={() => setPdfPreviewUrl(null)}
+                                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" /> Back to Settings
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setIsDownloadingPdf(true);
+                                                const params = new URLSearchParams({
+                                                    schoolName: pdfSettings.schoolName,
+                                                    examNameOption: pdfSettings.examNameOption,
+                                                    showPageNumbers: pdfSettings.showPageNumbers.toString(),
+                                                    showDateTime: pdfSettings.showDateTime.toString(),
+                                                    compactSpacing: pdfSettings.compactSpacing.toString()
+                                                });
+                                                window.location.href = `/api/admin/exams/${examId}/pdf?${params.toString()}`;
+                                                setTimeout(() => {
+                                                    setIsDownloadingPdf(false);
+                                                    setShowDownloadPdfModal(false);
+                                                    setPdfPreviewUrl(null);
+                                                }, 3000);
+                                            }}
+                                            disabled={isDownloadingPdf}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                                        >
+                                            {isDownloadingPdf ? 'Generating...' : <><Download className="w-4 h-4" /> Download PDF</>}
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">School / Organization Name</label>
+                                            <input
+                                                type="text"
+                                                value={pdfSettings.schoolName}
+                                                onChange={e => setPdfSettings({ ...pdfSettings, schoolName: e.target.value })}
+                                                className="w-full border rounded-lg p-2"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Exam Name (Optional overrides original)</label>
+                                            <input
+                                                type="text"
+                                                value={pdfSettings.examNameOption}
+                                                onChange={e => setPdfSettings({ ...pdfSettings, examNameOption: e.target.value })}
+                                                placeholder={typeof exam?.title === 'string' ? exam?.title : exam?.title?.en || 'Exam Title'}
+                                                className="w-full border rounded-lg p-2"
+                                            />
+                                        </div>
 
-                                <div className="flex items-center justify-between pt-2">
-                                    <label className="text-sm font-medium text-gray-700">Compact Spacing Layout</label>
-                                    <input
-                                        type="checkbox"
-                                        className="w-4 h-4"
-                                        checked={pdfSettings.compactSpacing}
-                                        onChange={e => setPdfSettings({ ...pdfSettings, compactSpacing: e.target.checked })}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between pt-2">
-                                    <label className="text-sm font-medium text-gray-700">Show Page Numbers</label>
-                                    <input
-                                        type="checkbox"
-                                        className="w-4 h-4"
-                                        checked={pdfSettings.showPageNumbers}
-                                        onChange={e => setPdfSettings({ ...pdfSettings, showPageNumbers: e.target.checked })}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between pt-2">
-                                    <label className="text-sm font-medium text-gray-700">Show Date/Time in Footer</label>
-                                    <input
-                                        type="checkbox"
-                                        className="w-4 h-4"
-                                        checked={pdfSettings.showDateTime}
-                                        onChange={e => setPdfSettings({ ...pdfSettings, showDateTime: e.target.checked })}
-                                    />
-                                </div>
-                            </div>
+                                        <div className="flex items-center justify-between pt-2">
+                                            <label className="text-sm font-medium text-gray-700">Compact Spacing Layout</label>
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4"
+                                                checked={pdfSettings.compactSpacing}
+                                                onChange={e => setPdfSettings({ ...pdfSettings, compactSpacing: e.target.checked })}
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2">
+                                            <label className="text-sm font-medium text-gray-700">Show Page Numbers</label>
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4"
+                                                checked={pdfSettings.showPageNumbers}
+                                                onChange={e => setPdfSettings({ ...pdfSettings, showPageNumbers: e.target.checked })}
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2">
+                                            <label className="text-sm font-medium text-gray-700">Show Date/Time in Footer</label>
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4"
+                                                checked={pdfSettings.showDateTime}
+                                                onChange={e => setPdfSettings({ ...pdfSettings, showDateTime: e.target.checked })}
+                                            />
+                                        </div>
 
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                                <button
-                                    onClick={() => setShowDownloadPdfModal(false)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                                    disabled={isDownloadingPdf}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setIsDownloadingPdf(true);
-                                        const params = new URLSearchParams({
-                                            schoolName: pdfSettings.schoolName,
-                                            examNameOption: pdfSettings.examNameOption,
-                                            showPageNumbers: pdfSettings.showPageNumbers.toString(),
-                                            showDateTime: pdfSettings.showDateTime.toString(),
-                                            compactSpacing: pdfSettings.compactSpacing.toString()
-                                        });
-                                        // Trigger file download using window.location
-                                        window.location.href = `/api/admin/exams/${examId}/pdf?${params.toString()}`;
-                                        setTimeout(() => {
-                                            setIsDownloadingPdf(false);
-                                            setShowDownloadPdfModal(false);
-                                        }, 2000);
-                                    }}
-                                    disabled={isDownloadingPdf}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-                                >
-                                    {isDownloadingPdf ? 'Generating...' : <><Download className="w-4 h-4" /> Download PDF</>}
-                                </button>
-                            </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                                        <button
+                                            onClick={() => setShowDownloadPdfModal(false)}
+                                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const params = new URLSearchParams({
+                                                    schoolName: pdfSettings.schoolName,
+                                                    examNameOption: pdfSettings.examNameOption,
+                                                    showPageNumbers: pdfSettings.showPageNumbers.toString(),
+                                                    showDateTime: pdfSettings.showDateTime.toString(),
+                                                    compactSpacing: pdfSettings.compactSpacing.toString(),
+                                                    preview: 'true'
+                                                });
+                                                setPdfPreviewUrl(`/api/admin/exams/${examId}/pdf?${params.toString()}`);
+                                            }}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                                        >
+                                            <Eye className="w-4 h-4" /> Preview
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
