@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
             questions = await sql`
                 SELECT 
                     q.*, 
+                    p.content as paragraph_text,
                     s.name as section_name,
                     e.title as exam_title,
                     (
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
                         WHERE sq2.question_id = q.id
                     ) as usage_count
                 FROM questions q
+                LEFT JOIN paragraphs p ON q.paragraph_id = p.id
                 LEFT JOIN sections s ON q.section_id = s.id
                 LEFT JOIN exams e ON s.exam_id = e.id
                 JOIN question_tags qt_filter ON qt_filter.question_id = q.id AND qt_filter.tag_id = ${tagId}
@@ -87,6 +89,7 @@ export async function GET(req: NextRequest) {
             questions = await sql`
                 SELECT 
                     q.*, 
+                    p.content as paragraph_text,
                     s.name as section_name,
                     e.title as exam_title,
                     (
@@ -103,6 +106,7 @@ export async function GET(req: NextRequest) {
                         WHERE sq2.question_id = q.id
                     ) as usage_count
                 FROM questions q
+                LEFT JOIN paragraphs p ON q.paragraph_id = p.id
                 LEFT JOIN sections s ON q.section_id = s.id
                 LEFT JOIN exams e ON s.exam_id = e.id
                 WHERE 

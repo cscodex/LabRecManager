@@ -172,7 +172,7 @@ export async function POST(
                     // This handles NULL schedule_id properly
                     await sql`
                         UPDATE exam_assignments 
-                        SET max_attempts = ${maxAttempts}
+                        SET max_attempts = max_attempts + ${maxAttempts}
                         WHERE exam_id = ${params.id} AND student_id = ${studentId}
                     `;
 

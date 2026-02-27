@@ -124,6 +124,7 @@ export default function QuestionEditor({
     const [imageQuality, setImageQuality] = useState<{ quality?: number; imageType?: string; enhanced?: boolean } | null>(null);
     const [isEnhancing, setIsEnhancing] = useState(false);
     const [isCropping, setIsCropping] = useState(false);
+    const [aiInstruction, setAiInstruction] = useState('');
 
     // For Paragraph Mode
     const [isParaMode, setIsParaMode] = useState(initialData?.type === 'paragraph');
@@ -264,7 +265,8 @@ export default function QuestionEditor({
                     questions: [{ questionIndex: 0, imageBounds: { x: 0, y: 0, w: 1, h: 1 }, page: 1, questionText: formData.textEn || '' }],
                     enhanceImages: true,
                     forceEnhance: true,
-                    aiRedraw
+                    aiRedraw,
+                    customInstruction: aiInstruction || undefined
                 })
             });
             const data = await res.json();
@@ -770,6 +772,13 @@ export default function QuestionEditor({
                                                         <><Sparkles className="w-3 h-3" /> AI Redraw</>
                                                     )}
                                                 </button>
+                                                <input
+                                                    type="text"
+                                                    value={aiInstruction}
+                                                    onChange={e => setAiInstruction(e.target.value)}
+                                                    placeholder="Custom AI instructions (e.g. 'make lines thicker')..."
+                                                    className="flex-1 min-w-[150px] text-[10px] px-2 py-1 border rounded text-gray-600 placeholder-gray-400 focus:outline-none focus:border-blue-400"
+                                                />
                                             </div>
                                         </>
                                     )}

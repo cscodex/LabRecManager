@@ -45,7 +45,8 @@ async function enhanceImage(
     croppedBase64: string,
     questionText: string,
     forceEnhance: boolean = false,
-    aiRedraw: boolean = false
+    aiRedraw: boolean = false,
+    customInstruction: string = ''
 ): Promise<{ enhanced: boolean; base64: string; mimeType: string; quality?: number; imageType?: string }> {
 
     let analysis: any = null;
@@ -97,6 +98,8 @@ OUTPUT: JSON only, no markdown.
 
 TYPE: ${analysis?.type || 'diagram'}
 DESCRIPTION: ${analysis?.description || 'educational diagram'}
+${customInstruction ? `
+ADDITIONAL INSTRUCTIONS: ${customInstruction}` : ''}
 
 CRITICAL RULES:
 1. Background MUST be PURE WHITE (#FFFFFF). Remove any gray, yellow, or scanned paper texture.
@@ -189,8 +192,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Expect: { pageImages, questions, enhanceImages?, forceEnhance?, aiRedraw? }
-        const { pageImages, questions, enhanceImages: shouldEnhance = true, forceEnhance = false, aiRedraw = false } = await req.json();
+        // Expect: { pageImages, questions, enhanceImages?, forceEnhance?, aiRedraw?, customInstruction? }
+        const { pageImages, questions, enhanceImages: shouldEnhance = true, forceEnhance = false, aiRedraw = false, customInstruction = '' } = await req.json();
 
         if (!pageImages || !questions || questions.length === 0) {
             return NextResponse.json({ success: true, images: {} });
@@ -263,7 +266,7 @@ export async function POST(req: NextRequest) {
 
                 if (shouldEnhance) {
                     const questionText = (q as any).questionText || '';
-                    const result = await enhanceImage(croppedBase64, questionText, forceEnhance, aiRedraw);
+                    const result = await enhanceImage(croppedBase64, questionText, forceEnhance, aiRedraw, customInstruction);
                     uploadBase64 = result.base64;
                     uploadMimeType = result.mimeType;
                     enhanceReport[questionIndex] = { enhanced: result.enhanced, quality: result.quality, imageType: result.imageType };

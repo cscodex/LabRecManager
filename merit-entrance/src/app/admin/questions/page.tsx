@@ -82,6 +82,9 @@ export default function QuestionsBankPage() {
     // Global stats from API
     const [globalStats, setGlobalStats] = useState<any>({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0, difficultyDistribution: {}, typeDistribution: {} });
 
+    // Available paragraphs for linking
+    const [availableParagraphs, setAvailableParagraphs] = useState<{ id: string; textEn: string }[]>([]);
+
     // Debounce search
     const [debouncedSearch, setDebouncedSearch] = useState('');
     useEffect(() => {
@@ -95,6 +98,19 @@ export default function QuestionsBankPage() {
             const data = await res.json();
             if (data.success) setTags(data.tags);
         } catch (e) { console.error('Failed to load tags', e); }
+    };
+
+    const loadParagraphs = async () => {
+        try {
+            const res = await fetch('/api/admin/questions?type=paragraph&limit=99999');
+            const data = await res.json();
+            if (data.success) {
+                setAvailableParagraphs(data.questions.map((q: any) => ({
+                    id: q.id,
+                    textEn: typeof q.text === 'object' ? (q.text as any).en || '' : String(q.text || '')
+                })));
+            }
+        } catch (e) { console.error('Failed to load paragraphs', e); }
     };
 
     const loadQuestions = useCallback(async () => {
@@ -130,8 +146,8 @@ export default function QuestionsBankPage() {
 
     useEffect(() => {
         loadTags();
+        loadParagraphs();
     }, []);
-
     useEffect(() => {
         loadQuestions();
     }, [loadQuestions]);
@@ -673,6 +689,7 @@ export default function QuestionsBankPage() {
                         onSave={handleSave}
                         onCancel={() => setShowModal(false)}
                         isSaving={isSaving}
+                        availableParagraphs={availableParagraphs.filter(p => p.id !== editingQuestion?.id)}
                     />
                 </Modal>
 
