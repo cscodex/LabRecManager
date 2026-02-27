@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("MERIT_DATABASE_URL")
 }
 
 // ============ USERS ============
@@ -143,6 +144,8 @@ model Question {
   responses QuestionResponse[]
   tags      QuestionTag[]
   sectionQuestions SectionQuestion[]
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
   
   @@map("questions")
 }

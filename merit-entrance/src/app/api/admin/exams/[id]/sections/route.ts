@@ -28,10 +28,20 @@ export async function GET(
 
         return NextResponse.json({
             success: true,
-            sections: sections.map(s => ({
-                ...s,
-                name: typeof s.name === 'string' ? JSON.parse(s.name) : s.name,
-            })),
+            sections: sections.map(s => {
+                let parsedName = s.name;
+                if (typeof s.name === 'string') {
+                    try {
+                        parsedName = JSON.parse(s.name);
+                    } catch (e) {
+                        parsedName = { en: s.name };
+                    }
+                }
+                return {
+                    ...s,
+                    name: parsedName,
+                };
+            }),
         });
     } catch (error) {
         console.error('Error fetching sections:', error);

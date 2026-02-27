@@ -93,12 +93,18 @@ export async function POST(req: NextRequest) {
                     `;
                     const questionId = questionResult[0].id;
 
+                    // Also link it in section_questions!
+                    await sql`
+                        INSERT INTO section_questions (section_id, question_id, marks, negative_marks, "order")
+                        VALUES (${sectionId}, ${questionId}, ${parseFloat(q.marks) || 1}, 0, ${idx + 1})
+                    `;
+
                     // Insert Tags
                     if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
                         for (const tagName of q.tags) {
                             const cleanedTag = tagName.trim();
                             if (!cleanedTag) continue;
-                            await sql`INSERT INTO tags (name) VALUES (${cleanedTag}) ON CONFLICT (name) DO NOTHING`;
+                            await sql`INSERT INTO tags (name) VALUES (${cleanedTag}) ON CONFLICT(name) DO NOTHING`;
                             const tagRes = await sql`SELECT id FROM tags WHERE name = ${cleanedTag}`;
                             if (tagRes && tagRes.length > 0) {
                                 await sql`
@@ -112,8 +118,8 @@ export async function POST(req: NextRequest) {
 
                     insertedCount++;
                 } catch (qError: any) {
-                    console.error(`Failed to insert question ${idx + 1}:`, qError.message);
-                    errors.push(`Q${idx + 1}: ${qError.message}`);
+                    console.error(`Failed to insert question ${idx + 1}: `, qError.message);
+                    errors.push(`Q${idx + 1}: ${qError.message} `);
                 }
             }
 
@@ -132,7 +138,7 @@ export async function POST(req: NextRequest) {
 
             // Append instructions
             if (instructions && Array.isArray(instructions) && instructions.length > 0) {
-                const instructionsHtml = instructions.map((inst: string) => `<li>${inst}</li>`).join('');
+                const instructionsHtml = instructions.map((inst: string) => `< li > ${inst} </li>`).join('');
                 const instructionsContent = `<ul>${instructionsHtml}</ul>`;
                 await sql`
                     UPDATE exams 

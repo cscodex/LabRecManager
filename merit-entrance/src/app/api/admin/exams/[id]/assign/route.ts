@@ -26,11 +26,16 @@ export async function GET(
         s.roll_number,
         s.name,
         es.start_time,
-        es.end_time
+        es.end_time,
+        COUNT(sess.id) as attempts
       FROM exam_assignments ea
       JOIN students s ON ea.student_id = s.id
       LEFT JOIN exam_schedules es ON es.id = ea.schedule_id
+      LEFT JOIN exam_attempts sess ON sess.exam_id = ea.exam_id AND sess.student_id = ea.student_id
       WHERE ea.exam_id = ${params.id}
+      GROUP BY 
+        ea.id, ea.student_id, ea.assigned_at, ea.max_attempts, ea.schedule_id, 
+        s.roll_number, s.name, es.start_time, es.end_time
       ORDER BY s.roll_number
     `;
 

@@ -747,6 +747,33 @@ export default function ExamAttemptPage() {
                         <h1 className="font-bold text-lg">{getText(examData.title, language)}</h1>
                     </div>
                     <div className="flex items-center gap-4">
+                        {examData?.instructions && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowInstructions(!showInstructions)}
+                                    className="flex items-center gap-1 px-2 py-1 bg-blue-800 rounded text-sm hover:bg-blue-700"
+                                    title="View Guidelines"
+                                >
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Guidelines</span>
+                                </button>
+
+                                {showInstructions && (
+                                    <div className="absolute right-0 top-10 w-80 sm:w-96 bg-white border rounded-xl shadow-2xl p-4 z-50 text-gray-800 animate-in fade-in slide-in-from-top-2">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className="font-semibold text-blue-900 flex items-center gap-2">
+                                                <AlertCircle className="w-4 h-4" /> General Guidelines
+                                            </h3>
+                                            <button onClick={() => setShowInstructions(false)} className="text-gray-400 hover:text-gray-600">×</button>
+                                        </div>
+                                        <div
+                                            className="text-sm prose prose-sm max-w-none max-h-64 overflow-y-auto custom-scrollbar"
+                                            dangerouslySetInnerHTML={{ __html: getText(examData.instructions, language) }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <button
                             onClick={() => setLanguage(language === 'en' ? 'pa' : 'en')}
                             className="flex items-center gap-1 px-2 py-1 bg-blue-800 rounded text-sm hover:bg-blue-700"

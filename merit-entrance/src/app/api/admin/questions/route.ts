@@ -19,14 +19,28 @@ export async function GET(req: NextRequest) {
         const type = searchParams.get('type') || 'all';
         const difficulty = searchParams.get('difficulty') || 'all';
         const tagId = searchParams.get('tagId') || '';
+        const usageCountParam = searchParams.get('usageCount') || 'all';
 
         const offset = (page - 1) * limit;
 
         const searchPattern = `%${search}%`;
         const diffValue = difficulty === 'all' ? 0 : parseInt(difficulty);
+        const usageValue = usageCountParam === 'all' ? -1 : parseInt(usageCountParam);
+        const dateFrom = searchParams.get('dateFrom') || '';
+        const dateTo = searchParams.get('dateTo') || '';
+
+        let dateFilterSql = sql``;
+        if (dateFrom && dateTo) {
+            dateFilterSql = sql`AND q.created_at >= ${dateFrom}::timestamp AND q.created_at <= ${dateTo}::timestamp + interval '1 day' - interval '1 second'`;
+        } else if (dateFrom) {
+            dateFilterSql = sql`AND q.created_at >= ${dateFrom}::timestamp`;
+        } else if (dateTo) {
+            dateFilterSql = sql`AND q.created_at <= ${dateTo}::timestamp + interval '1 day' - interval '1 second'`;
+        }
 
         // Count query
         let total = 0;
+
         if (tagId) {
             const totalResult = await sql`
                 SELECT COUNT(DISTINCT q.id) as total FROM questions q
@@ -36,6 +50,13 @@ export async function GET(req: NextRequest) {
                     AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
                     AND (${type} = 'all' OR q.type = ${type})
                     AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+                    ${usageValue >= 0 ? sql`AND (
+                        SELECT COUNT(DISTINCT e2.id)
+                        FROM section_questions sq2
+                        JOIN sections s2 ON sq2.section_id = s2.id
+                        JOIN exams e2 ON s2.exam_id = e2.id
+                        WHERE sq2.question_id = q.id
+                    ) = ${usageValue}` : sql``}
             `;
             total = parseInt(totalResult[0].total);
         } else {
@@ -46,6 +67,13 @@ export async function GET(req: NextRequest) {
                     AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
                     AND (${type} = 'all' OR q.type = ${type})
                     AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+                    ${usageValue >= 0 ? sql`AND (
+                        SELECT COUNT(DISTINCT e2.id)
+                        FROM section_questions sq2
+                        JOIN sections s2 ON sq2.section_id = s2.id
+                        JOIN exams e2 ON s2.exam_id = e2.id
+                        WHERE sq2.question_id = q.id
+                    ) = ${usageValue}` : sql``}
             `;
             total = parseInt(totalResult[0].total);
         }
@@ -82,6 +110,14 @@ export async function GET(req: NextRequest) {
                     AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
                     AND (${type} = 'all' OR q.type = ${type})
                     AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+                    ${usageValue >= 0 ? sql`AND (
+                        SELECT COUNT(DISTINCT e2.id)
+                        FROM section_questions sq2
+                        JOIN sections s2 ON sq2.section_id = s2.id
+                        JOIN exams e2 ON s2.exam_id = e2.id
+                        WHERE sq2.question_id = q.id
+                    ) = ${usageValue}` : sql``}
+                    ${dateFilterSql}
                 ORDER BY q.id DESC 
                 LIMIT ${limit} OFFSET ${offset}
             `;
@@ -114,6 +150,14 @@ export async function GET(req: NextRequest) {
                     AND (${search} = '' OR (q.text->>'en' ILIKE ${searchPattern} OR q.text->>'pa' ILIKE ${searchPattern}))
                     AND (${type} = 'all' OR q.type = ${type})
                     AND (${difficulty} = 'all' OR q.difficulty = ${diffValue})
+                    ${usageValue >= 0 ? sql`AND (
+                        SELECT COUNT(DISTINCT e2.id)
+                        FROM section_questions sq2
+                        JOIN sections s2 ON sq2.section_id = s2.id
+                        JOIN exams e2 ON s2.exam_id = e2.id
+                        WHERE sq2.question_id = q.id
+                    ) = ${usageValue}` : sql``}
+                    ${dateFilterSql}
                 ORDER BY q.id DESC 
                 LIMIT ${limit} OFFSET ${offset}
             `;
@@ -125,7 +169,17 @@ export async function GET(req: NextRequest) {
                 COUNT(*) as total_questions,
                 COUNT(CASE WHEN q.correct_answer IS NOT NULL AND q.correct_answer::text != '[]' AND q.correct_answer::text != 'null' THEN 1 END) as with_answers,
                 COUNT(CASE WHEN q.explanation IS NOT NULL AND q.explanation::text != 'null' AND q.explanation::text != '{}' THEN 1 END) as with_explanations,
-                (SELECT COUNT(DISTINCT sq2.section_id) FROM section_questions sq2) as used_in_exams
+                (SELECT COUNT(DISTINCT sq2.section_id) FROM section_questions sq2) as used_in_exams,
+                (
+                    SELECT MAX(uc.cnt)
+                    FROM (
+                        SELECT COUNT(DISTINCT e3.id) as cnt
+                        FROM section_questions sq3
+                        JOIN sections s3 ON sq3.section_id = s3.id
+                        JOIN exams e3 ON s3.exam_id = e3.id
+                        GROUP BY sq3.question_id
+                    ) uc
+                ) as max_usage
             FROM questions q
             WHERE q.parent_id IS NULL
         `;
@@ -170,6 +224,7 @@ export async function GET(req: NextRequest) {
                 withAnswers: parseInt(statsResult[0].with_answers) || 0,
                 withExplanations: parseInt(statsResult[0].with_explanations) || 0,
                 usedInExams: parseInt(statsResult[0].used_in_exams) || 0,
+                maxUsage: parseInt(statsResult[0].max_usage) || 0,
                 difficultyDistribution: difficultyDist,
                 typeDistribution: typeDist,
             }

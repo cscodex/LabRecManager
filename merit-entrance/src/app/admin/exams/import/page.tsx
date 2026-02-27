@@ -231,7 +231,8 @@ export default function ImportExamPage() {
                 setProgress(currentProgress);
                 const batchStart = start + 1;
                 const batchEnd = Math.min(end, allImages.length);
-                const statusMsg = `Analyzing Batch ${i + 1}/${totalBatches} (Pages ${batchStart}-${batchEnd})...`;
+                const foundCount = allQuestions.length + allSections.reduce((acc, sec) => acc + (sec.questions?.length || 0), 0);
+                const statusMsg = `Analyzing Batch ${i + 1}/${totalBatches} (Pages ${batchStart}-${batchEnd})... ${foundCount > 0 ? `(Found ${foundCount} questions so far)` : ''}`;
                 setProcessingStatus(statusMsg);
                 // toast.loading(statusMsg, { id: 'batch-toast' }); // Redundant with status text
 
@@ -660,7 +661,7 @@ export default function ImportExamPage() {
                                             ));
                                             // Rename section on questions
                                             setQuestions(prev => prev.map(q =>
-                                                q.section === sectionName ? { ...q, section: newName } : q
+                                                (q.section || 'General') === sectionName ? { ...q, section: newName } : q
                                             ));
                                             // Update collapsed state key
                                             setCollapsedSections(prev => {
@@ -670,9 +671,52 @@ export default function ImportExamPage() {
                                         }}
                                         className="text-lg font-bold text-indigo-900 bg-transparent border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 focus:outline-none px-1 w-full"
                                     />
-                                    <p className="text-xs text-indigo-600 mt-0.5 pl-1">
-                                        {sectionQuestionIndices.length} questions • {selectedInSection.length} selected
-                                        {sectionObj?.instructions?.length ? ` • ${sectionObj.instructions.join(', ')}` : ''}
+                                    <p className="text-xs text-indigo-600 mt-2 pl-1 flex items-center justify-between">
+                                        <span>
+                                            {sectionQuestionIndices.length} questions • {selectedInSection.length} selected
+                                            {sectionObj?.instructions?.length ? ` • ${sectionObj.instructions.join(', ')}` : ''}
+                                        </span>
+                                        {/* Merge Dropdown */}
+                                        {sectionNames.length > 2 && (
+                                            <span className="flex items-center gap-2">
+                                                <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                                <select
+                                                    className="bg-transparent border-b border-indigo-200 text-indigo-700 hover:border-indigo-400 focus:border-indigo-500 focus:outline-none cursor-pointer p-0 pr-4"
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        const targetSection = e.target.value;
+                                                        if (!targetSection) return;
+
+                                                        // 1. Reassign all questions in current section to target section
+                                                        setQuestions(prev => prev.map(q =>
+                                                            (q.section || 'General') === sectionName ? { ...q, section: targetSection } : q
+                                                        ));
+
+                                                        // 2. Remove current section from extractedSections and merge instructions/paragraphs
+                                                        setExtractedSections(prev => {
+                                                            const source = prev.find(s => s.name === sectionName);
+                                                            return prev.filter(s => s.name !== sectionName).map(s => {
+                                                                if (s.name === targetSection && source) {
+                                                                    return {
+                                                                        ...s,
+                                                                        instructions: Array.from(new Set([...(s.instructions || []), ...(source.instructions || [])])),
+                                                                        paragraphs: [...(s.paragraphs || []), ...(source.paragraphs || [])]
+                                                                    };
+                                                                }
+                                                                return s;
+                                                            });
+                                                        });
+
+                                                        toast.success(`Merged "${sectionName}" into "${targetSection}"`);
+                                                    }}
+                                                >
+                                                    <option value="" disabled>Merge with...</option>
+                                                    {sectionNames.filter(n => n !== sectionName).map(target => (
+                                                        <option key={target} value={target}>{target}</option>
+                                                    ))}
+                                                </select>
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
                                 <label className="flex items-center gap-2 text-xs cursor-pointer select-none">

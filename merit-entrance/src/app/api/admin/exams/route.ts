@@ -35,11 +35,25 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            exams: exams.map(exam => ({
-                ...exam,
-                title: typeof exam.title === 'string' ? JSON.parse(exam.title) : exam.title,
-                description: exam.description ? (typeof exam.description === 'string' ? JSON.parse(exam.description) : exam.description) : null,
-            })),
+            exams: exams.map(exam => {
+                let parsedTitle = exam.title;
+                if (typeof exam.title === 'string') {
+                    try { parsedTitle = JSON.parse(exam.title); }
+                    catch (e) { parsedTitle = { en: exam.title }; }
+                }
+
+                let parsedDesc = exam.description;
+                if (exam.description && typeof exam.description === 'string') {
+                    try { parsedDesc = JSON.parse(exam.description); }
+                    catch (e) { parsedDesc = { en: exam.description }; }
+                }
+
+                return {
+                    ...exam,
+                    title: parsedTitle,
+                    description: parsedDesc,
+                };
+            }),
         });
     } catch (error) {
         console.error('Error fetching exams:', error);
@@ -71,12 +85,6 @@ export async function POST(request: NextRequest) {
         ${totalMarks},
         ${passingMarks || null},
         ${negativeMarking || null},
-        ${shuffleQuestions || false},
-        'draft',
-        ${body.securityMode || false},
-        ${session.id},
-        ${now},
-        ${now}
         ${shuffleQuestions || false},
         'draft',
         ${body.securityMode || false},

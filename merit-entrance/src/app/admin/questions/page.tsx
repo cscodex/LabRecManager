@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     Plus, Search, Filter, MoreVertical, Edit, Trash2, Eye,
-    ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, X, Files, Loader2, CheckSquare
+    ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, X, Files, Loader2, CheckSquare, ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/store';
@@ -45,7 +45,292 @@ interface Question {
     };
     subQuestions?: any[];
     usage_count?: number;
+    created_at?: string;
+    updated_at?: string;
 }
+
+const AddToExamModal = ({
+    isOpen,
+    onClose,
+    selectedIds,
+    onSuccess
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    selectedIds: Set<string>;
+    onSuccess: () => void
+}) => {
+    const { language } = useAuthStore();
+    const [exams, setExams] = useState<{ id: string, title: any }[]>([]);
+    const [sections, setSections] = useState<{ id: string, name: any }[]>([]);
+    const [selectedExamId, setSelectedExamId] = useState('');
+    const [selectedSectionId, setSelectedSectionId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [marks, setMarks] = useState<number>(1);
+    const [negativeMarks, setNegativeMarks] = useState<number>(0);
+
+    // New Exam / Section State
+    const [newExamTitle, setNewExamTitle] = useState('');
+    const [newExamDuration, setNewExamDuration] = useState<number>(60);
+    const [newExamTotalMarks, setNewExamTotalMarks] = useState<number>(100);
+    const [newSectionName, setNewSectionName] = useState('');
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const fetchExams = async () => {
+            try {
+                const res = await fetch('/api/admin/exams');
+                const data = await res.json();
+                if (data.success) setExams(data.exams);
+            } catch (error) { console.error('Failed to load exams', error); }
+        };
+        fetchExams();
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!selectedExamId || selectedExamId === 'new') {
+            setSections([]);
+            if (selectedExamId === 'new') setSelectedSectionId('new');
+            else setSelectedSectionId('');
+            return;
+        }
+        const fetchSections = async () => {
+            try {
+                const res = await fetch(`/api/admin/exams/${selectedExamId}/sections`);
+                const data = await res.json();
+                if (data.success) setSections(data.sections);
+            } catch (error) { console.error('Failed to load sections', error); }
+        };
+        fetchSections();
+    }, [selectedExamId]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedExamId || !selectedSectionId || selectedIds.size === 0) return;
+
+        setIsSaving(true);
+        try {
+            let finalExamId = selectedExamId;
+            let finalSectionId = selectedSectionId;
+
+            // 1. Create New Exam if needed
+            if (selectedExamId === 'new') {
+                const examRes = await fetch('/api/admin/exams', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: { en: newExamTitle, pa: newExamTitle },
+                        duration: newExamDuration,
+                        totalMarks: newExamTotalMarks,
+                        passingMarks: Math.floor(newExamTotalMarks * 0.33),
+                        negativeMarking: 0,
+                        shuffleQuestions: false,
+                        securityMode: false
+                    })
+                });
+                const examData = await examRes.json();
+                if (!examData.success) throw new Error(examData.error || 'Failed to create exam');
+                finalExamId = examData.examId;
+            }
+
+            // 2. Create New Section if needed
+            if (selectedSectionId === 'new') {
+                const secRes = await fetch(`/api/admin/exams/${finalExamId}/sections`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: { en: newSectionName, pa: newSectionName },
+                        order: sections.length + 1,
+                        duration: null
+                    })
+                });
+                const secData = await secRes.json();
+                if (!secData.success) throw new Error(secData.error || 'Failed to create section');
+                finalSectionId = secData.sectionId;
+            }
+
+            // 3. Link Questions
+            const res = await fetch(`/api/admin/exams/${finalExamId}/sections/${finalSectionId}/questions/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionIds: Array.from(selectedIds),
+                    marks: marks,
+                    negativeMarks: negativeMarks || null
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                toast.success(data.message || `Linked ${selectedIds.size} questions successfully.`);
+
+                // Clear state
+                setSelectedExamId('');
+                setSelectedSectionId('');
+                setNewExamTitle('');
+                setNewSectionName('');
+
+                onSuccess();
+                onClose();
+            } else {
+                toast.error(data.error || 'Failed to link questions');
+            }
+        } catch (error: any) {
+            console.error('Error linking questions:', error);
+            toast.error(error.message || 'An error occurred');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Add ${selectedIds.size} Questions to Exam`}>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div className="bg-blue-50 text-blue-800 p-3 rounded-md text-sm mb-4">
+                    You are extending an existing exam with these questions. They will be shared across any exams they are already a part of.
+                </div>
+
+                <div className="space-y-4 pt-2">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Target Exam *</label>
+                        <select
+                            required
+                            value={selectedExamId}
+                            onChange={(e) => setSelectedExamId(e.target.value)}
+                            className="w-full border rounded-lg px-3 py-2 cursor-pointer focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">-- Choose Exam --</option>
+                            <option value="new" className="font-semibold text-blue-600">+ Create New Exam</option>
+                            {exams.map(ex => (
+                                <option key={ex.id} value={ex.id}>{getText(ex.title, language)}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {selectedExamId === 'new' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg border">
+                            <div className="md:col-span-3">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">New Exam Title *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newExamTitle}
+                                    onChange={(e) => setNewExamTitle(e.target.value)}
+                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g. Midterm 2024"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (mins) *</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="1"
+                                    value={newExamDuration}
+                                    onChange={(e) => setNewExamDuration(parseInt(e.target.value) || 60)}
+                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks *</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="1"
+                                    value={newExamTotalMarks}
+                                    onChange={(e) => setNewExamTotalMarks(parseInt(e.target.value) || 100)}
+                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {selectedExamId && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Select Section *</label>
+                            <select
+                                required
+                                value={selectedSectionId}
+                                disabled={selectedExamId === 'new'}
+                                onChange={(e) => setSelectedSectionId(e.target.value)}
+                                className="w-full border rounded-lg px-3 py-2 cursor-pointer focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100"
+                            >
+                                <option value="">-- Choose Section --</option>
+                                <option value="new" className="font-semibold text-blue-600">+ Create New Section</option>
+                                {sections.map(sec => (
+                                    <option key={sec.id} value={sec.id}>{getText(sec.name, language)}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {selectedSectionId === 'new' && (
+                        <div className="bg-gray-50 p-3 rounded-lg border">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">New Section Name *</label>
+                            <input
+                                type="text"
+                                required
+                                value={newSectionName}
+                                onChange={(e) => setNewSectionName(e.target.value)}
+                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                placeholder="e.g. Mathematics"
+                            />
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Marks Override</label>
+                            <input
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value={marks}
+                                onChange={(e) => setMarks(parseFloat(e.target.value))}
+                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Negative Marks</label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                value={negativeMarks}
+                                onChange={(e) => setNegativeMarks(parseFloat(e.target.value) || 0)}
+                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3 border-t mt-6">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                        disabled={isSaving}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={isSaving || !selectedSectionId}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isSaving ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
+                        ) : (
+                            <><ArrowRight className="w-4 h-4" /> Add Questions</>
+                        )}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
 
 export default function QuestionsBankPage() {
     const router = useRouter();
@@ -65,6 +350,9 @@ export default function QuestionsBankPage() {
     const [typeFilter, setTypeFilter] = useState('all');
     const [difficultyFilter, setDifficultyFilter] = useState('all');
     const [tagFilter, setTagFilter] = useState('');
+    const [usageFilter, setUsageFilter] = useState('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -78,6 +366,10 @@ export default function QuestionsBankPage() {
     const [isFindingDuplicates, setIsFindingDuplicates] = useState(false);
     const [selectedDuplicates, setSelectedDuplicates] = useState<Set<string>>(new Set());
     const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
+
+    // Bulk Add to Exam State
+    const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
+    const [showAddToExamModal, setShowAddToExamModal] = useState(false);
 
     // Global stats from API
     const [globalStats, setGlobalStats] = useState<any>({ totalQuestions: 0, withAnswers: 0, withExplanations: 0, usedInExams: 0, difficultyDistribution: {}, typeDistribution: {} });
@@ -122,7 +414,10 @@ export default function QuestionsBankPage() {
                 search: debouncedSearch,
                 type: typeFilter,
                 difficulty: difficultyFilter,
-                tagId: tagFilter
+                tagId: tagFilter,
+                usageCount: usageFilter,
+                dateFrom,
+                dateTo
             });
 
             const res = await fetch(`/api/admin/questions?${params.toString()}`);
@@ -133,6 +428,7 @@ export default function QuestionsBankPage() {
                 setTotalPages(data.pagination.totalPages);
                 setTotalQuestions(data.pagination.total);
                 if (data.stats) setGlobalStats(data.stats);
+                setSelectedQuestions(new Set());
             } else {
                 toast.error(data.error || 'Failed to load questions');
             }
@@ -142,7 +438,7 @@ export default function QuestionsBankPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, limit, debouncedSearch, typeFilter, difficultyFilter, tagFilter]);
+    }, [page, limit, debouncedSearch, typeFilter, difficultyFilter, tagFilter, usageFilter]);
 
     useEffect(() => {
         loadTags();
@@ -513,7 +809,77 @@ export default function QuestionsBankPage() {
                         <option value="">All Tags</option>
                         {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
+
+                    {globalStats?.maxUsage > 0 && (
+                        <select
+                            value={usageFilter}
+                            onChange={(e) => { setUsageFilter(e.target.value); setPage(1); }}
+                            className="col-span-1 md:col-span-4 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-auto mt-2 md:mt-0"
+                        >
+                            <option value="all">Any Usage</option>
+                            <option value="0">Unused (0 Exams)</option>
+                            {Array.from({ length: globalStats.maxUsage }, (_, i) => i + 1).map(count => (
+                                <option key={count} value={count.toString()}>
+                                    Shared in {count} Exam{count !== 1 ? 's' : ''}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+
+                    {/* Date Filters */}
+                    <div className="col-span-1 md:col-span-4 flex items-center gap-2 mt-2 md:mt-0">
+                        <label className="text-sm text-gray-600 whitespace-nowrap">From:</label>
+                        <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full"
+                        />
+                        <label className="text-sm text-gray-600 whitespace-nowrap ml-2">To:</label>
+                        <input
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full"
+                        />
+                        {(dateFrom || dateTo) && (
+                            <button
+                                onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0 ml-1"
+                                title="Clear Dates"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
+
+                {/* Bulk Actions Bar */}
+                {selectedQuestions.size > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between shadow-sm">
+                        <span className="text-blue-800 font-medium text-sm flex items-center gap-2">
+                            <span className="bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                                {selectedQuestions.size}
+                            </span>
+                            Questions Selected
+                        </span>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setSelectedQuestions(new Set())}
+                                className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                            >
+                                Clear Selection
+                            </button>
+                            <button
+                                onClick={() => setShowAddToExamModal(true)}
+                                className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors shadow-sm flex items-center gap-1"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add to Exam
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Table */}
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -521,6 +887,20 @@ export default function QuestionsBankPage() {
                         <table className="w-full text-left">
                             <thead className="bg-gray-50 text-gray-700 uppercase text-xs font-semibold">
                                 <tr>
+                                    <th className="px-4 py-3 w-12 text-center">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                            checked={questions.length > 0 && selectedQuestions.size === questions.length}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedQuestions(new Set(questions.map(q => q.id)));
+                                                } else {
+                                                    setSelectedQuestions(new Set());
+                                                }
+                                            }}
+                                        />
+                                    </th>
                                     <th className="px-6 py-3">Question</th>
                                     <th className="px-6 py-3">Type</th>
                                     <th className="px-6 py-3">Difficulty</th>
@@ -528,20 +908,21 @@ export default function QuestionsBankPage() {
                                     <th className="px-6 py-3">Marks</th>
                                     <th className="px-6 py-3">Explanation</th>
                                     <th className="px-6 py-3">Popularity</th>
+                                    <th className="px-6 py-3 text-center">Dates</th>
                                     <th className="px-6 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                                             <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-2"></div>
                                             Loading...
                                         </td>
                                     </tr>
                                 ) : questions.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                                             <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                                             No questions found matching your filters.
                                         </td>
@@ -549,6 +930,19 @@ export default function QuestionsBankPage() {
                                 ) : (
                                     questions.map((question) => (
                                         <tr key={question.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-4 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                    checked={selectedQuestions.has(question.id)}
+                                                    onChange={(e) => {
+                                                        const newSet = new Set(selectedQuestions);
+                                                        if (e.target.checked) newSet.add(question.id);
+                                                        else newSet.delete(question.id);
+                                                        setSelectedQuestions(newSet);
+                                                    }}
+                                                />
+                                            </td>
                                             <td className="px-6 py-4 max-w-md">
                                                 <div className="font-medium text-gray-900 line-clamp-2 max-h-16 overflow-hidden">
                                                     <MathText text={getText(question.text, language)} inline />
@@ -601,6 +995,20 @@ export default function QuestionsBankPage() {
                                                     </span>
                                                 ) : (
                                                     <span className="text-xs text-gray-400 italic">Unused</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center text-xs text-gray-500 whitespace-nowrap">
+                                                {question.created_at && (
+                                                    <div className="mb-1" title="Created On">
+                                                        <span className="font-semibold text-gray-400 mr-1">C:</span>
+                                                        {new Date(question.created_at).toLocaleDateString('en-GB')}
+                                                    </div>
+                                                )}
+                                                {question.updated_at && question.updated_at !== question.created_at && (
+                                                    <div title="Last Updated">
+                                                        <span className="font-semibold text-gray-400 mr-1">U:</span>
+                                                        {new Date(question.updated_at).toLocaleDateString('en-GB')}
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right">
@@ -931,6 +1339,17 @@ export default function QuestionsBankPage() {
                 </Modal>
 
                 <DialogComponent />
+
+                {/* Add to Exam Modal */}
+                <AddToExamModal
+                    isOpen={showAddToExamModal}
+                    onClose={() => setShowAddToExamModal(false)}
+                    selectedIds={selectedQuestions}
+                    onSuccess={() => {
+                        setSelectedQuestions(new Set());
+                        loadQuestions();
+                    }}
+                />
             </div>
         </MathJaxProvider>
     );

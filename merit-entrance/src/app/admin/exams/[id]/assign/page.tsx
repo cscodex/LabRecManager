@@ -17,8 +17,12 @@ interface Student {
 interface Assignment {
     id: string;
     student_id: string;
-    roll_number: string;
-    name: string;
+    assigned_at: string;
+    max_attempts: number;
+    attempts?: number;
+    schedule_id?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
 }
 
 interface AssignmentLog {
@@ -539,6 +543,7 @@ export default function ExamAssignPage() {
                                         {filteredStudents.map((student) => {
                                             const isAlreadyAssigned = assignments.some(a => a.student_id === student.id);
                                             const isSelected = selectedIds.has(student.id);
+                                            const assignment = assignments.find(a => a.student_id === student.id);
 
                                             return (
                                                 <div
@@ -573,6 +578,20 @@ export default function ExamAssignPage() {
                                                                 </>
                                                             )}
                                                         </div>
+
+                                                        {isAlreadyAssigned && assignment && (
+                                                            <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-gray-100">
+                                                                <span className="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">Attempts</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${(assignment.attempts || 0) >= assignment.max_attempts
+                                                                            ? 'text-red-700 bg-red-100'
+                                                                            : 'text-blue-700 bg-blue-50'
+                                                                        }`}>
+                                                                        {assignment.attempts || 0} / {assignment.max_attempts}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );

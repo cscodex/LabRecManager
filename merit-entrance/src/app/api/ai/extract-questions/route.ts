@@ -333,6 +333,7 @@ export async function POST(req: NextRequest) {
 
             **PARAGRAPHS/COMPREHENSION / LINKED QUESTIONS**:
             -   **Definition**: Any content (passage, case study, common data problem) that applies to multiple questions.
+            -   **CRITICAL EXCEPTION**: DO NOT treat section instructions (e.g., "Attempt any 5 questions from this section") as paragraphs! Paragraphs must be actual testing content/data/context that the questions rely on to be solved.
             -   **Action**: 
                 -   Extract **EVERY** passage found. **DO NOT SKIP ANY PARAGRAPHS.**
                 -   Extract the common text/data into the \`paragraphs\` array with a unique \`id\` (e.g., "p1").
