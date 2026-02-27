@@ -121,6 +121,7 @@ export default function EditExamPage() {
     const [showPickerModal, setShowPickerModal] = useState(false);
     const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
     const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+    const [availableParagraphs, setAvailableParagraphs] = useState<{ id: string; textEn: string }[]>([]);
 
     // Bulk selection
     const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
@@ -213,9 +214,23 @@ export default function EditExamPage() {
         } catch (e) { }
     };
 
+    const loadParagraphs = async () => {
+        try {
+            const res = await fetch('/api/admin/questions?type=paragraph&limit=99999');
+            const data = await res.json();
+            if (data.success) {
+                setAvailableParagraphs(data.questions.map((q: any) => ({
+                    id: q.id,
+                    textEn: typeof q.text === 'object' ? (q.text as any).en || '' : String(q.text || '')
+                })));
+            }
+        } catch (e) { }
+    };
+
     useEffect(() => {
         loadExam();
         loadTags();
+        loadParagraphs();
     }, []); // Run once on mount
 
     // Fetch questions when active section changes
@@ -1934,16 +1949,7 @@ export default function EditExamPage() {
                         onSave={handleQuestionSave}
                         onCancel={() => setShowQuestionModal(false)}
                         isSaving={isSavingQuestion}
-                        availableParagraphs={
-                            (activeSectionId && sectionQuestions[activeSectionId])
-                                ? sectionQuestions[activeSectionId]
-                                    .filter(q => q.type === 'paragraph' && q.id !== editingQuestion?.id)
-                                    .map(q => ({
-                                        id: q.id,
-                                        textEn: typeof q.text === 'object' ? (q.text as any).en || '' : String(q.text)
-                                    }))
-                                : []
-                        }
+                        availableParagraphs={availableParagraphs.filter(p => p.id !== editingQuestion?.id)}
                     />
                 </Modal>
 
