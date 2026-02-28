@@ -43,11 +43,21 @@ export default function AdminBlueprintsPage() {
         loadData();
 
         // Load saved prompts
-        const stored = localStorage.getItem('admin_saved_ai_prompts');
-        if (stored) {
-            try { setSavedPrompts(JSON.parse(stored)); } catch (e) { }
-        }
+        loadSavedPrompts();
     }, [_hasHydrated, isAuthenticated, user, router]);
+
+    const loadSavedPrompts = async () => {
+        if (!user?.id) return;
+        try {
+            const res = await fetch(`/api/admin/blueprints/ai-prompts?adminId=${user.id}`);
+            const data = await res.json();
+            if (data.success) {
+                setSavedPrompts(data.data);
+            }
+        } catch (e) {
+            console.error("Failed to load saved prompts", e);
+        }
+    };
 
     const loadData = async () => {
         try {
@@ -181,24 +191,48 @@ export default function AdminBlueprintsPage() {
         }
     };
 
-    const handleSavePrompt = () => {
+    const handleSavePrompt = async () => {
         if (!aiPrompt.trim()) return;
         const promptName = window.prompt("Enter a name to save this custom AI Blueprint prompt:");
         if (!promptName?.trim()) return;
 
-        const newPrompt = { id: Date.now().toString(), name: promptName, prompt: aiPrompt };
-        const updated = [...savedPrompts, newPrompt];
-        setSavedPrompts(updated);
-        localStorage.setItem('admin_saved_ai_prompts', JSON.stringify(updated));
-        toast.success("Prompt saved to your templates!");
+        try {
+            const res = await fetch('/api/admin/blueprints/ai-prompts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: promptName,
+                    promptText: aiPrompt,
+                    createdById: user?.id
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSavedPrompts(prev => [data.data, ...prev]);
+                toast.success("Prompt saved to your templates!");
+            } else {
+                toast.error(data.error || "Failed to save prompt");
+            }
+        } catch (e) {
+            toast.error("An error occurred while saving");
+        }
     };
 
-    const handleDeletePrompt = (id: string, e: React.MouseEvent) => {
+    const handleDeletePrompt = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!window.confirm("Delete this saved template?")) return;
-        const updated = savedPrompts.filter(p => p.id !== id);
-        setSavedPrompts(updated);
-        localStorage.setItem('admin_saved_ai_prompts', JSON.stringify(updated));
+
+        try {
+            const res = await fetch(`/api/admin/blueprints/ai-prompts/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                setSavedPrompts(prev => prev.filter(p => p.id !== id));
+            } else {
+                toast.error("Failed to delete prompt");
+            }
+        } catch (e) {
+            toast.error("An error occurred while deleting");
+        }
     };
 
     const handleGenerateWithAi = async () => {
@@ -551,9 +585,9 @@ export default function AdminBlueprintsPage() {
                                         {savedPrompts.map(p => (
                                             <div key={p.id} className="group relative flex items-center">
                                                 <button
-                                                    onClick={() => setAiPrompt(p.prompt)}
+                                                    onClick={() => setAiPrompt((p as any).promptText || p.prompt)}
                                                     className="text-[10px] bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 px-3 py-1 rounded-full transition pr-6"
-                                                    title={p.prompt}
+                                                    title={(p as any).promptText || p.prompt}
                                                 >
                                                     ⭐ {p.name}
                                                 </button>
