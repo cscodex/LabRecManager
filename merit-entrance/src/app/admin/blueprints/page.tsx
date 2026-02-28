@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, getText } from '@/lib/utils';
-import { Plus, Trash2, ChevronLeft, Save, X, Search, Edit2 } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, Save, X, Search, Edit2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminBlueprintsPage() {
@@ -24,6 +24,10 @@ export default function AdminBlueprintsPage() {
     const [sections, setSections] = useState<any[]>([
         { name: { en: 'Main Section', pa: 'ਮੁੱਖ ਭਾਗ' }, rules: [] }
     ]);
+
+    // AI Generation State
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
 
     // Tag Search State
     const [searchTagTerm, setSearchTagTerm] = useState<{ [key: string]: string }>({});
@@ -138,6 +142,44 @@ export default function AdminBlueprintsPage() {
             }
         } catch (err: any) {
             toast.error('An error occurred');
+        }
+    };
+
+    const handleGenerateWithAi = async () => {
+        if (!aiPrompt.trim()) {
+            toast.error('Please enter a description for the AI');
+            return;
+        }
+
+        setIsGeneratingBlueprint(true);
+        const toastId = toast.loading('AI is designing the blueprint...');
+
+        try {
+            const res = await fetch('/api/ai/generate-blueprint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: aiPrompt })
+            });
+
+            const data = await res.json();
+
+            if (data.success && data.data) {
+                const aiBp = data.data;
+                if (aiBp.name) setName(aiBp.name);
+                if (aiBp.description) setDescription(aiBp.description);
+                if (aiBp.sections && Array.isArray(aiBp.sections)) {
+                    setSections(aiBp.sections);
+                }
+                setAiPrompt(''); // clear prompt
+                toast.success('Blueprint successfully generated! Please review.', { id: toastId });
+            } else {
+                toast.error(data.error || 'Failed to generate blueprint', { id: toastId });
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('An error occurred while calling the AI', { id: toastId });
+        } finally {
+            setIsGeneratingBlueprint(false);
         }
     };
 
@@ -384,6 +426,38 @@ export default function AdminBlueprintsPage() {
                                         placeholder="Optional description"
                                         rows={2}
                                     />
+                                </div>
+                            </div>
+
+                            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                                <label className="block text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                                    <span className="text-xl">✨</span> AI Blueprint Architect
+                                </label>
+                                <p className="text-xs text-blue-700 mb-3">
+                                    Describe your ideal exam (e.g. "Create a 50 question NEET mock for Physics & Chemistry with 3 hard sections"). Provide topic names and the AI will build the entire structure.
+                                </p>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={aiPrompt}
+                                        onChange={e => setAiPrompt(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleGenerateWithAi()}
+                                        className="flex-1 border-blue-200 rounded-lg p-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                        placeholder="Type your blueprint instructions here..."
+                                        disabled={isGeneratingBlueprint}
+                                    />
+                                    <button
+                                        onClick={handleGenerateWithAi}
+                                        disabled={isGeneratingBlueprint || !aiPrompt.trim()}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition"
+                                    >
+                                        {isGeneratingBlueprint ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Designing...</>
+                                        ) : (
+                                            'Generate'
+                                        )}
+                                    </button>
                                 </div>
                             </div>
 
