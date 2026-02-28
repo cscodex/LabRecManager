@@ -459,6 +459,27 @@ export default function AdminBlueprintsPage() {
                                         )}
                                     </button>
                                 </div>
+                                <div className="mt-3 flex flex-wrap gap-2 items-center">
+                                    <span className="text-xs font-semibold text-blue-800">Quick Templates:</span>
+                                    <button
+                                        onClick={() => setAiPrompt("Create a 200 question full-length NEET Mock Exam. Section A: Physics (50q, MCQ, +4/-1). Section B: Chemistry (50q, MCQ, +4/-1). Section C: Botany (50q, MCQ, +4/-1). Section D: Zoology (50q, MCQ, +4/-1).")}
+                                        className="text-[10px] bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 px-2 py-1 rounded-full transition"
+                                    >
+                                        🩺 NEET Mock
+                                    </button>
+                                    <button
+                                        onClick={() => setAiPrompt("Create a 90 question JEE Main Mock Exam. Section 1: Physics (20 MCQ, +4/-1, and 10 Numerical, +4/-1). Section 2: Chemistry (20 MCQ, 10 Numerical, same marks). Section 3: Mathematics (20 MCQ, 10 Numerical, same marks).")}
+                                        className="text-[10px] bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 px-2 py-1 rounded-full transition"
+                                    >
+                                        📐 JEE Main
+                                    </button>
+                                    <button
+                                        onClick={() => setAiPrompt("Create a 100 question UPSC Civil Services Prelims Mock Exam (GS Paper 1). 100 MCQs total. Sections: History, Geography, Polity, Economy, Science & Tech. All marks +2/-0.66.")}
+                                        className="text-[10px] bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 px-2 py-1 rounded-full transition"
+                                    >
+                                        🏛️ UPSC Prelims
+                                    </button>
+                                </div>
                             </div>
 
                             {generationMethod === 'generate_novel' && (
