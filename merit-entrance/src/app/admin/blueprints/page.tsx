@@ -28,6 +28,7 @@ export default function AdminBlueprintsPage() {
     // AI Generation State
     const [aiPrompt, setAiPrompt] = useState('');
     const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
+    const [savedPrompts, setSavedPrompts] = useState<{ id: string, name: string, prompt: string }[]>([]);
 
     // Tag Search State
     const [searchTagTerm, setSearchTagTerm] = useState<{ [key: string]: string }>({});
@@ -40,6 +41,12 @@ export default function AdminBlueprintsPage() {
             return;
         }
         loadData();
+
+        // Load saved prompts
+        const stored = localStorage.getItem('admin_saved_ai_prompts');
+        if (stored) {
+            try { setSavedPrompts(JSON.parse(stored)); } catch (e) { }
+        }
     }, [_hasHydrated, isAuthenticated, user, router]);
 
     const loadData = async () => {
@@ -133,6 +140,35 @@ export default function AdminBlueprintsPage() {
             });
 
             const data = await res.json();
+
+            if (data.requiresAiConfirmation) {
+                // Smart UI Feature: If they run out of bank questions, seamlessly ask to turn on AI!
+                const wantsAi = window.confirm(data.error);
+                if (wantsAi) {
+                    setGenerationMethod('generate_novel');
+                    const res2 = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name,
+                            description,
+                            generationMethod: 'generate_novel',
+                            createdById: user?.id,
+                            sections
+                        })
+                    });
+                    const data2 = await res2.json();
+                    if (data2.success) {
+                        toast.success(`Blueprint ${editingBpId ? 'updated' : 'created'} successfully with AI Generation enabled!`);
+                        closeModal();
+                        loadData();
+                    } else {
+                        toast.error(data2.error || 'Failed to save');
+                    }
+                }
+                return;
+            }
+
             if (data.success) {
                 toast.success(`Blueprint ${editingBpId ? 'updated' : 'created'} successfully`);
                 closeModal();
@@ -143,6 +179,26 @@ export default function AdminBlueprintsPage() {
         } catch (err: any) {
             toast.error('An error occurred');
         }
+    };
+
+    const handleSavePrompt = () => {
+        if (!aiPrompt.trim()) return;
+        const promptName = window.prompt("Enter a name to save this custom AI Blueprint prompt:");
+        if (!promptName?.trim()) return;
+
+        const newPrompt = { id: Date.now().toString(), name: promptName, prompt: aiPrompt };
+        const updated = [...savedPrompts, newPrompt];
+        setSavedPrompts(updated);
+        localStorage.setItem('admin_saved_ai_prompts', JSON.stringify(updated));
+        toast.success("Prompt saved to your templates!");
+    };
+
+    const handleDeletePrompt = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm("Delete this saved template?")) return;
+        const updated = savedPrompts.filter(p => p.id !== id);
+        setSavedPrompts(updated);
+        localStorage.setItem('admin_saved_ai_prompts', JSON.stringify(updated));
     };
 
     const handleGenerateWithAi = async () => {
@@ -448,6 +504,14 @@ export default function AdminBlueprintsPage() {
                                         disabled={isGeneratingBlueprint}
                                     />
                                     <button
+                                        onClick={handleSavePrompt}
+                                        disabled={isGeneratingBlueprint || !aiPrompt.trim()}
+                                        className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center"
+                                        title="Save this prompt as a custom template"
+                                    >
+                                        ⭐
+                                    </button>
+                                    <button
                                         onClick={handleGenerateWithAi}
                                         disabled={isGeneratingBlueprint || !aiPrompt.trim()}
                                         className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition"
@@ -480,6 +544,30 @@ export default function AdminBlueprintsPage() {
                                         🏛️ UPSC Prelims
                                     </button>
                                 </div>
+
+                                {savedPrompts.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2 items-center border-t border-blue-100 pt-3">
+                                        <span className="text-xs font-semibold text-blue-800">My Saved Templates:</span>
+                                        {savedPrompts.map(p => (
+                                            <div key={p.id} className="group relative flex items-center">
+                                                <button
+                                                    onClick={() => setAiPrompt(p.prompt)}
+                                                    className="text-[10px] bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 px-3 py-1 rounded-full transition pr-6"
+                                                    title={p.prompt}
+                                                >
+                                                    ⭐ {p.name}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDeletePrompt(p.id, e)}
+                                                    className="absolute right-1.5 text-indigo-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Delete this template"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {generationMethod === 'generate_novel' && (

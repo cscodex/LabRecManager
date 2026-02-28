@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     try {
         const body = await request.json();
-        const { name, description, sections } = body;
+        const { name, description, sections, generationMethod } = body;
         const blueprintId = params.id;
 
         if (!blueprintId) {
@@ -16,31 +16,35 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         }
 
         // 0. Validate available questions for all rules before mutating the database
-        for (let idx = 0; idx < sections.length; idx++) {
-            const sec = sections[idx];
-            if (sec.rules && sec.rules.length > 0) {
-                for (let rIdx = 0; rIdx < sec.rules.length; rIdx++) {
-                    const r = sec.rules[rIdx];
-                    const whereClause: any = {
-                        sectionId: null, // From question bank
-                        type: r.questionType,
-                    };
+        // Skip validation if we are going to generate them dynamically via AI
+        if (generationMethod !== 'generate_novel') {
+            for (let idx = 0; idx < sections.length; idx++) {
+                const sec = sections[idx];
+                if (sec.rules && sec.rules.length > 0) {
+                    for (let rIdx = 0; rIdx < sec.rules.length; rIdx++) {
+                        const r = sec.rules[rIdx];
+                        const whereClause: any = {
+                            sectionId: null, // From question bank
+                            type: r.questionType,
+                        };
 
-                    if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
-                        whereClause.tags = { some: { tagId: { in: r.topicTags } } };
-                    }
-                    if (r.difficulty) {
-                        whereClause.difficulty = parseInt(r.difficulty);
-                    }
+                        if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
+                            whereClause.tags = { some: { tagId: { in: r.topicTags } } };
+                        }
+                        if (r.difficulty) {
+                            whereClause.difficulty = parseInt(r.difficulty);
+                        }
 
-                    const availableQuestions = await prisma.question.count({ where: whereClause });
-                    const requested = parseInt(r.numberOfQuestions);
+                        const availableQuestions = await prisma.question.count({ where: whereClause });
+                        const requested = parseInt(r.numberOfQuestions);
 
-                    if (requested > availableQuestions) {
-                        return NextResponse.json({
-                            success: false,
-                            error: `Validation failed: Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} unique questions are available for the selected tags and type.`
-                        }, { status: 400 });
+                        if (requested > availableQuestions) {
+                            return NextResponse.json({
+                                success: false,
+                                requiresAiConfirmation: true,
+                                error: `Not enough questions with section rule and confirm to create using AI based on rule and available textbook RAG.\n\n(Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} exist in bank.)`
+                            }, { status: 200 });
+                        }
                     }
                 }
             }
@@ -49,7 +53,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         // 1. Update basic blueprint info
         const bp = await prisma.examBlueprint.update({
             where: { id: blueprintId },
-            data: { name, description }
+            data: { name, description, generationMethod }
         });
 
         // 2. Identify all old rules to clean up associative implicit M2M relations safely

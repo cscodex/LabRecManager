@@ -73,8 +73,9 @@ export async function POST(request: Request) {
                         if (requested > availableQuestions) {
                             return NextResponse.json({
                                 success: false,
-                                error: `Validation failed: Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} unique questions are available for the selected tags and type.`
-                            }, { status: 400 });
+                                requiresAiConfirmation: true,
+                                error: `Not enough questions with section rule and confirm to create using AI based on rule and available textbook RAG.\n\n(Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} exist in bank.)`
+                            }, { status: 200 }); // Return 200 so frontend can intercept!
                         }
                     }
                 }
