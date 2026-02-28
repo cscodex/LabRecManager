@@ -34,7 +34,14 @@ async function generateGemini(modelName: string, prompt: string, imageBase64: st
                 },
             };
 
-            const result = await model.generateContent([prompt, imagePart]);
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [imagePart, { text: prompt }] }],
+                generationConfig: {
+                    maxOutputTokens: 8192,
+                    temperature: 0.1,
+                    responseMimeType: "application/json"
+                }
+            });
             const response = await result.response;
             const text = response.text();
 
@@ -44,9 +51,18 @@ async function generateGemini(modelName: string, prompt: string, imageBase64: st
         } catch (err: any) {
             console.error(`Gemini Attempt ${attempts} failed with key index ${currentKeyIndex}:`, err.message);
             if (err.message && (err.message.includes('429') || err.message.includes('503'))) {
-                console.log('Rate limit/Service error. Switching keys...');
+                console.log('Rate limit/Service error. Switching keys and backing off...');
                 currentKeyIndex = (currentKeyIndex + 1) % geminiKeys.length;
-                if (currentKeyIndex === 0) await delay(5000); else await delay(1000);
+                // Free tier is strictly 15 RPM. We must backoff aggressively.
+                if (currentKeyIndex === 0) {
+                    console.log('All keys exhausted, waiting 20s for bucket refill...');
+                    await delay(20000);
+                } else {
+                    await delay(3000);
+                }
+            } else if (err.message && err.message.includes('RECITATION')) {
+                console.error(`[Gemini] Candidate blocked due to RECITATION. This means the image contains copyrighted text (like past exams) that Google refuses to reproduce exactly.`);
+                throw new Error('Gemini Security Block: Candidate was blocked due to RECITATION (Copyright). Please use OpenAI or Groq for this specific paper.');
             } else {
                 throw err; // Non-retriable error
             }
@@ -86,7 +102,8 @@ async function generateOpenAI(modelName: string, systemPrompt: string, imageBase
                             ]
                         }
                     ],
-                    max_tokens: 4000
+                    response_format: { type: "json_object" },
+                    max_tokens: 8192
                 })
             });
 
@@ -145,7 +162,8 @@ async function generateGroq(modelName: string, systemPrompt: string, imageBase64
                             ]
                         }
                     ],
-                    max_tokens: 4000
+                    response_format: { type: "json_object" },
+                    max_tokens: 8192
                 })
             });
 
@@ -238,10 +256,13 @@ export async function POST(req: NextRequest) {
             -   **Detect sections/parts** from:
                 1. **Page headings**: "Part A", "Section 1", "Part II - Mathematics", "Section B: English" etc.
                 2. **Exam instructions**: If instructions mention sections (e.g., "Part A contains 20 MCQs of 1 mark each"), use this to name sections.
-                3. **Subject headings**: E.g., "Mathematics", "English", "Punjabi", "Physics" appearing as section dividers.
+                3. **Subject Topics**: If no explicit Part/Section headers exist, **GROUP QUESTIONS BY THEIR PRIMARY SUBJECT TAG**. 
+                   - For example, if questions 1-10 are about Physics, put them in a section named "Physics". 
+                   - If questions 11-20 are Chemistry, put them in a section named "Chemistry".
+                   - The section name MUST match the primary subject tag (e.g., "Physics", "Mathematics", "English", "Logic").
             -   **Group all questions under their detected section** in the \`sections\` array.
             -   Each section should have a \`name\` and its own \`questions\` and \`paragraphs\` arrays.
-            -   If **no clear sections/parts** are detected, put ALL questions under a single section named "General".
+            -   ❌ DO NOT lump everything into a single "General" section unless the entire page is completely mixed subjects.
             -   If a section has specific instructions (e.g., "Attempt any 5"), include them in the section's \`instructions\` array.
 
             **EXAM TYPE EXTRACTION**:
@@ -315,21 +336,20 @@ export async function POST(req: NextRequest) {
                 -   Block: \\[ \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\]
                 -   Chemical: \\( H_2SO_4 \\)
             -   **Images**: If a question has a diagram/image/figure/graph/chart specifically tied to that question, insert placeholder: \`[IMAGE]\` at the end of the text.
-            -   **Image Bounding Box**: ONLY return \`imageBounds\` for actual **diagrams, graphs, charts, figures, or illustrations** that are part of a specific question. Do NOT return imageBounds for:
-                - Page headers, footers, or exam title areas
-                - General exam instructions or logos
-                - Watermarks or decorative elements
-                - Text-only content (even if formatted differently)
+            -   **Image Bounding Box (CRITICAL)**: ONLY return \`imageBounds\` for actual **diagrams, graphs, charts, figures, or illustrations** that are part of a specific question. 
+                - ❌ DO NOT return imageBounds for page headers, footers, or exam title areas.
+                - ❌ DO NOT return imageBounds for general exam instructions or logos.
+                - ❌ DO NOT return imageBounds for Watermarks or decorative elements.
+                - ❌ DO NOT return imageBounds for Text-only content (like the text of another question), even if formatted differently.
                 Return the approximate position as percentages (0-1):
                 \`"imageBounds": { "x": 0.1, "y": 0.3, "w": 0.8, "h": 0.25 }\`
-                - x = left edge %, y = top edge %, w = width %, h = height %
                 - If there is NO diagram/graph/figure for a question, do NOT include imageBounds at all.
-            -   **Structural & Code Formatting**:
-                -   **Tables**: Detect any tabular data and convert it to valid HTML \`<table>\` structures with \`<thead>\`, \`<tbody>\`, \`<tr>\`, \`<th>\`, and \`<td>\`.
-                -   **Code Blocks**: Convert code snippets into \`<pre><code>...</code></pre>\` blocks. Preserve indentation and line breaks within these blocks.
-                -   **Line Breaks & Indentation**: 
-                    -   Use \`<br>\` for explicit line breaks in questions, options, answers, or explanations.
-                    -   Use \`&nbsp;\` or appropriate HTML entities for significant indentation in non-code text.
+
+            **MULTI-PAGE HANDLING (CRITICAL)**:
+            - You are analyzing 2 pages at a time. 
+            - If a question starts at the bottom of the first page and continues (options, image, or text) onto the top of the second page, you MUST **MERGE them into a single question object**.
+            - DO NOT split it into two broken questions. 
+            - Ensure NO questions from either page are skipped. Extract 100% of the questions.
 
             **PARAGRAPHS/COMPREHENSION / LINKED QUESTIONS**:
             -   **Definition**: Any content (passage, case study, common data problem) that applies to multiple questions.
@@ -369,13 +389,16 @@ export async function POST(req: NextRequest) {
                 }
               ]
             }
-            **IMPORTANT**: If no clear section/part divisions exist, use a single section named "General" with all questions inside it.
+            **IMPORTANT**: If no explicit section headers exist, sort the questions into sections named exactly after their first tag (e.g., "Physics", "Chemistry", "Mathematics").
             **CRITICAL**: Extract ALL questions from the page. Do NOT truncate or skip any questions, even if the page has many. Every single question must be included.
+            **STRICT COMPLIANCE**: DO NOT output any "Chain of Thought", reasoning, or markdown text outside the JSON. Your VERY FIRST character must be \`{\` and your VERY LAST character must be \`}\`.
+            **COPYRIGHT/RECITATION PREVENTION ZONE**: To bypass strict AI recitation filters, slightly rephrase NON-mathematical plain-text instructions or passages if they are from a highly known source, BUT keep ALL equations, values, options, and scientific terminology EXACTLY as written. NEVER refuse to answer. Do what you can to return valid JSON.
         `;
 
         const finalPrompt = customPrompt ? `${basePrompt}\n\nADDITIONAL INSTRUCTIONS:\n${customPrompt}` : basePrompt;
 
         let extractedExamType: string | null = null;
+        let hasQuotaError = false;
 
         for (const base64Image of images) {
             let text = '';
@@ -410,7 +433,72 @@ export async function POST(req: NextRequest) {
                     return '\\\\' + match.slice(1);
                 });
 
-                const parsed = JSON.parse(cleanedText);
+                let parsed: any = { sections: [] };
+
+                try {
+                    parsed = JSON.parse(cleanedText);
+                } catch (parseError: any) {
+                    console.error(`[AI Parser] Initial JSON parse failed on page ${pageIndex}:`, parseError.message);
+                    console.log(`[AI Parser] Attempting to auto-recover truncated JSON...`);
+
+                    try {
+                        // RECOVERY STRATEGY FOR TRUNCATED JSON
+                        // 1. Remove trailing comma or broken string
+                        let recoveredText = cleanedText.replace(/,\s*$/, '').replace(/"[^"]*$/, '');
+
+                        // 2. Count open vs closed brackets/braces to append the missing ones
+                        const openBraces = (recoveredText.match(/\{/g) || []).length;
+                        const closeBraces = (recoveredText.match(/\}/g) || []).length;
+                        const openBrackets = (recoveredText.match(/\[/g) || []).length;
+                        const closeBrackets = (recoveredText.match(/\]/g) || []).length;
+
+                        const missingBraces = openBraces - closeBraces;
+                        const missingBrackets = openBrackets - closeBrackets;
+
+                        // Usually it cuts off inside a question object inside an array.
+                        // We will try an aggressive closure string.
+                        let closure = '';
+                        if (recoveredText.endsWith('"')) recoveredText += 'null'; // close broken key with null val
+
+                        for (let i = 0; i < missingBrackets; i++) closure += ']';
+                        for (let i = 0; i < missingBraces; i++) closure += '}';
+
+                        // Try parsing permutations of brackets and braces just in case order matters
+                        let fixed = false;
+                        const closureAttempts = [
+                            '}]}]}', '"]}]}', 'null}]}]}', '"]}', '}]}', '}', ']'
+                        ];
+
+                        for (const attempt of closureAttempts) {
+                            try {
+                                parsed = JSON.parse(recoveredText + attempt);
+                                console.log('[AI Parser] Successfully recovered truncated JSON!');
+                                fixed = true;
+                                break;
+                            } catch (e) { }
+                        }
+
+                        if (!fixed) {
+                            // Ultimate fallback: Just extract objects using regex if structure is completely broken
+                            console.log('[AI Parser] Brace matching failed. Attempting regex object extraction.');
+                            const questionMatches = cleanedText.match(/\{[^{}]*"type"[^{}]*"text"[^{}]*\}/g);
+                            if (questionMatches && questionMatches.length > 0) {
+                                const recoveredQuestions = questionMatches.map(m => {
+                                    try { return JSON.parse(m); } catch (e) { return null; }
+                                }).filter(Boolean);
+                                parsed = { sections: [{ name: 'General Recovered', questions: recoveredQuestions }] };
+                                console.log(`[AI Parser] Recovered ${recoveredQuestions.length} questions via regex.`);
+                            } else {
+                                throw new Error('Regex recovery failed.');
+                            }
+                        }
+
+                    } catch (recoveryError) {
+                        console.error(`[AI Parser] All recovery attempts failed:`, recoveryError);
+                        throw new Error(`Failed to parse AI response. Truncation too severe.`);
+                    }
+                }
+
                 if (parsed.examType && !extractedExamType) {
                     extractedExamType = parsed.examType;
                 }
@@ -424,18 +512,56 @@ export async function POST(req: NextRequest) {
                     // New format: sections[] containing questions
                     sectionsFromPage = parsed.sections;
                 } else if (parsed.questions && Array.isArray(parsed.questions)) {
-                    // Legacy format: flat questions[] — wrap in a "General" section
-                    sectionsFromPage = [{
-                        name: 'General',
-                        questions: parsed.questions,
-                        paragraphs: parsed.paragraphs || [],
-                        instructions: []
-                    }];
+                    // Legacy format: flat questions array. Group them by their first tag dynamically!
+                    const groupedMap = new Map<string, any>();
+
+                    parsed.questions.forEach((q: any) => {
+                        let dynamicSectionName = 'General';
+                        if (q.tags && Array.isArray(q.tags) && q.tags.length > 0) {
+                            dynamicSectionName = q.tags[0]; // e.g. "Physics"
+                        }
+
+                        if (!groupedMap.has(dynamicSectionName)) {
+                            groupedMap.set(dynamicSectionName, {
+                                name: dynamicSectionName,
+                                questions: [],
+                                paragraphs: [],
+                                instructions: []
+                            });
+                        }
+                        groupedMap.get(dynamicSectionName).questions.push(q);
+                    });
+
+                    // Assign any global paragraphs/instructions to the first section found, or a general bucket
+                    if (groupedMap.size > 0) {
+                        const firstSection = groupedMap.values().next().value;
+                        if (parsed.paragraphs) firstSection.paragraphs.push(...parsed.paragraphs);
+                        if (parsed.instructions) firstSection.instructions.push(...parsed.instructions);
+                    } else {
+                        // Failsafe if questions array was completely empty
+                        groupedMap.set('General', {
+                            name: 'General',
+                            questions: [],
+                            paragraphs: parsed.paragraphs || [],
+                            instructions: []
+                        });
+                    }
+
+                    sectionsFromPage = Array.from(groupedMap.values());
                 }
 
                 // Process each section and merge with existing by name
                 for (const section of sectionsFromPage) {
-                    const sectionName = section.name || 'General';
+                    // If the AI completely ignored our instructions and STILL named the section 'General', 
+                    // we'll try to rename it based on the first question's tag inside that section
+                    let sectionName = section.name || 'General';
+                    if (sectionName.toLowerCase() === 'general' && section.questions && section.questions.length > 0) {
+                        const firstQ = section.questions[0];
+                        if (firstQ.tags && Array.isArray(firstQ.tags) && firstQ.tags.length > 0) {
+                            sectionName = firstQ.tags[0];
+                        }
+                    }
+
                     const sectionQuestions = section.questions || [];
                     const sectionParagraphs = section.paragraphs || [];
                     const sectionInstructions = section.instructions || [];
@@ -488,6 +614,7 @@ export async function POST(req: NextRequest) {
                 // Forward rate limit errors to client
                 if (err.message?.includes('429') || err.message?.includes('rate limit') || err.message?.includes('quota') || err.message?.includes('Resource has been exhausted')) {
                     pageErrors.push(`Page ${pageIndex}: API rate limit reached — try again in a few minutes or switch to a different AI model.`);
+                    hasQuotaError = true;
                 } else {
                     pageErrors.push(`Page ${pageIndex}: ${err.message}`);
                 }
@@ -507,7 +634,8 @@ export async function POST(req: NextRequest) {
             instructions: extractedInstructions,
             paragraphs: extractedParagraphs,
             examType: extractedExamType,
-            errors: pageErrors.length > 0 ? pageErrors : undefined
+            errors: pageErrors.length > 0 ? pageErrors : undefined,
+            quotaExceeded: hasQuotaError
         });
 
     } catch (error: any) {

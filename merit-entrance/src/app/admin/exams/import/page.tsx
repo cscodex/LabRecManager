@@ -211,7 +211,7 @@ export default function ImportExamPage() {
         setIsAnalyzing(true);
         setProgress(0);
 
-        const BATCH_SIZE = 1; // Process 1 page at a time to avoid AI truncating questions on complex pages
+        const BATCH_SIZE = 2; // Process 2 pages at a time to give AI context for split questions
         const totalBatches = Math.ceil(allImages.length / BATCH_SIZE);
 
         const allQuestions: ExtractedQuestion[] = [];
@@ -231,7 +231,7 @@ export default function ImportExamPage() {
                 setProgress(currentProgress);
                 const batchStart = start + 1;
                 const batchEnd = Math.min(end, allImages.length);
-                const foundCount = allQuestions.length + allSections.reduce((acc, sec) => acc + (sec.questions?.length || 0), 0);
+                const foundCount = allQuestions.length; // Fix: Only count flat array to avoid double counting with sections
                 const statusMsg = `Analyzing Batch ${i + 1}/${totalBatches} (Pages ${batchStart}-${batchEnd})... ${foundCount > 0 ? `(Found ${foundCount} questions so far)` : ''}`;
                 setProcessingStatus(statusMsg);
                 // toast.loading(statusMsg, { id: 'batch-toast' }); // Redundant with status text
@@ -277,13 +277,23 @@ export default function ImportExamPage() {
                     // Show rate limit or other errors from this batch
                     if (data.errors && Array.isArray(data.errors)) {
                         for (const err of data.errors) {
-                            toast.error(err, { duration: 8000 });
+                            // Don't toast raw rate limit strings if we are handling it below
+                            if (!err.toLowerCase().includes('rate limit')) {
+                                toast.error(err, { duration: 8000 });
+                            }
                         }
+                    }
+
+                    if (data.quotaExceeded) {
+                        toast.error('API Rate Limit Exceeded. Auto-pausing extraction for 60 seconds...', { id: 'rate-limit-toast', duration: 10000 });
+                        setProcessingStatus(`Rate Limit Exceeded. Pausing 60s to refill quota...`);
+                        await delay(60000);
+                        toast.dismiss('rate-limit-toast');
                     }
                 }
 
                 // Delay between batches if not the last one (avoid rate limits)
-                if (i < totalBatches - 1) {
+                if (i < totalBatches - 1 && !(data && data.quotaExceeded)) {
                     await delay(3000); // 3 seconds delay
                 }
             }
@@ -556,6 +566,10 @@ export default function ImportExamPage() {
 
             if (response.ok && data.success) {
                 toast.success(`Import successful! ${data.questionCount || ''} questions added.`);
+                if (data.errors && data.errors.length > 0) {
+                    toast.error(`However, ${data.errors.length} questions failed to save. See console for details.`, { duration: 10000 });
+                    console.error('Failed to save questions:', data.errors);
+                }
                 router.push(`/admin/exams/${data.examId || selectedExamId}`);
             } else {
                 console.error('Import failed:', data);
@@ -652,9 +666,13 @@ export default function ImportExamPage() {
                                 <div className="flex-1">
                                     <input
                                         type="text"
-                                        value={sectionName}
-                                        onChange={(e) => {
-                                            const newName = e.target.value;
+                                        defaultValue={sectionName}
+                                        onBlur={(e) => {
+                                            const newName = e.target.value.trim();
+                                            if (!newName || newName === sectionName) {
+                                                e.target.value = sectionName; // Revert if empty
+                                                return;
+                                            }
                                             // Rename section in extractedSections
                                             setExtractedSections(prev => prev.map(s =>
                                                 s.name === sectionName ? { ...s, name: newName } : s
