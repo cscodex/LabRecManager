@@ -21,6 +21,7 @@ model Admin {
   assignmentLogs       ExamAssignmentLog[]
   examBlueprints       ExamBlueprint[]
   exams                Exam[]
+  savedAiPrompts       SavedAIPrompt[]
 
   @@map("admins")
 }
@@ -155,11 +156,11 @@ model Question {
 }
 
 model Tag {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String          @unique @db.VarChar(255)
-  createdAt      DateTime?       @default(now()) @map("created_at") @db.Timestamp(6)
-  questions      QuestionTag[]
-  blueprintRules BlueprintRule[] @relation("BlueprintRuleToTag")
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String              @unique @db.VarChar(255)
+  createdAt          DateTime?           @default(now()) @map("created_at") @db.Timestamp(6)
+  questions          QuestionTag[]
+  blueprintRules     BlueprintRule[]     @relation("BlueprintRuleToTag")
   referenceMaterials ReferenceMaterial[] @relation("ReferenceMaterialToTag")
 
   @@map("tags")
@@ -356,7 +357,7 @@ model ExamBlueprint {
   rules       BlueprintRule[]
   sections    BlueprintSection[]
   createdBy   Admin              @relation(fields: [createdById], references: [id])
-  
+
   generationMethod String @default("fetch_existing") // fetch_existing, generate_novel
 
   @@map("exam_blueprints")
@@ -371,6 +372,19 @@ model BlueprintSection {
   blueprint   ExamBlueprint   @relation(fields: [blueprintId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("blueprint_sections")
+}
+
+model SavedAIPrompt {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  promptText  String   @map("prompt_text") @db.Text
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  createdBy Admin @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([createdById])
+  @@map("saved_ai_prompts")
 }
 
 model BlueprintRule {
@@ -411,26 +425,26 @@ model ReferenceMaterial {
   title       String
   author      String?
   fileUrl     String?  @map("file_url")
-  textContent String?  @map("text_content") @db.Text 
+  textContent String?  @map("text_content") @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  tags        Tag[]    @relation("ReferenceMaterialToTag")
-  chunks      DocumentChunk[]
+  tags   Tag[]           @relation("ReferenceMaterialToTag")
+  chunks DocumentChunk[]
 
   @@map("reference_materials")
 }
 
 model DocumentChunk {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  referenceMaterialId String   @map("reference_material_id") @db.Uuid
-  pageNumber          Int?     @map("page_number")
-  chunkIndex          Int      @map("chunk_index")
-  content             String   @db.Text
+  id                  String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceMaterialId String                       @map("reference_material_id") @db.Uuid
+  pageNumber          Int?                         @map("page_number")
+  chunkIndex          Int                          @map("chunk_index")
+  content             String                       @db.Text
   embedding           Unsupported("vector(3072)")?
-  createdAt           DateTime @default(now()) @map("created_at")
+  createdAt           DateTime                     @default(now()) @map("created_at")
 
-  referenceMaterial   ReferenceMaterial @relation(fields: [referenceMaterialId], references: [id], onDelete: Cascade)
+  referenceMaterial ReferenceMaterial @relation(fields: [referenceMaterialId], references: [id], onDelete: Cascade)
 
   @@index([referenceMaterialId])
   @@map("document_chunks")
