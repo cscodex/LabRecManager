@@ -45,10 +45,12 @@ const prismaClientSingleton = () => {
     console.log("☁️ INITIALIZING NEON HTTP ADAPTER");
 
     try {
-        const adapter = new PrismaNeonHttp(connectionString, { fetchOptions: {} });
+        const adapter = new PrismaNeonHttp(connectionString, {
+            fetchOptions: { cache: 'no-store' }
+        });
 
         console.log("✅ PrismaNeonHttp initialized successfully");
-        return new PrismaClient({ adapter });
+        return new PrismaClient({ adapter, log: ['query', 'info', 'warn', 'error'] });
     } catch (e: any) {
         console.error("❌ PrismaNeonHttp initialization FAILED:", e.message);
         throw e;

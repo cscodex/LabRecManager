@@ -1,160 +1,166 @@
 generator client {
-  provider = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters", "postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
-// ============ USERS ============
 model Admin {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  name         String
-  role         String   @default("admin") // admin, superadmin
-  createdAt    DateTime @default(now()) @map("created_at")
-  exams        Exam[]
-  assignmentLogs ExamAssignmentLog[]
-  examBlueprints ExamBlueprint[]
-  notes        AdminNote[]
-  
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                String              @unique
+  passwordHash         String              @map("password_hash")
+  name                 String
+  role                 String              @default("admin")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  verification_token   String?
+  verification_expires DateTime?
+  notes                AdminNote[]
+  assignmentLogs       ExamAssignmentLog[]
+  examBlueprints       ExamBlueprint[]
+  exams                Exam[]
+
   @@map("admins")
 }
 
 model AdminNote {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title     String   @db.VarChar(255)
-  content   Json     
+  content   Json
   authorId  String   @map("author_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
   author    Admin    @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@index([createdAt])
   @@map("admin_notes")
 }
 
-
 model Student {
-  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rollNumber          String       @unique @map("roll_number")
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rollNumber          String              @unique @map("roll_number")
   name                String
-  nameRegional        String?      @map("name_regional")
+  nameRegional        String?             @map("name_regional")
   email               String?
   phone               String?
-  passwordHash        String       @map("password_hash")
-  photoUrl            String?      @map("photo_url")
+  passwordHash        String              @map("password_hash")
+  photoUrl            String?             @map("photo_url")
   class               String?
   school              String?
-  state               String?
-  district            String?
-  isActive            Boolean      @default(true) @map("is_active")
-  createdAt           DateTime     @default(now()) @map("created_at")
-  // Email verification fields
-  emailVerified       Boolean      @default(false) @map("email_verified")
-  verificationToken   String?      @map("verification_token")
-  verificationExpires DateTime?    @map("verification_expires")
-  googleId            String?      @map("google_id")
-  
-  attempts       ExamAttempt[]
-  assignments    ExamAssignment[]
-  assignmentLogs ExamAssignmentLog[]
-  
+  isActive            Boolean             @default(true) @map("is_active")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  emailVerified       Boolean?            @default(false) @map("email_verified")
+  verificationToken   String?             @map("verification_token")
+  verificationExpires DateTime?           @map("verification_expires") @db.Timestamp(6)
+  googleId            String?             @map("google_id")
+  phone_verified      Boolean?            @default(false)
+  firebase_uid        String?
+  state               String?             @db.VarChar(100)
+  district            String?             @db.VarChar(100)
+  assignmentLogs      ExamAssignmentLog[]
+  assignments         ExamAssignment[]
+  attempts            ExamAttempt[]
+
   @@map("students")
 }
 
-// ============ EXAMS ============
 model Exam {
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title            Json         // { "en": "...", "pa": "..." }
-  description      Json?
-  duration         Int          // in minutes
-  totalMarks       Int          @map("total_marks")
-  passingMarks     Int?         @map("passing_marks")
-  negativeMarking  Decimal?     @map("negative_marking") @db.Decimal(3,2)
-  shuffleQuestions Boolean      @default(false) @map("shuffle_questions")
-  showResults      String       @default("after_submit") // after_submit, after_end, manual
-  status           String       @default("draft") // draft, published, archived
-  type             String?      @db.VarChar(50)
-  securityMode     Boolean      @default(false) @map("security_mode")
-  instructions     Json?
-  sourcePdfUrl     String?      @map("source_pdf_url")
-  createdById      String       @map("created_by") @db.Uuid
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
-  
-  createdBy   Admin        @relation(fields: [createdById], references: [id])
-  sections    Section[]
-  schedules   ExamSchedule[]
-  assignments ExamAssignment[]
-  attempts    ExamAttempt[]
-  assignmentLogs ExamAssignmentLog[]
-  
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                Json
+  description          Json?
+  duration             Int
+  totalMarks           Int                 @map("total_marks")
+  passingMarks         Int?                @map("passing_marks")
+  negativeMarking      Decimal?            @map("negative_marking") @db.Decimal(3, 2)
+  shuffleQuestions     Boolean             @default(false) @map("shuffle_questions")
+  showResults          String              @default("after_submit")
+  status               String              @default("draft")
+  createdById          String              @map("created_by") @db.Uuid
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  instructions         Json?
+  securityMode         Boolean?            @default(false) @map("security_mode")
+  auto_assign          Boolean?            @default(false)
+  auto_assign_attempts Int?                @default(3)
+  grading_instructions String?
+  source               String?             @default("admin") @db.VarChar(20)
+  type                 String?             @db.VarChar(50)
+  sourcePdfUrl         String?             @map("source_pdf_url")
+  assignmentLogs       ExamAssignmentLog[]
+  assignments          ExamAssignment[]
+  attempts             ExamAttempt[]
+  schedules            ExamSchedule[]
+  createdBy            Admin               @relation(fields: [createdById], references: [id])
+  sections             Section[]
+
   @@map("exams")
 }
 
 model ExamType {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String   @unique @db.VarChar(50)
-  name        String   @db.VarChar(100)
-  description String?  @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String    @unique @db.VarChar(50)
+  name        String    @db.VarChar(100)
+  description String?
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("exam_types")
 }
 
 model Section {
-  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId    String     @map("exam_id") @db.Uuid
-  name      Json       // { "en": "Mathematics", "pa": "ਗਣਿਤ" }
-  order     Int
-  duration  Int?       // optional section-specific time limit
-  
-  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
-  questions Question[]
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId           String            @map("exam_id") @db.Uuid
+  name             Json
+  order            Int
+  duration         Int?
+  questions        Question[]
   sectionQuestions SectionQuestion[]
-  
+  exam             Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
+
   @@map("sections")
 }
 
 model Question {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sectionId     String?  @map("section_id") @db.Uuid
-  type          String   // mcq_single, mcq_multiple, fill_blank, numerical
-  text          Json     // { "en": "...", "pa": "..." }
-  options       Json?    // [{ "id": "a", "text": {"en": "...", "pa": "..."} }]
-  correctAnswer Json     @map("correct_answer") // ["a"] or ["a","c"] or "42"
-  explanation   Json?    // { "en": "...", "pa": "..." }
-  marks         Int      @default(1)
-  difficulty    Int      @default(1) // 1-5 scale
-  negativeMarks Decimal? @map("negative_marks") @db.Decimal(3,2)
-  imageUrl      String?  @map("image_url")
-  paragraphId   String?  @map("paragraph_id") @db.Uuid
-  paragraph     Paragraph? @relation(fields: [paragraphId], references: [id])
-  parentId      String?  @map("parent_id") @db.Uuid
-  order         Int
-  
-  section       Section? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  parent        Question? @relation("QuestionToQuestion", fields: [parentId], references: [id])
-  subQuestions  Question[] @relation("QuestionToQuestion")
-  responses QuestionResponse[]
-  tags      QuestionTag[]
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId        String?            @map("section_id") @db.Uuid
+  type             String
+  text             Json
+  options          Json?
+  correctAnswer    Json               @map("correct_answer")
+  explanation      Json?
+  marks            Decimal            @default(1) @db.Decimal(5, 2)
+  negativeMarks    Decimal?           @map("negative_marks") @db.Decimal(3, 2)
+  imageUrl         String?            @map("image_url")
+  order            Int
+  parentId         String?            @map("parent_id") @db.Uuid
+  paragraphId      String?            @map("paragraph_id") @db.Uuid
+  difficulty       Int                @default(1)
+  tag_id           String?            @db.Uuid
+  createdAt        DateTime?          @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime?          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  model_answer     Json?
+  isAiGenerated    Boolean?           @default(false) @map("is_ai_generated")
+  citation         Json?
+  quality_score    Int?
+  responses        QuestionResponse[]
+  tags             QuestionTag[]
+  paragraph        Paragraph?         @relation(fields: [paragraphId], references: [id])
+  parent           Question?          @relation("QuestionToQuestion", fields: [parentId], references: [id])
+  subQuestions     Question[]         @relation("QuestionToQuestion")
+  section          Section?           @relation(fields: [sectionId], references: [id], onUpdate: NoAction)
   sectionQuestions SectionQuestion[]
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
-  
+
+  @@index([createdAt(sort: Desc)], map: "idx_questions_created_at")
   @@map("questions")
 }
 
 model Tag {
-  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String        @unique
-  createdAt DateTime      @default(now()) @map("created_at")
-  questions QuestionTag[]
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String          @unique @db.VarChar(255)
+  createdAt      DateTime?       @default(now()) @map("created_at") @db.Timestamp(6)
+  questions      QuestionTag[]
   blueprintRules BlueprintRule[] @relation("BlueprintRuleToTag")
+  referenceMaterials ReferenceMaterial[] @relation("ReferenceMaterialToTag")
 
   @@map("tags")
 }
@@ -174,11 +180,10 @@ model SectionQuestion {
   sectionId     String   @map("section_id") @db.Uuid
   questionId    String   @map("question_id") @db.Uuid
   marks         Int      @default(1)
-  negativeMarks Decimal? @map("negative_marks") @db.Decimal(3,2)
+  negativeMarks Decimal? @map("negative_marks") @db.Decimal(3, 2)
   order         Int
-
-  section       Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   question      Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  section       Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
 
   @@index([sectionId])
   @@index([questionId])
@@ -186,144 +191,135 @@ model SectionQuestion {
 }
 
 model Paragraph {
-    id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    text      Json     // Title: { "en": "...", "pa": "..." }
-    content   Json?    // Body: { "en": "...", "pa": "..." }
-    imageUrl  String?  @map("image_url")
-    createdAt DateTime @default(now()) @map("created_at")
-    updatedAt DateTime @updatedAt @map("updated_at")
-    questions Question[]
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  text      Json
+  content   Json?
+  imageUrl  String?    @map("image_url")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at")
+  questions Question[]
 
-    @@map("paragraphs")
+  @@map("paragraphs")
 }
 
-// ============ SCHEDULING ============
 model ExamSchedule {
-  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId      String           @map("exam_id") @db.Uuid
-  startTime   DateTime         @map("start_time") @db.Timestamptz
-  endTime     DateTime         @map("end_time") @db.Timestamptz
-  
-  exam        Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
-  assignments ExamAssignment[]
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId         String              @map("exam_id") @db.Uuid
+  startTime      DateTime            @map("start_time") @db.Timestamptz(6)
+  endTime        DateTime            @map("end_time") @db.Timestamptz(6)
   assignmentLogs ExamAssignmentLog[]
-  
+  assignments    ExamAssignment[]
+  exam           Exam                @relation(fields: [examId], references: [id], onDelete: Cascade)
+
   @@map("exam_schedules")
 }
 
 model ExamAssignment {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId      String   @map("exam_id") @db.Uuid
-  studentId   String   @map("student_id") @db.Uuid
-  scheduleId  String?  @map("schedule_id") @db.Uuid
-  maxAttempts Int      @default(1) @map("max_attempts")
-  assignedAt  DateTime @default(now()) @map("assigned_at")
-  
-  exam     Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student  Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  schedule ExamSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
-  
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId      String        @map("exam_id") @db.Uuid
+  studentId   String        @map("student_id") @db.Uuid
+  assignedAt  DateTime      @default(now()) @map("assigned_at")
+  maxAttempts Int           @default(1) @map("max_attempts")
+  scheduleId  String?       @map("schedule_id") @db.Uuid
+  exam        Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  schedule    ExamSchedule? @relation(fields: [scheduleId], references: [id])
+  student     Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
   @@unique([examId, studentId, scheduleId])
   @@map("exam_assignments")
 }
 
 model ExamAssignmentLog {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId      String   @map("exam_id") @db.Uuid
-  studentId   String   @map("student_id") @db.Uuid
-  scheduleId  String?  @map("schedule_id") @db.Uuid
-  maxAttempts Int      @default(1) @map("max_attempts")
-  action      String   // 'ASSIGNED' | 'UPDATED' | 'REMOVED'
-  assignedBy  String?  @map("assigned_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  exam      Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student   Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  schedule  ExamSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
-  admin     Admin?        @relation(fields: [assignedBy], references: [id], onDelete: SetNull)
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId      String        @map("exam_id") @db.Uuid
+  studentId   String        @map("student_id") @db.Uuid
+  scheduleId  String?       @map("schedule_id") @db.Uuid
+  maxAttempts Int           @default(1) @map("max_attempts")
+  action      String
+  assignedBy  String?       @map("assigned_by") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at")
+  admin       Admin?        @relation(fields: [assignedBy], references: [id])
+  exam        Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  schedule    ExamSchedule? @relation(fields: [scheduleId], references: [id])
+  student     Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([examId, studentId])
   @@map("exam_assignment_logs")
 }
 
-// ============ ATTEMPTS & RESPONSES ============
 model ExamAttempt {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  examId      String    @map("exam_id") @db.Uuid
-  studentId   String    @map("student_id") @db.Uuid
-  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz
-  submittedAt DateTime? @map("submitted_at") @db.Timestamptz
-  autoSubmit  Boolean   @default(false) @map("auto_submit")
-  totalScore  Decimal?  @map("total_score") @db.Decimal(6,2)
-  status      String    @default("in_progress") // in_progress, submitted, evaluated
-  pausedAt    DateTime? @map("paused_at") @db.Timestamptz
-  timeSpent   Int       @default(0) @map("time_spent")
-  currentQuestionId String? @map("current_question_id") @db.Uuid
-  
-  
-  exam      Exam      @relation(fields: [examId], references: [id])
-  student   Student   @relation(fields: [studentId], references: [id])
-  responses QuestionResponse[]
-  
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId            String             @map("exam_id") @db.Uuid
+  studentId         String             @map("student_id") @db.Uuid
+  startedAt         DateTime           @default(now()) @map("started_at") @db.Timestamptz(6)
+  submittedAt       DateTime?          @map("submitted_at") @db.Timestamptz(6)
+  autoSubmit        Boolean            @default(false) @map("auto_submit")
+  totalScore        Decimal?           @map("total_score") @db.Decimal(6, 2)
+  status            String             @default("in_progress")
+  pausedAt          DateTime?          @map("paused_at") @db.Timestamptz(6)
+  timeSpent         Int?               @default(0) @map("time_spent")
+  currentQuestionId String?            @map("current_question_id") @db.Uuid
+  session_token     String?
+  exam              Exam               @relation(fields: [examId], references: [id])
+  student           Student            @relation(fields: [studentId], references: [id])
+  responses         QuestionResponse[]
+
   @@index([examId, status])
   @@map("exam_attempts")
 }
 
 model QuestionResponse {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attemptId       String   @map("attempt_id") @db.Uuid
-  questionId      String   @map("question_id") @db.Uuid
-  answer          Json?    // Selected option(s) or text
-  markedForReview Boolean  @default(false) @map("marked_for_review")
-  timeSpent       Int?     @map("time_spent") // seconds
-  isCorrect       Boolean? @map("is_correct")
-  marksAwarded    Decimal? @map("marks_awarded") @db.Decimal(5,2)
-  aiFeedback      Json?    @map("ai_feedback") // { score: 4, feedback: "...", improvements: "..." }
-  
-  attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  question Question    @relation(fields: [questionId], references: [id])
-  
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attemptId       String      @map("attempt_id") @db.Uuid
+  questionId      String      @map("question_id") @db.Uuid
+  answer          Json?
+  markedForReview Boolean     @default(false) @map("marked_for_review")
+  timeSpent       Int?        @map("time_spent")
+  isCorrect       Boolean?    @map("is_correct")
+  marksAwarded    Decimal?    @map("marks_awarded") @db.Decimal(5, 2)
+  aiFeedback      Json?       @map("ai_feedback")
+  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        Question    @relation(fields: [questionId], references: [id])
+
   @@unique([attemptId, questionId])
   @@map("question_responses")
 }
 
-// ============ DEMO CONTENT (Scientific Editor) ============
 model DemoContent {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title       String   @db.VarChar(255)
-  content     String   @db.Text
-  contentType String   @default("general") @map("content_type") @db.VarChar(50) // math, chemistry, physics, biology, general
+  content     String
+  contentType String   @default("general") @map("content_type") @db.VarChar(50)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-  
+
   @@map("demo_content")
 }
 
-// ============ QUERY LOGS (Error Tracking) ============
 model QueryLog {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   route     String   @db.VarChar(255)
-  method    String   @db.VarChar(10) // GET, POST, PUT, DELETE
-  query     String?  @db.Text // SQL query or operation description
-  params    String?  @db.Text // JSON stringified params
+  method    String   @db.VarChar(10)
+  query     String?
+  params    String?
   success   Boolean  @default(true)
-  error     String?  @db.Text // Error message if failed
-  duration  Int?     // Execution time in ms
-  userId    String?  @map("user_id") @db.Uuid // Admin who made the request
+  error     String?
+  duration  Int?
+  userId    String?  @map("user_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
-  
+
   @@index([route])
+  @@index([success, createdAt])
   @@map("query_logs")
 }
 
-// ============ AUDIT & LOGS ============
 model BackupLog {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type      String   // 'json' | 'sql'
-  action    String   // 'backup' | 'restore'
-  status    String   // 'success' | 'failed'
+  type      String
+  action    String
+  status    String
   filename  String?
-  size      Int?     // bytes
+  size      Int?
   adminId   String?  @map("admin_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -332,7 +328,7 @@ model BackupLog {
 
 model ActivityLog {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  action    String   // e.g. 'COMMIT', 'PUBLISH_EXAM'
+  action    String
   message   String
   adminId   String?  @map("admin_id") @db.Uuid
   metadata  Json?
@@ -343,54 +339,99 @@ model ActivityLog {
 
 model SystemSetting {
   key         String   @id
-  value       String   // JSON stringified value or plain text
+  value       String
   description String?
   updatedAt   DateTime @updatedAt @map("updated_at")
-  
+
   @@map("system_settings")
 }
 
-// ============ EXAM AUTOMATION (BLUEPRINTS) ============
 model ExamBlueprint {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @unique
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String             @unique
   description String?
-  createdById String   @map("created_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  createdBy   Admin              @relation(fields: [createdById], references: [id])
-  sections    BlueprintSection[]
+  createdById String             @map("created_by") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
   rules       BlueprintRule[]
+  sections    BlueprintSection[]
+  createdBy   Admin              @relation(fields: [createdById], references: [id])
+  
+  generationMethod String @default("fetch_existing") // fetch_existing, generate_novel
 
   @@map("exam_blueprints")
 }
 
 model BlueprintSection {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  blueprintId String   @map("blueprint_id") @db.Uuid
-  name        Json     
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blueprintId String          @map("blueprint_id") @db.Uuid
+  name        Json
   order       Int
-  
-  blueprint   ExamBlueprint   @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
   rules       BlueprintRule[]
+  blueprint   ExamBlueprint   @relation(fields: [blueprintId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("blueprint_sections")
 }
 
 model BlueprintRule {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  blueprintId      String        @map("blueprint_id") @db.Uuid
-  sectionId        String        @map("section_id") @db.Uuid
-  questionType     String        // mcq_single, fill_blank, numerical, short_answer, long_answer, true_false
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blueprintId       String           @map("blueprint_id") @db.Uuid
+  questionType      String
   numberOfQuestions Int
-  marksPerQuestion Decimal       @map("marks_per_question") @db.Decimal(5,2)
-  negativeMarks    Decimal?      @map("negative_marks") @db.Decimal(5,2)
-  difficulty       Int?          // 1-5 scale, optional
-
-  blueprint        ExamBlueprint    @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
-  section          BlueprintSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  topicTags        Tag[]            @relation("BlueprintRuleToTag")
+  marksPerQuestion  Decimal          @map("marks_per_question") @db.Decimal(5, 2)
+  negativeMarks     Decimal?         @map("negative_marks") @db.Decimal(5, 2)
+  difficulty        Int?
+  sectionId         String           @map("section_id") @db.Uuid
+  blueprint         ExamBlueprint    @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  section           BlueprintSection @relation(fields: [sectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  topicTags         Tag[]            @relation("BlueprintRuleToTag")
 
   @@map("blueprint_rules")
+}
+
+model exam_cutoff_trends {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exam_type               String    @db.VarChar(50)
+  year                    Int
+  category                String    @db.VarChar(50)
+  stage                   String?   @db.VarChar(50)
+  total_cutoff_marks      Decimal?  @db.Decimal(10, 2)
+  total_cutoff_percentile Decimal?  @db.Decimal(5, 2)
+  sectional_cutoffs       Json?
+  description             String?
+  source_url              String?
+  created_at              DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([exam_type, year, category], map: "idx_exam_cutoff_lookup")
+}
+
+// ============ KNOWLEDGE BASE (RAG) ============
+model ReferenceMaterial {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String
+  author      String?
+  fileUrl     String?  @map("file_url")
+  textContent String?  @map("text_content") @db.Text 
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tags        Tag[]    @relation("ReferenceMaterialToTag")
+  chunks      DocumentChunk[]
+
+  @@map("reference_materials")
+}
+
+model DocumentChunk {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceMaterialId String   @map("reference_material_id") @db.Uuid
+  pageNumber          Int?     @map("page_number")
+  chunkIndex          Int      @map("chunk_index")
+  content             String   @db.Text
+  embedding           Unsupported("vector(3072)")?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  referenceMaterial   ReferenceMaterial @relation(fields: [referenceMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([referenceMaterialId])
+  @@map("document_chunks")
 }

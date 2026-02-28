@@ -45,32 +45,37 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
         }
 
+        const generationMethod = body.generationMethod || 'fetch_existing';
+
         // 0. Validate available questions for all rules before mutating the database
-        for (let idx = 0; idx < sections.length; idx++) {
-            const sec = sections[idx];
-            if (sec.rules && sec.rules.length > 0) {
-                for (let rIdx = 0; rIdx < sec.rules.length; rIdx++) {
-                    const r = sec.rules[rIdx];
-                    const whereClause: any = {
-                        sectionId: null, // From question bank
-                        type: r.questionType,
-                    };
+        // Skip validation if we are going to generate them dynamically via AI
+        if (generationMethod !== 'generate_novel') {
+            for (let idx = 0; idx < sections.length; idx++) {
+                const sec = sections[idx];
+                if (sec.rules && sec.rules.length > 0) {
+                    for (let rIdx = 0; rIdx < sec.rules.length; rIdx++) {
+                        const r = sec.rules[rIdx];
+                        const whereClause: any = {
+                            sectionId: null, // From question bank
+                            type: r.questionType,
+                        };
 
-                    if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
-                        whereClause.tags = { some: { tagId: { in: r.topicTags } } };
-                    }
-                    if (r.difficulty) {
-                        whereClause.difficulty = parseInt(r.difficulty);
-                    }
+                        if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
+                            whereClause.tags = { some: { tagId: { in: r.topicTags } } };
+                        }
+                        if (r.difficulty) {
+                            whereClause.difficulty = parseInt(r.difficulty);
+                        }
 
-                    const availableQuestions = await prisma.question.count({ where: whereClause });
-                    const requested = parseInt(r.numberOfQuestions);
+                        const availableQuestions = await prisma.question.count({ where: whereClause });
+                        const requested = parseInt(r.numberOfQuestions);
 
-                    if (requested > availableQuestions) {
-                        return NextResponse.json({
-                            success: false,
-                            error: `Validation failed: Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} unique questions are available for the selected tags and type.`
-                        }, { status: 400 });
+                        if (requested > availableQuestions) {
+                            return NextResponse.json({
+                                success: false,
+                                error: `Validation failed: Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} unique questions are available for the selected tags and type.`
+                            }, { status: 400 });
+                        }
                     }
                 }
             }
@@ -84,6 +89,7 @@ export async function POST(request: Request) {
                 name,
                 description,
                 createdById,
+                generationMethod
             }
         });
 

@@ -660,7 +660,7 @@ export default function QuestionEditor({
                             <option value="long_answer">Long Answer</option>
                             <option value="paragraph">Paragraph</option>
                         </select>
-                        {formData.type !== 'paragraph' && availableParagraphs && availableParagraphs.length > 0 && (
+                        {formData.type !== 'paragraph' && availableParagraphs !== undefined && (
                             <>
                                 <div className="h-6 w-px bg-gray-200 mx-1"></div>
                                 <select
@@ -668,7 +668,7 @@ export default function QuestionEditor({
                                     onChange={e => setFormData({ ...formData, parentId: e.target.value })}
                                     className="px-3 py-1 border rounded-lg text-sm max-w-xs"
                                 >
-                                    <option value="">No Paragraph Link</option>
+                                    <option value="">{availableParagraphs.length === 0 ? 'No Paragraphs Available' : 'No Paragraph Link'}</option>
                                     {availableParagraphs.map(p => (
                                         <option key={p.id} value={p.id}>
                                             Link: {p.textEn.replace(/<[^>]*>?/gm, '').substring(0, 30)}...

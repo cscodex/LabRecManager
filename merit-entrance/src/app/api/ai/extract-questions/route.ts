@@ -296,7 +296,7 @@ export async function POST(req: NextRequest) {
                 -   Extract all questions with options.
                 -   **True/False Questions**: Treat these as MCQs with two options: "True" and "False".
                 -   Remove question numbering (e.g., "1.", "Q1").
-                -   Extract all options into the \`options\` array.
+                -   Extract all options into the \`options\` array. **CRITICAL**: REMOVE ANY OPTION PREFIXES like (a), b), (C), or 1., 2., 3. so that ONLY the naked option text remains.
                 -   **Solve the question first**, then identify the correct option letter (e.g., "A", "B").
 
             2.  **Fill in the Blank Questions**:
@@ -306,12 +306,14 @@ export async function POST(req: NextRequest) {
             3.  **Short & Long Answer Questions**:
                 -   Extract the full question text.
                 -   Set \`options\` to [].
-                -   **Solve the question first**, then generate a concise "Model Answer" or "Key Points" for grading purposes. Put this in the \`answer\` field.
+                -   **Solve the question first**, then decide the answer.
+                -   **CRITICAL TYPING RULE**: If the correct answer is ONLY 1, 2, or 3 words long, classify the question \`type\` as "fill_blank" instead! Put the 1-3 word answer exactly into \`correctAnswer\`.
+                -   If the answer is longer than 3 words, keep the \`type\` as "short_answer" or "long_answer", and put the generated model answer in the \`answer\` field.
 
             **FIELDS TO EXTRACT PER QUESTION**:
             -   **text**: The full question text. Preserve formatting.
-            -   **type**: "mcq" (includes True/False), "fill_blank", "short_answer", "long_answer".
-            -   **options**: Array of strings. Each option MUST start with its letter prefix: ["A) ...", "B) ...", "C) ...", "D) ..."].
+            -   **type**: "mcq" (includes True/False), "fill_blank", "short_answer", "long_answer". (Remember the 1-to-3-word Fill Blank rule).
+            -   **options**: Array of strings. REMOVE ALL OPTION PREFIXES like (a), (b), (c) or 1, 2, 3 so that only the pure text remains.
             -   **correctAnswer**: 
                 -   For MCQ: MUST be ONLY the option LETTER ("A", "B", "C", or "D"). NOT the option text, NOT the answer value.
                 -   For fill_blank: The exact answer text.

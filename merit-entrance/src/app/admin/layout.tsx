@@ -21,7 +21,8 @@ import {
     ChevronLeft,
     Tag,
     BookOpen,
-    Layers
+    Layers,
+    Library
 } from 'lucide-react';
 import Clock from '@/components/Clock';
 
@@ -59,6 +60,7 @@ export default function AdminLayout({
         { href: '/admin/students', label: 'Students', icon: Users },
         { href: '/admin/tags', label: 'Tags', icon: Tag },
         { href: '/admin/questions', label: 'Question Bank', icon: BookOpen },
+        { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: Library },
         { href: '/admin/notes', label: 'Notes', icon: FileText },
         { href: '/admin/results', label: 'Results', icon: BarChart3 },
         { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
