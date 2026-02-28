@@ -20,6 +20,7 @@ export default function AdminBlueprintsPage() {
     // New Blueprint State
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [generationMethod, setGenerationMethod] = useState<'pull_existing' | 'generate_novel'>('pull_existing');
     const [sections, setSections] = useState<any[]>([
         { name: { en: 'Main Section', pa: 'ਮੁੱਖ ਭਾਗ' }, rules: [] }
     ]);
@@ -60,6 +61,7 @@ export default function AdminBlueprintsPage() {
         setEditingBpId(bp.id);
         setName(bp.name);
         setDescription(bp.description || '');
+        setGenerationMethod(bp.generationMethod || 'pull_existing');
 
         if (bp.sections && bp.sections.length > 0) {
             setSections(bp.sections.map((s: any) => ({
@@ -120,6 +122,7 @@ export default function AdminBlueprintsPage() {
                 body: JSON.stringify({
                     name,
                     description,
+                    generationMethod,
                     createdById: user?.id,
                     sections
                 })
@@ -143,6 +146,7 @@ export default function AdminBlueprintsPage() {
         setEditingBpId(null);
         setName('');
         setDescription('');
+        setGenerationMethod('pull_existing');
         setSections([{ name: { en: 'Main Section', pa: 'ਮੁੱਖ ਭਾਗ' }, rules: [] }]);
     };
 
@@ -285,7 +289,14 @@ export default function AdminBlueprintsPage() {
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
-                                    <h3 className="text-lg font-bold text-gray-900 pr-16">{bp.name}</h3>
+                                    <h3 className="text-lg font-bold text-gray-900 pr-16 flex items-center flex-wrap gap-2">
+                                        <span>{bp.name}</span>
+                                        {bp.generationMethod === 'generate_novel' && (
+                                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                                <span className="-mt-0.5">✨</span> AI Created
+                                            </span>
+                                        )}
+                                    </h3>
                                     {bp.description && <p className="text-sm text-gray-500 mt-1">{bp.description}</p>}
                                     <div className="mt-4 flex gap-4 text-sm font-semibold text-blue-800">
                                         <span>{bp.sections?.length || 0} Sections</span>
@@ -341,15 +352,28 @@ export default function AdminBlueprintsPage() {
 
                         <div className="overflow-y-auto pr-2 flex-1">
                             <div className="space-y-4 mb-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Blueprint Name *</label>
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={e => setName(e.target.value)}
-                                        className="w-full border rounded-lg p-2"
-                                        placeholder="e.g. JEE Main Mock Pattern"
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Blueprint Name *</label>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={e => setName(e.target.value)}
+                                            className="w-full border rounded-lg p-2"
+                                            placeholder="e.g. JEE Main Mock Pattern"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Question Source</label>
+                                        <select
+                                            value={generationMethod}
+                                            onChange={e => setGenerationMethod(e.target.value as any)}
+                                            className="w-full border rounded-lg p-2 bg-white"
+                                        >
+                                            <option value="pull_existing">Pull from Question Bank</option>
+                                            <option value="generate_novel">✨ Generate Novel AI Questions (RAG)</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -362,6 +386,15 @@ export default function AdminBlueprintsPage() {
                                     />
                                 </div>
                             </div>
+
+                            {generationMethod === 'generate_novel' && (
+                                <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg text-purple-800 text-sm flex gap-3">
+                                    <div className="mt-0.5">✨</div>
+                                    <div>
+                                        <strong>AI Generation Mode Active:</strong> This blueprint will dynamically write brand new questions based on your defined tags by scanning the uploaded PDF Knowledge Base. Number of requested questions can exceed bank limits.
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mb-6 space-y-6">
                                 {sections.map((sec, secIdx) => (
