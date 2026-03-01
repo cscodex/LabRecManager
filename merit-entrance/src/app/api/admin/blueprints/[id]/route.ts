@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     try {
         const body = await request.json();
-        const { name, description, sections, generationMethod } = body;
+        const { name, description, sections, generationMethod, materialIds } = body;
         const blueprintId = params.id;
 
         if (!blueprintId) {
@@ -17,7 +17,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
         const bp = await prisma.examBlueprint.update({
             where: { id: blueprintId },
-            data: { name, description, generationMethod }
+            data: {
+                name,
+                description,
+                generationMethod,
+                materials: {
+                    set: materialIds ? materialIds.map((id: string) => ({ id })) : []
+                }
+            }
         });
 
         const oldRules = await prisma.blueprintRule.findMany({

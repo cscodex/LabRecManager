@@ -7,10 +7,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
     try {
-        const { prompt } = await req.json();
+        const { prompt, images, materialIds } = await req.json();
 
-        if (!prompt) {
-            return NextResponse.json({ success: false, error: 'Prompt is required' }, { status: 400 });
+        if (!prompt && (!images || images.length === 0)) {
+            return NextResponse.json({ success: false, error: 'Prompt or image is required' }, { status: 400 });
         }
 
         // Fetch all available tags to give the AI context of what topics it can choose from
@@ -82,17 +82,21 @@ export async function POST(req: NextRequest) {
         // The exact prompt sent to Gemini
         const systemPrompt = `
 You are an expert strict AI Exam Blueprint Architect.
-The user has provided a natural language request to design a test. Your job is to strictly output the JSON structure representing this blueprint.
+The user has provided a natural language request to design a test, OR they have attached images (like a Syllabus Table showing Chapters, and Mark Distribution showing Rules for sections). Your job is to strictly output the JSON structure representing this blueprint.
 
 Here are all the valid Topic Tags currently in the database, with their IDs and Names:
 ${tagListString}
 
-Based on the user's prompt, intelligently deduce which topic tags apply to which sections.
-If the prompt asks for a "Physics and Chemistry" test, generate two sections, each with rules targeting those specific tag IDs.
-If you cannot find exact tag matches, pick the closest conceptual tag IDs. DO NOT invent tag IDs. The 'topicTags' array MUST ONLY contain the exact ID strings listed above.
+# INSTRUCTIONS FOR TAG MATCHING & CREATION
+Based on the user's prompt OR OCR extraction from provided images, deduce which topic tags apply to which sections.
+If you find exact or very close matches in the known Tags list provided above, USE THEIR EXACT IDs in the \`topicTags\` array.
+If an extracted Chapter or Topic DOES NOT EXIST in the known list, you MUST STILL INCLUDE IT, but INSTEAD of an ID, output the raw string Name (e.g. "Thermodynamics"). The system will intercept this, dynamically create the tag, and inject the new UUID later.
+So, the \`topicTags\` array can contain a mix of verified UUIDs and raw string names for missing topics.
 
-Break down the test into logical sections if warranted by the prompt, or just a single "Main Section" if it's a simple test.
-Apply reasonable defaults if the user doesn't specify explicit counts:
+# INSTRUCTIONS FOR STRUCTURE
+Break down the test into logical sections if warranted by the prompt or image (e.g. if the distribution table shows 'Section A' and 'Section B', create two sections).
+Parse the mark distribution rules precisely. If an image states "Section A has 20 1-mark questions", generate a rule with numberOfQuestions: 20, marksPerQuestion: 1.
+Apply reasonable defaults ONLY if the user doesn't specify explicit counts in the text or images:
 - Default questionType: "mcq_single"
 - Default marksPerQuestion: 4
 - Default negativeMarks: 1
@@ -100,15 +104,68 @@ Apply reasonable defaults if the user doesn't specify explicit counts:
 
 Warning: Do not return conversational text, ONLY the raw JSON satisfying the required schema.
 
-User Request: "${prompt}"
+User Request: "${prompt || 'Extract blueprint structure from the provided image(s).'}"
 `;
 
-        const result = await model.generateContent(systemPrompt);
+        const requestPayload: any[] = [systemPrompt];
+
+        if (images && images.length > 0) {
+            for (const imgBase64 of images) {
+                // Determine mime type from the data URI (e.g., "data:image/png;base64,...")
+                let mimeType = "image/jpeg";
+                const match = imgBase64.match(/^data:(image\/[a-zA-Z+]+);base64,/);
+                if (match) mimeType = match[1];
+
+                const base64Data = imgBase64.replace(/^data:image\/\w+;base64,/, "");
+                requestPayload.push({
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: mimeType
+                    }
+                });
+            }
+        }
+
+        const result = await model.generateContent(requestPayload);
         const responseText = result.response.text();
+        const parsedData = JSON.parse(responseText);
+
+        // --- TAG RESOLUTION PIPELINE (Phase 11) ---
+        // Iterate through all parsed sections and rules to swap raw names with valid UUIDs.
+        for (const section of parsedData.sections) {
+            for (const rule of section.rules) {
+                const resolvedTagIds = [];
+                for (const rawTag of rule.topicTags) {
+                    // Check if it's already a valid UUID format (means the AI matched an existing tag)
+                    const isUuid = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/gi.test(rawTag);
+
+                    if (isUuid) {
+                        resolvedTagIds.push(rawTag);
+                    } else {
+                        // It's a raw string Name representing a MISSING tag. Create it automatically.
+                        try {
+                            const newTag = await prisma.tag.create({
+                                data: { name: rawTag }
+                            });
+                            resolvedTagIds.push(newTag.id);
+                        } catch (e: any) {
+                            // If creation fails (e.g., rare race condition with unique name constraint), try to fetch it
+                            const existingTag = await prisma.tag.findUnique({ where: { name: rawTag } });
+                            if (existingTag) {
+                                resolvedTagIds.push(existingTag.id);
+                            } else {
+                                console.error("Failed to dynamically create missing tag:", rawTag, e);
+                            }
+                        }
+                    }
+                }
+                rule.topicTags = resolvedTagIds;
+            }
+        }
 
         return NextResponse.json({
             success: true,
-            data: JSON.parse(responseText)
+            data: parsedData
         });
 
     } catch (error: any) {

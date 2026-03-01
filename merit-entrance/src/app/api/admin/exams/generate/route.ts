@@ -62,6 +62,9 @@ export async function POST(request: Request) {
                     },
                     orderBy: { order: "asc" },
                 },
+                materials: {
+                    select: { id: true }
+                }
             },
         });
 
@@ -198,10 +201,17 @@ export async function POST(request: Request) {
                             `Generate a ${questionType} question about ${tagNames}. Difficulty level: ${difficulty || "medium"}.`,
                         );
 
-                        // Execute raw vector search
+                        let contextFilter = '';
+                        if (blueprint.materials && blueprint.materials.length > 0) {
+                            const materialIds = blueprint.materials.map(m => `'${m.id}'`).join(',');
+                            contextFilter = `WHERE reference_material_id IN (${materialIds})`;
+                        }
+
+                        // Execute raw vector search with material filter
                         const contextChunks = await prisma.$queryRawUnsafe<any[]>(
                             `SELECT chunk_text, 1 - (embedding <=> '[${aiPromptVector.embedding.values.join(",")}]') as similarity 
                             FROM "DocumentChunk" 
+                            ${contextFilter}
                             ORDER BY similarity DESC 
                             LIMIT 15`,
                         );

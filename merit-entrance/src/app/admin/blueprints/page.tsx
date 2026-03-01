@@ -18,6 +18,10 @@ export default function AdminBlueprintsPage() {
     const [editingBpId, setEditingBpId] = useState<string | null>(null);
     const [viewingBp, setViewingBp] = useState<any | null>(null);
 
+    // Knowledge Base State
+    const [referenceMaterials, setReferenceMaterials] = useState<any[]>([]);
+    const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+
     // New Blueprint State
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -30,6 +34,8 @@ export default function AdminBlueprintsPage() {
     const [aiPrompt, setAiPrompt] = useState('');
     const [isGeneratingBlueprint, setIsGeneratingBlueprint] = useState(false);
     const [savedPrompts, setSavedPrompts] = useState<{ id: string, name: string, prompt: string }[]>([]);
+    const [aiImages, setAiImages] = useState<File[]>([]);
+    const [aiImagePreviews, setAiImagePreviews] = useState<string[]>([]);
 
     // Tag Search State
     const [searchTagTerm, setSearchTagTerm] = useState<{ [key: string]: string }>({});
@@ -62,16 +68,19 @@ export default function AdminBlueprintsPage() {
 
     const loadData = async () => {
         try {
-            const [bpRes, tagsRes] = await Promise.all([
+            const [bpRes, tagsRes, matRes] = await Promise.all([
                 fetch('/api/admin/blueprints'),
-                fetch('/api/admin/tags')
+                fetch('/api/admin/tags'),
+                fetch('/api/admin/knowledge-base?limit=100')
             ]);
 
             const bpData = await bpRes.json();
             const tagsData = await tagsRes.json();
+            const matData = await matRes.json();
 
             if (bpData.success) setBlueprints(bpData.data);
             if (tagsData.success) setTags(tagsData.tags);
+            if (matData.success) setReferenceMaterials(matData.data || []);
         } catch (error) {
             toast.error('Failed to load data');
         } finally {
@@ -84,6 +93,8 @@ export default function AdminBlueprintsPage() {
         setName(bp.name);
         setDescription(bp.description || '');
         setGenerationMethod(bp.generationMethod || 'pull_existing');
+        // Pre-fill selected materials if available in the relation
+        setSelectedMaterialIds(bp.materials?.map((m: any) => m.id) || []);
 
         if (bp.sections && bp.sections.length > 0) {
             setSections(bp.sections.map((s: any) => ({
@@ -146,7 +157,8 @@ export default function AdminBlueprintsPage() {
                     description,
                     generationMethod,
                     createdById: user?.id,
-                    sections
+                    sections,
+                    materialIds: selectedMaterialIds
                 })
             });
 
@@ -165,7 +177,8 @@ export default function AdminBlueprintsPage() {
                             description,
                             generationMethod: 'generate_novel',
                             createdById: user?.id,
-                            sections
+                            sections,
+                            materialIds: selectedMaterialIds
                         })
                     });
                     const data2 = await res2.json();
@@ -237,19 +250,33 @@ export default function AdminBlueprintsPage() {
     };
 
     const handleGenerateWithAi = async () => {
-        if (!aiPrompt.trim()) {
-            toast.error('Please enter a description for the AI');
+        if (!aiPrompt.trim() && aiImages.length === 0) {
+            toast.error('Please enter a description or upload an image for the AI');
             return;
         }
 
         setIsGeneratingBlueprint(true);
-        const toastId = toast.loading('AI is designing the blueprint...');
+        const toastId = toast.loading('AI is designing the blueprint structure...');
 
         try {
+            // Convert images to base64
+            const base64Images = await Promise.all(
+                aiImages.map(file => new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                }))
+            );
+
             const res = await fetch('/api/ai/generate-blueprint', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: aiPrompt })
+                body: JSON.stringify({
+                    prompt: aiPrompt,
+                    images: base64Images,
+                    materialIds: selectedMaterialIds
+                })
             });
 
             const data = await res.json();
@@ -262,6 +289,8 @@ export default function AdminBlueprintsPage() {
                     setSections(aiBp.sections);
                 }
                 setAiPrompt(''); // clear prompt
+                setAiImages([]);
+                setAiImagePreviews([]);
                 toast.success('Blueprint successfully generated! Please review.', { id: toastId });
             } else {
                 toast.error(data.error || 'Failed to generate blueprint', { id: toastId });
@@ -272,6 +301,35 @@ export default function AdminBlueprintsPage() {
         } finally {
             setIsGeneratingBlueprint(false);
         }
+    };
+
+    const handleImageDrop = (e: React.DragEvent<HTMLDivElement> | React.ChangeEvent<HTMLInputElement>) => {
+        let files: File[] = [];
+        if ('dataTransfer' in e) {
+            e.preventDefault();
+            files = Array.from(e.dataTransfer.files);
+        } else {
+            files = Array.from(e.target.files || []);
+        }
+
+        const validImages = files.filter(f => f.type.startsWith('image/'));
+        if (validImages.length === 0) return;
+
+        setAiImages(prev => [...prev, ...validImages]);
+        validImages.forEach(file => {
+            const url = URL.createObjectURL(file);
+            setAiImagePreviews(prev => [...prev, url]);
+        });
+    };
+
+    const removeImage = (idx: number) => {
+        setAiImages(prev => prev.filter((_, i) => i !== idx));
+        setAiImagePreviews(prev => {
+            const newPreviews = [...prev];
+            URL.revokeObjectURL(newPreviews[idx]); // clean up memory
+            newPreviews.splice(idx, 1);
+            return newPreviews;
+        });
     };
 
     const closeModal = () => {
@@ -507,15 +565,43 @@ export default function AdminBlueprintsPage() {
                                         </select>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                                    <textarea
-                                        value={description}
-                                        onChange={e => setDescription(e.target.value)}
-                                        className="w-full border rounded-lg p-2"
-                                        placeholder="Optional description"
-                                        rows={2}
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                        <textarea
+                                            value={description}
+                                            onChange={e => setDescription(e.target.value)}
+                                            className="w-full border rounded-lg p-2 h-[88px]"
+                                            placeholder="Optional description"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Authorized Knowledge Base Materials (RAG)
+                                        </label>
+                                        <div className="w-full border rounded-lg p-2 bg-white h-[88px] overflow-y-auto">
+                                            {referenceMaterials.length === 0 ? (
+                                                <div className="text-xs text-gray-500 italic mt-2">No library materials uploaded yet.</div>
+                                            ) : (
+                                                <div className="flex flex-col gap-1">
+                                                    {referenceMaterials.map(mat => (
+                                                        <label key={mat.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedMaterialIds.includes(mat.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) setSelectedMaterialIds([...selectedMaterialIds, mat.id]);
+                                                                    else setSelectedMaterialIds(selectedMaterialIds.filter(id => id !== mat.id));
+                                                                }}
+                                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <span className="truncate flex-1">{mat.title}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -525,8 +611,46 @@ export default function AdminBlueprintsPage() {
                                     <span className="text-xl">✨</span> AI Blueprint Architect
                                 </label>
                                 <p className="text-xs text-blue-700 mb-3">
-                                    Describe your ideal exam (e.g. &quot;Create a 50 question NEET mock for Physics &amp; Chemistry with 3 hard sections&quot;). Provide topic names and the AI will build the entire structure.
+                                    Describe your ideal exam structure OR upload images of a Syllabus table & Mark Distribution.
+                                    The AI will extract chapters, map distributions, and automatically generate missing Topic Tags.
                                 </p>
+
+                                {/* Image Dropzone */}
+                                <div
+                                    className="mb-3 border-2 border-dashed border-blue-300 rounded-lg p-4 text-center bg-white hover:bg-blue-50/50 transition cursor-pointer"
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={handleImageDrop}
+                                    onClick={() => document.getElementById('blueprintImageUpload')?.click()}
+                                >
+                                    <input
+                                        type="file"
+                                        id="blueprintImageUpload"
+                                        className="hidden"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handleImageDrop}
+                                    />
+                                    <div className="text-sm text-blue-600 font-medium">Click to upload Syllabus & Distribution images</div>
+                                    <div className="text-xs text-blue-400 mt-1">or drag & drop here (e.g. PNG, JPG)</div>
+                                </div>
+
+                                {/* Image Previews */}
+                                {aiImagePreviews.length > 0 && (
+                                    <div className="flex flex-wrap gap-3 mb-4">
+                                        {aiImagePreviews.map((preview, idx) => (
+                                            <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-blue-200 shadow-sm">
+                                                <img src={preview} alt="Upload preview" className="w-full h-full object-cover" />
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
+                                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
@@ -534,7 +658,7 @@ export default function AdminBlueprintsPage() {
                                         onChange={e => setAiPrompt(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleGenerateWithAi()}
                                         className="flex-1 border-blue-200 rounded-lg p-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                                        placeholder="Type your blueprint instructions here..."
+                                        placeholder="Type extra instructions here (optional if images provided)..."
                                         disabled={isGeneratingBlueprint}
                                     />
                                     <button

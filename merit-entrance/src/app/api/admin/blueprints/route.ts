@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, description, sections, createdById } = body;
+        const { name, description, sections, createdById, materialIds } = body;
 
         if (!name || !sections || !Array.isArray(sections) || !createdById) {
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
@@ -53,13 +53,15 @@ export async function POST(request: Request) {
 
         // 1. Create basic blueprint info
         try {
-            // @ts-ignore - Prisma type cache issue
             const bp = await prisma.examBlueprint.create({
                 data: {
                     name,
                     description,
                     createdById,
-                    generationMethod
+                    generationMethod,
+                    materials: materialIds && materialIds.length > 0 ? {
+                        connect: materialIds.map((id: string) => ({ id }))
+                    } : undefined
                 }
             });
 

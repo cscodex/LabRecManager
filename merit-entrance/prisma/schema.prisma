@@ -357,6 +357,7 @@ model ExamBlueprint {
   rules       BlueprintRule[]
   sections    BlueprintSection[]
   createdBy   Admin              @relation(fields: [createdById], references: [id])
+  materials   ReferenceMaterial[] @relation("BlueprintToMaterial")
 
   generationMethod String @default("fetch_existing") // fetch_existing, generate_novel
 
@@ -429,8 +430,9 @@ model ReferenceMaterial {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  tags   Tag[]           @relation("ReferenceMaterialToTag")
-  chunks DocumentChunk[]
+  tags       Tag[]           @relation("ReferenceMaterialToTag")
+  chunks     DocumentChunk[]
+  blueprints ExamBlueprint[] @relation("BlueprintToMaterial")
 
   @@map("reference_materials")
 }
