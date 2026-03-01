@@ -207,7 +207,7 @@ export async function POST(request: Request) {
                         let contextMap = '';
 
                         if (blueprint.materials && blueprint.materials.length > 0) {
-                            const materialIds = blueprint.materials.map(m => `'${m.id}'`).join(',');
+                            const materialIds = blueprint.materials.map((m: any) => `'${m.id}'`).join(',');
                             const contextFilter = `WHERE reference_material_id IN (${materialIds})`;
 
                             // Execute raw vector search with material filter
