@@ -3,153 +3,130 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
     try {
-        // @ts-ignore - Prisma type cache issue
+        const { searchParams } = new URL(request.url);
+        const adminId = searchParams.get('adminId');
+
+        const whereClause: any = {};
+        if (adminId) {
+            whereClause.createdById = adminId;
+        }
+
         const blueprints = await prisma.examBlueprint.findMany({
+            where: whereClause,
             include: {
                 sections: {
                     include: {
                         rules: {
                             include: {
-                                topicTags: true,
+                                topicTags: true
                             }
+                        },
+                        orderBy: {
+                            order: 'asc'
                         }
-                    },
-                    orderBy: {
-                        order: 'asc'
                     }
                 },
                 createdBy: {
-                    select: {
-                        name: true,
-                    }
+                    select: { name: true }
                 }
             },
-            orderBy: {
-                createdAt: 'desc'
-            }
+            orderBy: { createdAt: 'desc' }
         });
 
         return NextResponse.json({ success: true, data: blueprints });
     } catch (error: any) {
-        console.error('Failed to fetch blueprints:', error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.error('Error fetching blueprints:', error);
+        return NextResponse.json({ success: false, error: 'Failed to fetch blueprints' }, { status: 500 });
     }
 }
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, description, createdById, sections } = body;
+        const { name, description, sections, createdById } = body;
 
-        if (!name || !createdById || !sections || !Array.isArray(sections)) {
+        if (!name || !sections || !Array.isArray(sections) || !createdById) {
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
         }
 
         const generationMethod = body.generationMethod || 'fetch_existing';
 
-        // 0. Validate available questions for all rules before mutating the database
-        // Skip validation if we are going to generate them dynamically via AI
-        if (generationMethod !== 'generate_novel') {
-            for (let idx = 0; idx < sections.length; idx++) {
-                const sec = sections[idx];
-                if (sec.rules && sec.rules.length > 0) {
-                    for (let rIdx = 0; rIdx < sec.rules.length; rIdx++) {
-                        const r = sec.rules[rIdx];
-                        const whereClause: any = {
-                            sectionId: null, // From question bank
-                            type: r.questionType,
-                        };
-
-                        if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
-                            whereClause.tags = { some: { tagId: { in: r.topicTags } } };
-                        }
-                        if (r.difficulty) {
-                            whereClause.difficulty = parseInt(r.difficulty);
-                        }
-
-                        const availableQuestions = await prisma.question.count({ where: whereClause });
-                        const requested = parseInt(r.numberOfQuestions);
-
-                        if (requested > availableQuestions) {
-                            return NextResponse.json({
-                                success: false,
-                                requiresAiConfirmation: true,
-                                error: `Not enough questions with section rule and confirm to create using AI based on rule and available textbook RAG.\n\n(Section ${idx + 1}, Rule ${rIdx + 1} requests ${requested} questions, but only ${availableQuestions} exist in bank.)`
-                            }, { status: 200 }); // Return 200 so frontend can intercept!
-                        }
-                    }
-                }
-            }
-        }
-
         // 1. Create basic blueprint info
-
-        // @ts-ignore - Prisma type cache issue
-        const bp = await prisma.examBlueprint.create({
-            data: {
-                name,
-                description,
-                createdById,
-                generationMethod
-            }
-        });
-
-        for (let idx = 0; idx < sections.length; idx++) {
-            const sec = sections[idx];
-            const newSec = await prisma.blueprintSection.create({
+        try {
+            // @ts-ignore - Prisma type cache issue
+            const bp = await prisma.examBlueprint.create({
                 data: {
-                    blueprintId: bp.id,
-                    name: sec.name || { en: 'Section', pa: 'ਸੈਕਸ਼ਨ' },
-                    order: idx + 1,
+                    name,
+                    description,
+                    createdById,
+                    generationMethod
                 }
             });
 
-            if (sec.rules && sec.rules.length > 0) {
-                for (const r of sec.rules) {
-                    const createdRule = await prisma.blueprintRule.create({
-                        data: {
-                            blueprintId: bp.id,
-                            sectionId: newSec.id,
-                            questionType: r.questionType,
-                            numberOfQuestions: parseInt(r.numberOfQuestions),
-                            marksPerQuestion: parseFloat(r.marksPerQuestion),
-                            negativeMarks: r.negativeMarks ? parseFloat(r.negativeMarks) : null,
-                            difficulty: r.difficulty ? parseInt(r.difficulty) : null
-                        }
-                    });
-
-                    if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
-                        for (const tId of r.topicTags) {
-                            await prisma.$executeRawUnsafe(
-                                `INSERT INTO "_BlueprintRuleToTag" ("A", "B") VALUES ('${createdRule.id}', '${tId}') ON CONFLICT DO NOTHING;`
-                            );
-                        }
+            for (let idx = 0; idx < sections.length; idx++) {
+                const sec = sections[idx];
+                const newSec = await prisma.blueprintSection.create({
+                    data: {
+                        blueprintId: bp.id,
+                        name: sec.name || { en: 'Section', pa: 'ਸੈਕਸ਼ਨ' },
+                        order: idx + 1,
                     }
-                }
-            }
-        }
+                });
 
-        const blueprintResponse = await prisma.examBlueprint.findUnique({
-            where: { id: bp.id },
-            include: {
-                sections: {
-                    include: {
-                        rules: {
-                            include: {
-                                topicTags: true,
+                if (sec.rules && sec.rules.length > 0) {
+                    for (const r of sec.rules) {
+                        const createdRule = await prisma.blueprintRule.create({
+                            data: {
+                                blueprintId: bp.id,
+                                sectionId: newSec.id,
+                                questionType: r.questionType,
+                                numberOfQuestions: parseInt(r.numberOfQuestions),
+                                marksPerQuestion: parseFloat(r.marksPerQuestion),
+                                negativeMarks: r.negativeMarks ? parseFloat(r.negativeMarks) : null,
+                                difficulty: r.difficulty ? parseInt(r.difficulty) : null
+                            }
+                        });
+
+                        // Explicitly associate tags using separate queries to bypass HTTP driver Transaction constraints
+                        if (r.topicTags && Array.isArray(r.topicTags) && r.topicTags.length > 0) {
+                            for (const tId of r.topicTags) {
+                                const q = 'INSERT INTO "_BlueprintRuleToTag" ("A", "B") VALUES (\'' + createdRule.id + '\', \'' + tId + '\') ON CONFLICT DO NOTHING;';
+                                await prisma.$executeRawUnsafe(q);
                             }
                         }
-                    },
-                    orderBy: {
-                        order: 'asc'
                     }
                 }
             }
-        });
 
-        return NextResponse.json({ success: true, data: blueprintResponse });
+            // 2. Fetch the newly completely constructed blueprint
+            const completeBlueprint = await prisma.examBlueprint.findUnique({
+                where: { id: bp.id },
+                include: {
+                    sections: {
+                        include: {
+                            rules: {
+                                include: {
+                                    topicTags: true,
+                                }
+                            }
+                        },
+                        orderBy: {
+                            order: 'asc'
+                        }
+                    }
+                }
+            });
+
+            return NextResponse.json({ success: true, data: completeBlueprint });
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                return NextResponse.json({ success: false, error: 'A blueprint with this exact name already exists. Please choose a unique name.' }, { status: 400 });
+            }
+            throw error;
+        }
+
     } catch (error: any) {
-        console.error('Failed to create blueprint:', error);
-        return NextResponse.json({ success: false, error: 'Failed to create exam blueprint: ' + error.message }, { status: 500 });
+        console.error('Error creating blueprint:', error);
+        return NextResponse.json({ success: false, error: 'Failed to save blueprint. Ensure the name is unique and tags are valid.' }, { status: 500 });
     }
 }

@@ -82,7 +82,7 @@ export default function AdminExamsPage() {
         }
     };
 
-    const handleGenerate = async () => {
+    const submitGeneration = async (allowAiGenerationForMissing: boolean = false, allowMissingQuestions: boolean = false) => {
         if (!genBlueprintId || !genTitle || !genDuration) {
             toast.error('Please fill all required fields');
             return;
@@ -97,10 +97,27 @@ export default function AdminExamsPage() {
                     title: { en: genTitle, pa: genTitle }, // basic bilingual shape
                     description: genDesc ? { en: genDesc, pa: genDesc } : undefined,
                     duration: genDuration,
-                    createdById: user?.id
+                    createdById: user?.id,
+                    allowAiGenerationForMissing,
+                    allowMissingQuestions
                 })
             });
             const data = await res.json();
+
+            if (data.requiresAiConfirmation) {
+                setIsGenerating(false);
+                const wantsAi = window.confirm(data.message);
+                if (wantsAi) {
+                    await submitGeneration(true, false);
+                } else {
+                    const wantsToProceedWithShortage = window.confirm(`Proceed creating exam with ${data.missingCount} missing questions?`);
+                    if (wantsToProceedWithShortage) {
+                        await submitGeneration(false, true);
+                    }
+                }
+                return;
+            }
+
             if (data.success) {
                 toast.success('Exam generated successfully!');
                 setShowGenerateModal(false);
@@ -474,7 +491,7 @@ export default function AdminExamsPage() {
                                 Cancel
                             </button>
                             <button
-                                onClick={handleGenerate}
+                                onClick={() => submitGeneration()}
                                 disabled={isGenerating}
                                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
                             >
