@@ -304,17 +304,13 @@ export async function POST(request: Request) {
                                             text_excerpt: contextMap ? contextMap.substring(0, 50) + "..." : "Sourced from general internal model knowledge.",
                                         },
                                         order: 0,
+                                        tags: tagIds.length > 0 ? {
+                                            create: tagIds.map((tId: any) => ({
+                                                tag: { connect: { id: tId } }
+                                            }))
+                                        } : undefined,
                                     },
                                 });
-
-                                // Link Tags
-                                if (tagIds.length > 0) {
-                                    for (const tId of tagIds) {
-                                        await prisma.$executeRawUnsafe(
-                                            `INSERT INTO "_QuestionToTag" ("A", "B") VALUES ('${dbQuestion.id}', '${tId}') ON CONFLICT DO NOTHING;`,
-                                        );
-                                    }
-                                }
                                 selectedIds.push(dbQuestion.id);
 
                                 // Fetch full question so it matches the expected array format downstream
