@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, getText } from '@/lib/utils';
-import { Plus, Trash2, ChevronLeft, Save, X, Search, Edit2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, Save, X, Search, Edit2, Loader2, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminBlueprintsPage() {
@@ -16,6 +16,7 @@ export default function AdminBlueprintsPage() {
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingBpId, setEditingBpId] = useState<string | null>(null);
+    const [viewingBp, setViewingBp] = useState<any | null>(null);
 
     // New Blueprint State
     const [name, setName] = useState('');
@@ -401,69 +402,68 @@ export default function AdminBlueprintsPage() {
                         No blueprints created yet.
                     </div>
                 ) : (
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {blueprints.map(bp => {
-                            let bpQ = 0; let bpM = 0;
-                            bp.sections?.forEach((s: any) => {
-                                s.rules?.forEach((r: any) => {
-                                    bpQ += Number(r.numberOfQuestions);
-                                    bpM += Number(r.numberOfQuestions) * Number(r.marksPerQuestion);
-                                });
-                            });
+                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b text-sm text-gray-500">
+                                        <th className="p-4 font-semibold">Name</th>
+                                        <th className="p-4 font-semibold">Description</th>
+                                        <th className="p-4 font-semibold">Structure</th>
+                                        <th className="p-4 font-semibold">Created</th>
+                                        <th className="p-4 text-right font-semibold relative">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {blueprints.map(bp => {
+                                        let bpQ = 0; let bpM = 0;
+                                        bp.sections?.forEach((s: any) => {
+                                            s.rules?.forEach((r: any) => {
+                                                bpQ += Number(r.numberOfQuestions);
+                                                bpM += Number(r.numberOfQuestions) * Number(r.marksPerQuestion);
+                                            });
+                                        });
 
-                            return (
-                                <div key={bp.id} className="bg-white p-6 rounded-xl shadow-sm border relative group">
-                                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => openEditModal(bp)} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-gray-100 transition">
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button onClick={() => deleteBlueprint(bp.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                    <h3 className="text-lg font-bold text-gray-900 pr-16 flex items-center flex-wrap gap-2">
-                                        <span>{bp.name}</span>
-                                        {bp.generationMethod === 'generate_novel' && (
-                                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
-                                                <span className="-mt-0.5">✨</span> AI Created
-                                            </span>
-                                        )}
-                                    </h3>
-                                    {bp.description && <p className="text-sm text-gray-500 mt-1">{bp.description}</p>}
-                                    <div className="mt-4 flex gap-4 text-sm font-semibold text-blue-800">
-                                        <span>{bp.sections?.length || 0} Sections</span>
-                                        <span>{bpQ} Questions</span>
-                                        <span>{bpM} Marks</span>
-                                    </div>
-                                    <div className="mt-4 pt-4 border-t">
-                                        <p className="text-xs font-semibold text-gray-400 mb-2">SECTIONS</p>
-                                        <ul className="text-sm text-gray-600 space-y-2">
-                                            {bp.sections?.map((s: any) => (
-                                                <li key={s.id}>
-                                                    <span className="font-semibold text-gray-800">{getText(s.name, language)}:</span>
-                                                    <span className="ml-2 text-xs text-gray-500">{s.rules?.length || 0} rules</span>
-                                                    <div className="pl-4 mt-1 border-l-2 border-gray-100 text-[11px] text-gray-500 space-y-1">
-                                                        {s.rules?.slice(0, 3).map((r: any, rIdx: number) => (
-                                                            <div key={rIdx}>
-                                                                {r.numberOfQuestions}x {r.questionType}
-                                                                {r.topicTags && r.topicTags.length > 0 && (
-                                                                    <span className="ml-1 text-blue-600">({r.topicTags.map((t: any) => t.name).join(', ')})</span>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {s.rules?.length > 3 && <div>...and {s.rules.length - 3} more</div>}
+                                        return (
+                                            <tr key={bp.id} className="hover:bg-gray-50 transition group">
+                                                <td className="p-4">
+                                                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                                                        {bp.name}
+                                                        {bp.generationMethod === 'generate_novel' && (
+                                                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                                                <span className="-mt-0.5">✨</span> AI
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                    <div className="mt-4 text-xs flex justify-between tracking-wide">
-                                        <div className="text-gray-400">Created: {formatDateTimeIST(bp.createdAt)}</div>
-                                        <div className="text-gray-400">Updated: {formatDateTimeIST(bp.updatedAt)}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                                </td>
+                                                <td className="p-4 text-sm text-gray-600 max-w-xs truncate">
+                                                    {bp.description || '-'}
+                                                </td>
+                                                <td className="p-4 text-sm text-blue-800 font-medium">
+                                                    {bp.sections?.length || 0} Sections · {bpQ} Qs · {bpM} Marks
+                                                </td>
+                                                <td className="p-4 text-sm text-gray-500">
+                                                    {formatDateTimeIST(bp.createdAt).split(',')[0]}
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button onClick={() => setViewingBp(bp)} className="text-gray-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition" title="View Details">
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => openEditModal(bp)} className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition" title="Edit Blueprint">
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => deleteBlueprint(bp.id)} className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition" title="Delete Blueprint">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </main>
