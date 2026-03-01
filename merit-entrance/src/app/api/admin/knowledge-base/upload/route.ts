@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Client } from 'pg';
+import { Pool } from '@neondatabase/serverless';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -46,10 +46,9 @@ export async function POST(request: Request) {
                 // required by pgvector: '[1,2,3]'
                 const pgVectorString = `[${embeddingVector.join(',')}]`;
 
-                const client = new Client({ connectionString: process.env.MERIT_DATABASE_URL });
-                await client.connect();
+                const pool = new Pool({ connectionString: process.env.MERIT_DATABASE_URL });
 
-                await client.query(`
+                await pool.query(`
                     INSERT INTO document_chunks (
                         reference_material_id, 
                         chunk_index, 
@@ -63,7 +62,8 @@ export async function POST(request: Request) {
                     )
                 `, [refMaterial.id, i, chunkText, pgVectorString]);
 
-                await client.end();
+                // End is not strictly needed for serverless fetch-based pool, but good practice
+                // pool.end() not required for @neondatabase/serverless in single-transaction edge routes
             } catch (e: any) {
                 console.error("Failed to embed or insert chunk", i);
                 console.error("Error Object:", e);
