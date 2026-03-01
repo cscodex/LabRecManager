@@ -89,6 +89,7 @@ ${tagListString}
 
 # INSTRUCTIONS FOR TAG MATCHING & CREATION
 Based on the user's prompt OR OCR extraction from provided images, deduce which topic tags apply to which sections.
+If the uploaded image is a Mark Distribution table (e.g. rows of chapters and columns of marks), YOU MUST EXTRACT the Chapter/Topic names from those rows and use them as tags.
 If you find exact or very close matches in the known Tags list provided above, USE THEIR EXACT IDs in the \`topicTags\` array.
 If an extracted Chapter or Topic DOES NOT EXIST in the known list, you MUST STILL INCLUDE IT, but INSTEAD of an ID, output the raw string Name (e.g. "Thermodynamics"). The system will intercept this, dynamically create the tag, and inject the new UUID later.
 So, the \`topicTags\` array can contain a mix of verified UUIDs and raw string names for missing topics.
@@ -99,7 +100,7 @@ Parse the mark distribution rules precisely. If an image states "Section A has 2
 Apply reasonable defaults ONLY if the user doesn't specify explicit counts in the text or images:
 - Default questionType: "mcq_single"
 - Default marksPerQuestion: 4
-- Default negativeMarks: 1
+- Default negativeMarks: 0
 - Default difficulty: 3
 
 Warning: Do not return conversational text, ONLY the raw JSON satisfying the required schema.
