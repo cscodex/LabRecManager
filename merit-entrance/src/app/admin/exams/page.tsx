@@ -514,6 +514,76 @@ export default function AdminExamsPage() {
                                     min="1"
                                 />
                             </div>
+
+                            {/* Shortage Check Display */}
+                            {isCheckingShortage && (
+                                <div className="mt-4 text-sm text-gray-500 animate-pulse bg-gray-50 p-3 rounded-lg border border-gray-100 flex items-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                                    Checking blueprint parameters...
+                                </div>
+                            )}
+
+                            {shortageData?.hasShortage && !isCheckingShortage && (
+                                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                    <div className="flex items-start gap-2 mb-3">
+                                        <div className="mt-0.5">⚠️</div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-orange-900">Missing Questions Detected</h4>
+                                            <p className="text-xs text-orange-800 mt-1">
+                                                Your question bank is missing <strong className="font-bold">{shortageData.missingCount}</strong> questions required by this blueprint.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Scrollable list of shortages */}
+                                    {shortageData.shortages && shortageData.shortages.length > 0 && (
+                                        <div className="mb-4 max-h-32 overflow-y-auto bg-white/50 p-2 rounded border border-orange-100/50 text-xs">
+                                            <ul className="list-disc pl-4 space-y-1 text-orange-800">
+                                                {shortageData.shortages.map((s: any, i: number) => (
+                                                    <li key={i}>
+                                                        <span className="font-semibold">{s.section}</span>: Missing {s.missing} {s.type} (Tags: {s.tags})
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-semibold text-orange-900">How would you like to proceed?</p>
+                                        <div
+                                            onClick={() => {
+                                                setUseAiForMissing(true);
+                                                setCreateDraftWithMissing(false);
+                                            }}
+                                            className={`flex items-start gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${useAiForMissing ? 'bg-orange-100 border-orange-300' : 'bg-white border-gray-200 hover:bg-orange-50/50'}`}
+                                        >
+                                            <div className="mt-0.5">
+                                                {useAiForMissing ? <div className="w-4 h-4 rounded-full border-4 border-orange-500 bg-white shadow-sm" /> : <div className="w-4 h-4 rounded-full border border-gray-300 bg-white" />}
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900">Use Gemini AI to dynamically generate missing questions</div>
+                                                <div className="text-xs text-gray-500 mt-0.5">Will use knowledge base and rule parameters.</div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            onClick={() => {
+                                                setCreateDraftWithMissing(true);
+                                                setUseAiForMissing(false);
+                                            }}
+                                            className={`flex items-start gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${createDraftWithMissing ? 'bg-orange-100 border-orange-300' : 'bg-white border-gray-200 hover:bg-orange-50/50'}`}
+                                        >
+                                            <div className="mt-0.5">
+                                                {createDraftWithMissing ? <div className="w-4 h-4 rounded-full border-4 border-orange-500 bg-white shadow-sm" /> : <div className="w-4 h-4 rounded-full border border-gray-300 bg-white" />}
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900">Create an incomplete Draft Exam</div>
+                                                <div className="text-xs text-gray-500 mt-0.5">You must add missing questions later before publishing.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
