@@ -18,6 +18,7 @@ export default function AdminBlueprintsPage() {
     const [editingBpId, setEditingBpId] = useState<string | null>(null);
     const [viewingBp, setViewingBp] = useState<any | null>(null);
     const [selectedBlueprintIds, setSelectedBlueprintIds] = useState<string[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Knowledge Base State
     const [referenceMaterials, setReferenceMaterials] = useState<any[]>([]);
@@ -167,6 +168,8 @@ export default function AdminBlueprintsPage() {
             return;
         }
 
+        setIsSaving(true);
+
         try {
             const url = editingBpId ? `/api/admin/blueprints/${editingBpId}` : '/api/admin/blueprints';
             const method = editingBpId ? 'PUT' : 'POST';
@@ -187,9 +190,11 @@ export default function AdminBlueprintsPage() {
             const data = await res.json();
 
             if (data.requiresAiConfirmation) {
+                setIsSaving(false);
                 // Smart UI Feature: If they run out of bank questions, seamlessly ask to turn on AI!
                 const wantsAi = window.confirm(data.error);
                 if (wantsAi) {
+                    setIsSaving(true);
                     setGenerationMethod('generate_novel');
                     const res2 = await fetch(url, {
                         method,
@@ -224,6 +229,8 @@ export default function AdminBlueprintsPage() {
             }
         } catch (err: any) {
             toast.error('An error occurred');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -984,11 +991,23 @@ export default function AdminBlueprintsPage() {
                                 </div>
                             </div>
                             <div className="flex gap-3">
-                                <button onClick={closeModal} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 font-medium">
+                                <button onClick={closeModal} disabled={isSaving} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">
                                     Cancel
                                 </button>
-                                <button onClick={handleCreateBlueprint} className="px-4 py-2 bg-blue-600 text-white font-medium flex items-center gap-2 rounded-lg hover:bg-blue-700">
-                                    <Save className="w-4 h-4" /> {editingBpId ? 'Save Changes' : 'Save Blueprint'}
+                                <button
+                                    onClick={handleCreateBlueprint}
+                                    disabled={isSaving}
+                                    className="px-4 py-2 bg-blue-600 text-white font-medium flex items-center gap-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 min-w-[140px] justify-center transition-all"
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-4 h-4" /> {editingBpId ? 'Save Changes' : 'Save Blueprint'}
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
