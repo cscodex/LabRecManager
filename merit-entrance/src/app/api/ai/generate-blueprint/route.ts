@@ -95,7 +95,8 @@ If an extracted Chapter or Topic DOES NOT EXIST in the known list, you MUST STIL
 So, the \`topicTags\` array can contain a mix of verified UUIDs and raw string names for missing topics.
 
 # INSTRUCTIONS FOR STRUCTURE
-Break down the test into logical sections if warranted by the prompt or image (e.g. if the distribution table shows 'Section A' and 'Section B', create two sections).
+CRITICAL: You MUST extract EVERY SINGLE section and EVERY SINGLE row from the uploaded Mark Distribution tables. Do not summarize or group them. If there are 3 distinct sections in the image, you must create 3 distinct sections in the JSON. If there are 10 chapters, create 10 rules. DO NOT leave anything out.
+Break down the test into logical sections exactly as shown in the images (e.g. if the distribution table shows 'Section A' and 'Section B', create two sections).
 Parse the mark distribution rules precisely. If an image states "Section A has 20 1-mark questions", generate a rule with numberOfQuestions: 20, marksPerQuestion: 1.
 Apply reasonable defaults ONLY if the user doesn't specify explicit counts in the text or images:
 - Default questionType: "mcq_single"
@@ -138,7 +139,7 @@ User Request: "${prompt || 'Extract blueprint structure from the provided image(
                 const resolvedTagIds = [];
                 for (const rawTag of rule.topicTags) {
                     // Check if it's already a valid UUID format (means the AI matched an existing tag)
-                    const isUuid = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/gi.test(rawTag);
+                    const isUuid = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/i.test(rawTag);
 
                     if (isUuid) {
                         resolvedTagIds.push(rawTag);
