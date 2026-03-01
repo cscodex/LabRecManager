@@ -7,6 +7,7 @@ import { useAuthStore } from '@/lib/store';
 import { formatDateTimeIST, getText } from '@/lib/utils';
 import { Plus, Trash2, ChevronLeft, Save, X, Search, Edit2, Loader2, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 export default function AdminBlueprintsPage() {
     const router = useRouter();
@@ -42,6 +43,27 @@ export default function AdminBlueprintsPage() {
     // Tag Search State
     const [searchTagTerm, setSearchTagTerm] = useState<{ [key: string]: string }>({});
     const [showTagDropdown, setShowTagDropdown] = useState<{ [key: string]: boolean }>({});
+
+    // Custom Confirmation State
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string | React.ReactNode;
+        confirmText?: string;
+        cancelText?: string;
+        type?: 'danger' | 'warning' | 'info';
+        onConfirm: () => void;
+        onCancel: () => void;
+        isLoading?: boolean;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        onCancel: () => { },
+    });
+
+    const closeConfirm = () => setConfirmConfig(prev => ({ ...prev, isOpen: false }));
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -191,32 +213,47 @@ export default function AdminBlueprintsPage() {
 
             if (data.requiresAiConfirmation) {
                 setIsSaving(false);
-                // Smart UI Feature: If they run out of bank questions, seamlessly ask to turn on AI!
-                const wantsAi = window.confirm(data.error);
-                if (wantsAi) {
-                    setIsSaving(true);
-                    setGenerationMethod('generate_novel');
-                    const res2 = await fetch(url, {
-                        method,
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            name,
-                            description,
-                            generationMethod: 'generate_novel',
-                            createdById: user?.id,
-                            sections,
-                            materialIds: selectedMaterialIds
-                        })
-                    });
-                    const data2 = await res2.json();
-                    if (data2.success) {
-                        toast.success(`Blueprint ${editingBpId ? 'updated' : 'created'} successfully with AI Generation enabled!`);
-                        closeModal();
-                        loadData();
-                    } else {
-                        toast.error(data2.error || 'Failed to save');
-                    }
-                }
+                setConfirmConfig({
+                    isOpen: true,
+                    title: 'Missing Questions Detected',
+                    message: data.error || 'You do not have enough specific questions in your bank to satisfy this blueprint. Would you like to use AI to generate the missing questions dynamically?',
+                    confirmText: 'Yes, Enable AI Generation',
+                    cancelText: 'Cancel',
+                    type: 'info',
+                    onConfirm: async () => {
+                        setConfirmConfig(prev => ({ ...prev, isLoading: true }));
+                        setGenerationMethod('generate_novel');
+                        try {
+                            const res2 = await fetch(url, {
+                                method,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    name,
+                                    description,
+                                    generationMethod: 'generate_novel',
+                                    createdById: user?.id,
+                                    sections,
+                                    materialIds: selectedMaterialIds
+                                })
+                            });
+                            const data2 = await res2.json();
+                            if (data2.success) {
+                                toast.success(`Blueprint ${editingBpId ? 'updated' : 'created'} successfully with AI Generation enabled!`);
+                                closeModal();
+                                closeConfirm();
+                                loadData();
+                            } else {
+                                toast.error(data2.error || 'Failed to save');
+                                setConfirmConfig(prev => ({ ...prev, isLoading: false }));
+                            }
+                        } catch (e) {
+                            toast.error('An error occurred');
+                            setConfirmConfig(prev => ({ ...prev, isLoading: false }));
+                        }
+                    },
+                    onCancel: closeConfirm,
+                    isLoading: false
+                });
                 return;
             }
 
@@ -230,7 +267,9 @@ export default function AdminBlueprintsPage() {
         } catch (err: any) {
             toast.error('An error occurred');
         } finally {
-            setIsSaving(false);
+            if (!confirmConfig.isOpen) {
+                setIsSaving(false);
+            }
         }
     };
 
@@ -497,6 +536,11 @@ export default function AdminBlueprintsPage() {
                     </div>
                 </div>
             </header>
+
+            {/* Custom Confirm Modal */}
+            <ConfirmModal
+                {...confirmConfig}
+            />
 
             <main className="max-w-7xl mx-auto px-4 py-6">
                 {blueprints.length === 0 ? (

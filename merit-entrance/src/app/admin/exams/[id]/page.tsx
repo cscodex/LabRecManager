@@ -1125,15 +1125,29 @@ export default function EditExamPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                    <select
-                                        value={formData.status}
-                                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                    >
-                                        <option value="draft">Draft</option>
-                                        <option value="published">Published</option>
-                                        <option value="archived">Archived</option>
-                                    </select>
+                                    <div className="relative">
+                                        <select
+                                            value={formData.status}
+                                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                            className="w-full px-4 py-2 border rounded-lg"
+                                        >
+                                            <option value="draft">Draft</option>
+                                            <option
+                                                value="published"
+                                                disabled={!!(exam?.description?.expected_questions && totalQuestions < Number(exam.description.expected_questions))}
+                                                className={!!(exam?.description?.expected_questions && totalQuestions < Number(exam.description.expected_questions)) ? "text-gray-300" : ""}
+                                            >
+                                                Published {exam?.description?.expected_questions && totalQuestions < Number(exam.description.expected_questions) ? "(Locked - Missing Questions)" : ""}
+                                            </option>
+                                            <option value="archived">Archived</option>
+                                        </select>
+                                        {!!(exam?.description?.expected_questions && totalQuestions < Number(exam.description.expected_questions)) && (
+                                            <div className="absolute top-10 left-0 w-full mt-1 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 z-10 shadow-sm flex items-start gap-1">
+                                                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                                <span>Cannot publish: Exam is missing {Number(exam?.description?.expected_questions) - totalQuestions} configured questions. Add more questions to publish.</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>

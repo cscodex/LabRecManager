@@ -51,7 +51,7 @@ export async function POST(request: Request) {
         // Extract generation flags from request body
         const { allowAiGenerationForMissing, allowMissingQuestions } = body;
 
-        const blueprint = await prisma.examBlueprint.findUnique({
+        const blueprint: any = await (prisma.examBlueprint.findUnique as any)({
             where: { id: blueprintId },
             include: {
                 sections: {
@@ -137,6 +137,7 @@ export async function POST(request: Request) {
         // --- PHASE 3: Build the actual exam content ---
         let totalMarks = 0;
         const examSectionsToCreate: any[] = [];
+        let expectedQuestionCount = 0;
 
         for (const blueprintSection of blueprint.sections) {
             let sectionMarks = 0;
@@ -151,6 +152,8 @@ export async function POST(request: Request) {
                     marksPerQuestion,
                     negativeMarks,
                 } = rule;
+
+                expectedQuestionCount += Number(numberOfQuestions);
 
                 const selectedIds: string[] = [];
                 const tagIds = topicTags ? topicTags.map((t: any) => t.id) : [];
@@ -201,24 +204,25 @@ export async function POST(request: Request) {
                             `Generate a ${questionType} question about ${tagNames}. Difficulty level: ${difficulty || "medium"}.`,
                         );
 
-                        let contextFilter = '';
+                        let contextMap = '';
+
                         if (blueprint.materials && blueprint.materials.length > 0) {
                             const materialIds = blueprint.materials.map(m => `'${m.id}'`).join(',');
-                            contextFilter = `WHERE reference_material_id IN (${materialIds})`;
+                            const contextFilter = `WHERE reference_material_id IN (${materialIds})`;
+
+                            // Execute raw vector search with material filter
+                            const contextChunks = await prisma.$queryRawUnsafe<any[]>(
+                                `SELECT chunk_text, 1 - (embedding <=> '[${aiPromptVector.embedding.values.join(",")}]') as similarity 
+                                FROM "DocumentChunk" 
+                                ${contextFilter}
+                                ORDER BY similarity DESC 
+                                LIMIT 15`,
+                            );
+
+                            contextMap = contextChunks
+                                .map((c) => c.chunk_text)
+                                .join("\n\n---\n\n");
                         }
-
-                        // Execute raw vector search with material filter
-                        const contextChunks = await prisma.$queryRawUnsafe<any[]>(
-                            `SELECT chunk_text, 1 - (embedding <=> '[${aiPromptVector.embedding.values.join(",")}]') as similarity 
-                            FROM "DocumentChunk" 
-                            ${contextFilter}
-                            ORDER BY similarity DESC 
-                            LIMIT 15`,
-                        );
-
-                        const contextMap = contextChunks
-                            .map((c) => c.chunk_text)
-                            .join("\n\n---\n\n");
 
                         const generatorModel = genAI.getGenerativeModel({
                             model: "gemini-2.5-flash",
@@ -249,9 +253,11 @@ export async function POST(request: Request) {
                         });
 
                         try {
-                            const response = await generatorModel.generateContent(
-                                `Context Book Knowledge:\n${contextMap}`,
-                            );
+                            const promptBody = contextMap
+                                ? `Context Book Knowledge:\n${contextMap}`
+                                : `Generate from your extensive general web knowledge on the topic. Provide highly accurate, verifiable answers.`;
+
+                            const response = await generatorModel.generateContent(promptBody);
 
                             let generatedArray = [];
                             try {
@@ -274,6 +280,15 @@ export async function POST(request: Request) {
 
                             // Save the generated questions to DB
                             for (const generatedQ of generatedArray) {
+                                let paragraphData = undefined;
+                                if (generatedQ.type === 'paragraph' && generatedQ.paragraphText) {
+                                    paragraphData = {
+                                        create: {
+                                            text: { en: generatedQ.paragraphText }
+                                        }
+                                    };
+                                }
+
                                 const dbQuestion = await prisma.question.create({
                                     data: {
                                         text: generatedQ.text,
@@ -282,11 +297,11 @@ export async function POST(request: Request) {
                                         explanation: generatedQ.explanation || "",
                                         options: generatedQ.options || [],
                                         correctAnswer: generatedQ.correctOption,
-                                        paragraph: generatedQ.paragraphText,
+                                        paragraph: paragraphData,
                                         isAiGenerated: true,
                                         citation: {
-                                            source: "Gemini 2.5 Dynamic Generation Engine",
-                                            text_excerpt: contextMap.substring(0, 50) + "...",
+                                            source: contextMap ? "Gemini 2.5 Dynamic Generation Engine" : "Gemini 2.5 General Knowledge",
+                                            text_excerpt: contextMap ? contextMap.substring(0, 50) + "..." : "Sourced from general internal model knowledge.",
                                         },
                                         order: 0,
                                     },
@@ -347,7 +362,7 @@ export async function POST(request: Request) {
                         select: { id: true },
                     });
 
-                    if (matchingIds.length < numberOfQuestions) {
+                    if (!allowMissingQuestions && matchingIds.length < numberOfQuestions) {
                         const tagNames =
                             topicTags && topicTags.length > 0
                                 ? topicTags.map((t: any) => t.name).join(", ")
@@ -363,8 +378,10 @@ export async function POST(request: Request) {
 
                     // Shuffle in JS
                     const shuffled = matchingIds.sort(() => 0.5 - Math.random());
+                    // If allowMissingQuestions is true, we just cap the length at what we found
+                    const sliceEnd = Math.min(numberOfQuestions, matchingIds.length);
                     selectedIds.push(
-                        ...shuffled.slice(0, numberOfQuestions).map((q) => q.id),
+                        ...shuffled.slice(0, sliceEnd).map((q) => q.id),
                     );
 
                     // Fetch full questions to copy
@@ -393,11 +410,16 @@ export async function POST(request: Request) {
             });
         }
 
+        // Store expected question count in description JSON for publish lock validation
+        const examDescription = typeof description === 'object' && description !== null
+            ? { ...description, expected_questions: expectedQuestionCount }
+            : { en: description || '', pa: description || '', expected_questions: expectedQuestionCount };
+
         // 3. Create the Exam (no nested create to avoid Neon HTTP transaction error)
         const exam = await prisma.exam.create({
             data: {
                 title,
-                description,
+                description: examDescription,
                 duration: parseInt(duration),
                 totalMarks,
                 createdById,

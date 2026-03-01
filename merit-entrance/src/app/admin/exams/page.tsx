@@ -11,6 +11,7 @@ import {
     Search, ChevronRight, Wand2, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Exam {
     id: string;
@@ -47,6 +48,27 @@ export default function AdminExamsPage() {
     const [genDesc, setGenDesc] = useState('');
     const [genDuration, setGenDuration] = useState('60');
     const [isGenerating, setIsGenerating] = useState(false);
+
+    // Custom Confirmation State
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string | React.ReactNode;
+        confirmText?: string;
+        cancelText?: string;
+        type?: 'danger' | 'warning' | 'info';
+        onConfirm: () => void;
+        onCancel: () => void;
+        isLoading?: boolean;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        onCancel: () => { },
+    });
+
+    const closeConfirm = () => setConfirmConfig(prev => ({ ...prev, isOpen: false }));
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -87,7 +109,14 @@ export default function AdminExamsPage() {
             toast.error('Please fill all required fields');
             return;
         }
-        setIsGenerating(true);
+
+        // If we are showing a modal currently, transition it to loading state.
+        if (confirmConfig.isOpen) {
+            setConfirmConfig(prev => ({ ...prev, isLoading: true }));
+        } else {
+            setIsGenerating(true);
+        }
+
         try {
             const res = await fetch('/api/admin/exams/generate', {
                 method: 'POST',
@@ -106,29 +135,78 @@ export default function AdminExamsPage() {
 
             if (data.requiresAiConfirmation) {
                 setIsGenerating(false);
-                const wantsAi = window.confirm(data.message);
-                if (wantsAi) {
-                    await submitGeneration(true, false);
-                } else {
-                    const wantsToProceedWithShortage = window.confirm(`Proceed creating exam with ${data.missingCount} missing questions?`);
-                    if (wantsToProceedWithShortage) {
-                        await submitGeneration(false, true);
-                    }
-                }
+                setConfirmConfig({
+                    isOpen: true,
+                    title: 'Missing Questions Detected',
+                    message: (
+                        <div className="space-y-4">
+                            <p className="text-gray-600">
+                                You are missing <strong className="text-gray-900">{data.missingCount}</strong> questions across your blueprint rules.
+                            </p>
+                            <p className="text-gray-600">
+                                Do you want to use <strong className="text-purple-600">Gemini AI</strong> to dynamically generate the missing questions based on the rule parameters and available RAG context?
+                            </p>
+                            {data.shortageDetails && data.shortageDetails.length > 0 && (
+                                <div className="mt-3 max-h-32 overflow-y-auto bg-gray-50 p-3 rounded text-xs border">
+                                    <ul className="list-disc pl-4 space-y-1">
+                                        {data.shortageDetails.map((s: any, i: number) => (
+                                            <li key={i}>
+                                                <span className="font-semibold text-gray-800">{getText(s.sectionName, language)}</span>: Missing {s.shortage} ({s.ruleDescription})
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    ),
+                    confirmText: 'Generate with AI',
+                    cancelText: 'Proceed Anyway',
+                    type: 'info',
+                    onConfirm: () => {
+                        submitGeneration(true, false);
+                    },
+                    onCancel: () => {
+                        // Close first modal and pop second one
+                        setConfirmConfig({
+                            isOpen: true,
+                            title: 'Proceed with Shortage?',
+                            message: `Are you sure you want to create this exam with ${data.missingCount} questions missing? You will not be able to publish it until the shortage is resolved.`,
+                            confirmText: 'Create Draft Exam',
+                            cancelText: 'Cancel',
+                            type: 'warning',
+                            onConfirm: () => {
+                                submitGeneration(false, true);
+                            },
+                            onCancel: closeConfirm,
+                            isLoading: false
+                        });
+                    },
+                    isLoading: false
+                });
                 return;
             }
 
             if (data.success) {
                 toast.success('Exam generated successfully!');
                 setShowGenerateModal(false);
+                closeConfirm();
                 loadExams();
             } else {
                 toast.error(data.error || 'Generation failed');
+                if (confirmConfig.isOpen) {
+                    setConfirmConfig(prev => ({ ...prev, isLoading: false }));
+                }
             }
         } catch (e) {
             toast.error('Error generating exam');
+            if (confirmConfig.isOpen) {
+                setConfirmConfig(prev => ({ ...prev, isLoading: false }));
+            }
         } finally {
-            setIsGenerating(false);
+            if (!confirmConfig.isOpen) {
+                // Only unset main generating state if not in a modal flow
+                setIsGenerating(false);
+            }
         }
     };
 
@@ -380,32 +458,22 @@ export default function AdminExamsPage() {
                 )}
             </main>
 
-            {/* Delete Confirmation Modal */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl max-w-md w-full p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Exam?</h3>
-                        <p className="text-gray-500 mb-6">
-                            This will permanently delete the exam, all sections, questions, and student attempts.
-                            This action cannot be undone.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setDeleteConfirm(null)}
-                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleDelete(deleteConfirm)}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Delete Confirmation Modal (Now using ConfirmModal) */}
+            <ConfirmModal
+                isOpen={!!deleteConfirm}
+                title="Delete Exam"
+                message="This will permanently delete the exam, all sections, questions, and student attempts. This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="danger"
+                onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+                onCancel={() => setDeleteConfirm(null)}
+            />
+
+            {/* AI Generation Confirmation Modals */}
+            <ConfirmModal
+                {...confirmConfig}
+            />
 
             {/* Generate Exam Modal */}
             {showGenerateModal && (
