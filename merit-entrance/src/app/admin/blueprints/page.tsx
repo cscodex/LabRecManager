@@ -525,7 +525,7 @@ export default function AdminBlueprintsPage() {
                                     <span className="text-xl">✨</span> AI Blueprint Architect
                                 </label>
                                 <p className="text-xs text-blue-700 mb-3">
-                                    Describe your ideal exam (e.g. "Create a 50 question NEET mock for Physics & Chemistry with 3 hard sections"). Provide topic names and the AI will build the entire structure.
+                                    Describe your ideal exam (e.g. &quot;Create a 50 question NEET mock for Physics &amp; Chemistry with 3 hard sections&quot;). Provide topic names and the AI will build the entire structure.
                                 </p>
                                 <div className="flex gap-2">
                                     <input

@@ -278,7 +278,7 @@ export async function POST(request: Request) {
                                             source: "Gemini 2.5 Dynamic Generation Engine",
                                             text_excerpt: contextMap.substring(0, 50) + "...",
                                         },
-                                        createdById: blueprint.createdById || "ai-system",
+                                        order: 0,
                                     },
                                 });
 

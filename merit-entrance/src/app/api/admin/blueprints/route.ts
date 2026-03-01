@@ -20,10 +20,10 @@ export async function GET(request: Request) {
                             include: {
                                 topicTags: true
                             }
-                        },
-                        orderBy: {
-                            order: 'asc'
                         }
+                    },
+                    orderBy: {
+                        order: 'asc'
                     }
                 },
                 createdBy: {
