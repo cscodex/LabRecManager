@@ -48,6 +48,10 @@ export default function AdminExamsPage() {
     const [genDesc, setGenDesc] = useState('');
     const [genDuration, setGenDuration] = useState('60');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isCheckingShortage, setIsCheckingShortage] = useState(false);
+    const [shortageData, setShortageData] = useState<any>(null);
+    const [useAiForMissing, setUseAiForMissing] = useState(true);
+    const [createDraftWithMissing, setCreateDraftWithMissing] = useState(false);
 
     // Custom Confirmation State
     const [confirmConfig, setConfirmConfig] = useState<{
@@ -104,18 +108,45 @@ export default function AdminExamsPage() {
         }
     };
 
-    const submitGeneration = async (allowAiGenerationForMissing: boolean = false, allowMissingQuestions: boolean = false) => {
+    useEffect(() => {
+        if (!genBlueprintId) {
+            setShortageData(null);
+            return;
+        }
+
+        const checkShortage = async () => {
+            setIsCheckingShortage(true);
+            try {
+                const res = await fetch(`/api/admin/blueprints/${genBlueprintId}/check-shortage`);
+                const data = await res.json();
+                if (data.success) {
+                    setShortageData(data);
+                } else {
+                    setShortageData(null);
+                }
+            } catch (error) {
+                console.error("Failed to check shortage", error);
+                setShortageData(null);
+            } finally {
+                setIsCheckingShortage(false);
+            }
+        };
+
+        checkShortage();
+    }, [genBlueprintId]);
+
+    const submitGeneration = async () => {
         if (!genBlueprintId || !genTitle || !genDuration) {
             toast.error('Please fill all required fields');
             return;
         }
 
-        // If we are showing a modal currently, transition it to loading state.
-        if (confirmConfig.isOpen) {
-            setConfirmConfig(prev => ({ ...prev, isLoading: true }));
-        } else {
-            setIsGenerating(true);
+        if (shortageData?.hasShortage && !useAiForMissing && !createDraftWithMissing) {
+            toast.error('Please select how to handle the missing questions');
+            return;
         }
+
+        setIsGenerating(true);
 
         try {
             const res = await fetch('/api/admin/exams/generate', {
@@ -127,86 +158,26 @@ export default function AdminExamsPage() {
                     description: genDesc ? { en: genDesc, pa: genDesc } : undefined,
                     duration: genDuration,
                     createdById: user?.id,
-                    allowAiGenerationForMissing,
-                    allowMissingQuestions
+                    allowAiGenerationForMissing: shortageData?.hasShortage ? useAiForMissing : false,
+                    allowMissingQuestions: shortageData?.hasShortage ? createDraftWithMissing : false
                 })
             });
             const data = await res.json();
 
-            if (data.requiresAiConfirmation) {
-                setIsGenerating(false);
-                setConfirmConfig({
-                    isOpen: true,
-                    title: 'Missing Questions Detected',
-                    message: (
-                        <div className="space-y-4">
-                            <p className="text-gray-600">
-                                You are missing <strong className="text-gray-900">{data.missingCount}</strong> questions across your blueprint rules.
-                            </p>
-                            <p className="text-gray-600">
-                                Do you want to use <strong className="text-purple-600">Gemini AI</strong> to dynamically generate the missing questions based on the rule parameters and available RAG context?
-                            </p>
-                            {data.shortageDetails && data.shortageDetails.length > 0 && (
-                                <div className="mt-3 max-h-32 overflow-y-auto bg-gray-50 p-3 rounded text-xs border">
-                                    <ul className="list-disc pl-4 space-y-1">
-                                        {data.shortageDetails.map((s: any, i: number) => (
-                                            <li key={i}>
-                                                <span className="font-semibold text-gray-800">{getText(s.sectionName, language)}</span>: Missing {s.shortage} ({s.ruleDescription})
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    ),
-                    confirmText: 'Generate with AI',
-                    cancelText: 'Proceed Anyway',
-                    type: 'info',
-                    onConfirm: () => {
-                        submitGeneration(true, false);
-                    },
-                    onCancel: () => {
-                        // Close first modal and pop second one
-                        setConfirmConfig({
-                            isOpen: true,
-                            title: 'Proceed with Shortage?',
-                            message: `Are you sure you want to create this exam with ${data.missingCount} questions missing? You will not be able to publish it until the shortage is resolved.`,
-                            confirmText: 'Create Draft Exam',
-                            cancelText: 'Cancel',
-                            type: 'warning',
-                            onConfirm: () => {
-                                submitGeneration(false, true);
-                            },
-                            onCancel: closeConfirm,
-                            isLoading: false
-                        });
-                    },
-                    isLoading: false
-                });
-                return;
-            }
-
             if (data.success) {
                 toast.success('Exam generated successfully!');
                 setShowGenerateModal(false);
-                closeConfirm();
+                setGenBlueprintId('');
+                setGenTitle('');
+                setGenDesc('');
                 loadExams();
             } else {
                 toast.error(data.error || 'Generation failed');
-                if (confirmConfig.isOpen) {
-                    setConfirmConfig(prev => ({ ...prev, isLoading: false }));
-                }
             }
         } catch (e) {
             toast.error('Error generating exam');
-            if (confirmConfig.isOpen) {
-                setConfirmConfig(prev => ({ ...prev, isLoading: false }));
-            }
         } finally {
-            if (!confirmConfig.isOpen) {
-                // Only unset main generating state if not in a modal flow
-                setIsGenerating(false);
-            }
+            setIsGenerating(false);
         }
     };
 
@@ -468,11 +439,6 @@ export default function AdminExamsPage() {
                 type="danger"
                 onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
                 onCancel={() => setDeleteConfirm(null)}
-            />
-
-            {/* AI Generation Confirmation Modals */}
-            <ConfirmModal
-                {...confirmConfig}
             />
 
             {/* Generate Exam Modal */}

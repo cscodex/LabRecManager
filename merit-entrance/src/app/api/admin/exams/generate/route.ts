@@ -406,10 +406,10 @@ export async function POST(request: Request) {
             });
         }
 
-        // Store expected question count in description JSON for publish lock validation
+        // Store expected question count and blueprint ID in description JSON for publish lock validation and AI generation
         const examDescription = typeof description === 'object' && description !== null
-            ? { ...description, expected_questions: expectedQuestionCount }
-            : { en: description || '', pa: description || '', expected_questions: expectedQuestionCount };
+            ? { ...description, expected_questions: expectedQuestionCount, blueprint_id: blueprint.id }
+            : { en: description || '', pa: description || '', expected_questions: expectedQuestionCount, blueprint_id: blueprint.id };
 
         // 3. Create the Exam (no nested create to avoid Neon HTTP transaction error)
         const exam = await prisma.exam.create({

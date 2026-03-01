@@ -10,7 +10,7 @@ import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
     MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle, List,
-    AlertCircle, Check, Loader2, Download, X
+    AlertCircle, Check, Loader2, Download, X, Wand2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -121,6 +121,7 @@ export default function EditExamPage() {
     const [showPickerModal, setShowPickerModal] = useState(false);
     const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
     const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+    const [isGeneratingMissing, setIsGeneratingMissing] = useState(false);
 
     // Bulk selection
     const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
@@ -595,6 +596,34 @@ export default function EditExamPage() {
                         toast.error('Failed to remove questions');
                     }
                 } catch (e) { toast.error('Error removing questions'); }
+            }
+        });
+    };
+
+    const handleGenerateMissingAi = async () => {
+        confirm({
+            title: '✨ Generate Missing Questions',
+            message: 'This will use Gemini AI to generate the missing questions for this exam based on its original blueprint rules and linked knowledge base. This may take a minute. Continue?',
+            confirmText: 'Generate Now',
+            onConfirm: async () => {
+                setIsGeneratingMissing(true);
+                try {
+                    const res = await fetch(`/api/admin/exams/${examId}/generate-missing-ai`, {
+                        method: 'POST'
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        toast.success(`Generated ${data.generatedCount} missing questions successfully!`);
+                        if (activeSectionId) fetchSectionQuestions(activeSectionId);
+                        loadExam();
+                    } else {
+                        toast.error(data.error || 'Failed to generate missing questions');
+                    }
+                } catch (e) {
+                    toast.error('Error generating missing questions. The model might be busy.');
+                } finally {
+                    setIsGeneratingMissing(false);
+                }
             }
         });
     };
@@ -1642,6 +1671,15 @@ export default function EditExamPage() {
                                                 >
                                                     <Upload className="w-4 h-4" /> Import CSV
                                                 </Link>
+                                                {exam?.description?.blueprint_id && (
+                                                    <button
+                                                        onClick={() => handleGenerateMissingAi()}
+                                                        disabled={isGeneratingMissing}
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium ml-2"
+                                                    >
+                                                        <Wand2 className="w-4 h-4" /> {isGeneratingMissing ? 'Synthesizing...' : '✨ Generate Missing AI'}
+                                                    </button>
+                                                )}
                                             </div>
                                             <div className="text-sm text-gray-500">
                                                 {loadingQuestions[activeSectionId] ? 'Loading...' : `${sectionQuestions[activeSectionId]?.length || 0} Questions`}
