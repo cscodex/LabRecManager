@@ -9,7 +9,6 @@ export async function GET(
         const blueprint = await prisma.examBlueprint.findUnique({
             where: { id: params.id },
             include: {
-                materials: true,
                 sections: {
                     include: {
                         rules: {
