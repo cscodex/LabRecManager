@@ -280,13 +280,14 @@ export async function POST(request: Request) {
 
                             // Save the generated questions to DB
                             for (const generatedQ of generatedArray) {
-                                let paragraphData = undefined;
+                                let paragraphId = null;
                                 if (generatedQ.type === 'paragraph' && generatedQ.paragraphText) {
-                                    paragraphData = {
-                                        create: {
+                                    const p = await prisma.paragraph.create({
+                                        data: {
                                             text: { en: generatedQ.paragraphText }
                                         }
-                                    };
+                                    });
+                                    paragraphId = p.id;
                                 }
 
                                 const dbQuestion = await prisma.question.create({
@@ -297,20 +298,25 @@ export async function POST(request: Request) {
                                         explanation: generatedQ.explanation || "",
                                         options: generatedQ.options || [],
                                         correctAnswer: generatedQ.correctOption,
-                                        paragraph: paragraphData,
+                                        paragraphId: paragraphId,
                                         isAiGenerated: true,
                                         citation: {
                                             source: contextMap ? "Gemini 2.5 Dynamic Generation Engine" : "Gemini 2.5 General Knowledge",
                                             text_excerpt: contextMap ? contextMap.substring(0, 50) + "..." : "Sourced from general internal model knowledge.",
                                         },
                                         order: 0,
-                                        tags: tagIds.length > 0 ? {
-                                            create: tagIds.map((tId: any) => ({
-                                                tag: { connect: { id: tId } }
-                                            }))
-                                        } : undefined,
                                     },
                                 });
+
+                                if (tagIds && tagIds.length > 0) {
+                                    for (const tId of tagIds) {
+                                        await prisma.$executeRawUnsafe(
+                                            `INSERT INTO "question_tags" ("question_id", "tag_id") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                            dbQuestion.id,
+                                            tId
+                                        );
+                                    }
+                                }
                                 selectedIds.push(dbQuestion.id);
 
                                 // Fetch full question so it matches the expected array format downstream

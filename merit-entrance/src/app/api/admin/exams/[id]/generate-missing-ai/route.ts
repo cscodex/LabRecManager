@@ -27,7 +27,7 @@ export async function POST(
             return NextResponse.json({ success: false, error: 'Exam was not created with a valid blueprint sequence. Missing blueprint ID.' }, { status: 400 });
         }
 
-        const blueprint = await prisma.examBlueprint.findUnique({
+        const blueprint = await (prisma.examBlueprint.findUnique as any)({
             where: { id: blueprintId },
             include: {
                 materials: true,
@@ -42,7 +42,7 @@ export async function POST(
                     orderBy: { order: 'asc' }
                 }
             }
-        }) as any;
+        });
 
         if (!blueprint) {
             return NextResponse.json({ success: false, error: 'Associated blueprint no longer exists.' }, { status: 404 });
@@ -141,11 +141,12 @@ export async function POST(
                     }
 
                     for (const generatedQ of generatedArray) {
-                        let paragraphData = undefined;
+                        let paragraphId = null;
                         if (generatedQ.type === 'paragraph' && generatedQ.paragraphText) {
-                            paragraphData = {
-                                create: { text: { en: generatedQ.paragraphText } }
-                            };
+                            const p = await prisma.paragraph.create({
+                                data: { text: { en: generatedQ.paragraphText } }
+                            });
+                            paragraphId = p.id;
                         }
 
                         const dbQuestion = await prisma.question.create({
@@ -156,17 +157,22 @@ export async function POST(
                                 explanation: generatedQ.explanation || "",
                                 options: generatedQ.options || [],
                                 correctAnswer: generatedQ.correctOption,
-                                paragraph: paragraphData,
+                                paragraphId: paragraphId,
                                 isAiGenerated: true,
                                 citation: contextMap ? 'AI Synthesized RAG' : 'AI Internal Knowledge Base',
-                                order: 999,
-                                tags: {
-                                    create: tagIds.map((tId: any) => ({
-                                        tag: { connect: { id: tId } }
-                                    }))
-                                }
+                                order: 999
                             }
                         });
+
+                        if (tagIds && tagIds.length > 0) {
+                            for (const tId of tagIds) {
+                                await prisma.$executeRawUnsafe(
+                                    `INSERT INTO "question_tags" ("question_id", "tag_id") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                    dbQuestion.id,
+                                    tId
+                                );
+                            }
+                        }
 
                         // Link to exam section natively
                         await prisma.sectionQuestion.create({
