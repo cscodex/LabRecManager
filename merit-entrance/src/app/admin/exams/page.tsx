@@ -541,7 +541,7 @@ export default function AdminExamsPage() {
                                             <ul className="list-disc pl-4 space-y-1 text-orange-800">
                                                 {shortageData.shortages.map((s: any, i: number) => (
                                                     <li key={i}>
-                                                        <span className="font-semibold">{s.section}</span>: Missing {s.missing} {s.type} (Tags: {s.tags})
+                                                        <span className="font-semibold">{typeof s.section === 'object' ? (s.section?.en || s.section?.pa || 'Section') : s.section}</span>: Missing {s.missing} {s.type} (Tags: {s.tags})
                                                     </li>
                                                 ))}
                                             </ul>
