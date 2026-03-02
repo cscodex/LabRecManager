@@ -156,7 +156,7 @@ export async function POST(
                                 difficulty: generatedQ.difficulty || difficulty || 3,
                                 explanation: generatedQ.explanation || "",
                                 options: generatedQ.options || [],
-                                correctAnswer: generatedQ.correctOption,
+                                correctAnswer: generatedQ.correctOption?.toString() || "",
                                 paragraphId: paragraphId,
                                 isAiGenerated: true,
                                 citation: contextMap ? 'AI Synthesized RAG' : 'AI Internal Knowledge Base',

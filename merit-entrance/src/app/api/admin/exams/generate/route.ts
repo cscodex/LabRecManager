@@ -297,7 +297,7 @@ export async function POST(request: Request) {
                                         difficulty: generatedQ.difficulty || difficulty || 3,
                                         explanation: generatedQ.explanation || "",
                                         options: generatedQ.options || [],
-                                        correctAnswer: generatedQ.correctOption,
+                                        correctAnswer: generatedQ.correctOption?.toString() || "",
                                         paragraphId: paragraphId,
                                         isAiGenerated: true,
                                         citation: {
