@@ -22,7 +22,17 @@ export async function POST(
             return NextResponse.json({ success: false, error: 'Exam not found' }, { status: 404 });
         }
 
-        const blueprintId = (exam.description as any)?.blueprint_id;
+        let blueprintId = null;
+        if (typeof exam.description === 'object' && exam.description !== null) {
+            blueprintId = (exam.description as any).blueprint_id;
+        } else if (typeof exam.description === 'string') {
+            try {
+                blueprintId = JSON.parse(exam.description).blueprint_id;
+            } catch (e) {
+                console.error("Failed to parse description", e);
+            }
+        }
+
         if (!blueprintId) {
             return NextResponse.json({ success: false, error: 'Exam was not created with a valid blueprint sequence. Missing blueprint ID.' }, { status: 400 });
         }

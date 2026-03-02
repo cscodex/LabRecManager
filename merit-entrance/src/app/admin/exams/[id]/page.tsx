@@ -1671,7 +1671,8 @@ export default function EditExamPage() {
                                                 >
                                                     <Upload className="w-4 h-4" /> Import CSV
                                                 </Link>
-                                                {exam?.description?.blueprint_id && (
+                                                {(typeof exam?.description === 'object' && (exam.description as any)?.blueprint_id) ||
+                                                    (typeof exam?.description === 'string' && (() => { try { return JSON.parse(exam.description).blueprint_id } catch { return null } })()) ? (
                                                     <button
                                                         onClick={() => handleGenerateMissingAi()}
                                                         disabled={isGeneratingMissing}
@@ -1679,7 +1680,7 @@ export default function EditExamPage() {
                                                     >
                                                         <Wand2 className="w-4 h-4" /> {isGeneratingMissing ? 'Synthesizing...' : '✨ Generate Missing AI'}
                                                     </button>
-                                                )}
+                                                ) : null}
                                             </div>
                                             <div className="text-sm text-gray-500">
                                                 {loadingQuestions[activeSectionId] ? 'Loading...' : `${sectionQuestions[activeSectionId]?.length || 0} Questions`}
