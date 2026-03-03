@@ -33,7 +33,23 @@ export async function GET(request: Request) {
             orderBy: { createdAt: 'desc' }
         });
 
-        return NextResponse.json({ success: true, data: blueprints });
+        const countRaw = await prisma.$queryRawUnsafe<any[]>(`
+            SELECT description->>'blueprint_id' AS "blueprintId", COUNT(*)::int AS count
+            FROM exams
+            WHERE description->>'blueprint_id' IS NOT NULL
+            GROUP BY description->>'blueprint_id'
+        `);
+
+        const countMap = Object.fromEntries(countRaw.map(r => [r.blueprintId, r.count]));
+
+        const enhancedBlueprints = blueprints.map(bp => ({
+            ...bp,
+            _count: {
+                exams: countMap[bp.id] || 0
+            }
+        }));
+
+        return NextResponse.json({ success: true, data: enhancedBlueprints });
     } catch (error: any) {
         console.error('Error fetching blueprints:', error);
         return NextResponse.json({ success: false, error: 'Failed to fetch blueprints' }, { status: 500 });
@@ -43,7 +59,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, description, sections, createdById, materialIds } = body;
+        const { name, description, sections, createdById, materialIds, board, classLevel, subject } = body;
 
         if (!name || !sections || !Array.isArray(sections) || !createdById) {
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
@@ -59,6 +75,9 @@ export async function POST(request: Request) {
                     description,
                     createdById,
                     generationMethod,
+                    board: board || 'PSEB',
+                    classLevel: classLevel || '12th',
+                    subject: subject || null,
                     materials: materialIds && materialIds.length > 0 ? {
                         connect: materialIds.map((id: string) => ({ id }))
                     } : undefined

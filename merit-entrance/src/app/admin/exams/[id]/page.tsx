@@ -10,7 +10,7 @@ import {
     ChevronLeft, Save, Plus, Trash2, Upload,
     FileText, Globe, Settings, ChevronUp, ChevronDown, Edit2, Clock, Eye,
     MoreVertical, Search, Filter, CheckSquare, Pencil, BarChart2, Minus, Square, CheckCircle, List,
-    AlertCircle, Check, Loader2, Download, X, Wand2
+    AlertCircle, Check, Loader2, Download, X, Wand2, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useConfirmDialog } from '@/components/ConfirmDialog';
@@ -121,7 +121,15 @@ export default function EditExamPage() {
     const [showPickerModal, setShowPickerModal] = useState(false);
     const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
     const [isSavingQuestion, setIsSavingQuestion] = useState(false);
-    const [isGeneratingMissing, setIsGeneratingMissing] = useState(false);
+    const [isGeneratingMissing, setIsGeneratingMissing] = useState<string | null>(null);
+    const [showGenerateModal, setShowGenerateModal] = useState(false);
+    const [generateCount, setGenerateCount] = useState(0);
+    const [maxGenerateCount, setMaxGenerateCount] = useState(0);
+    const [shortageDetails, setShortageDetails] = useState<any[]>([]);
+    const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+    const [boardName, setBoardName] = useState('PSEB');
+    const [className, setClassName] = useState('12th');
+    const [subjectName, setSubjectName] = useState('');
 
     // Bulk selection
     const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
@@ -142,14 +150,29 @@ export default function EditExamPage() {
     const [isCombiningPdf, setIsCombiningPdf] = useState(false);
 
     const hasBlueprintId = useMemo(() => {
-        if (!exam?.description) return false;
-        if (typeof exam.description === 'object' && (exam.description as any)?.blueprint_id) return true;
+        if (!exam?.description) return null;
+        if (typeof exam.description === 'object' && (exam.description as any)?.blueprint_id) return (exam.description as any).blueprint_id;
         if (typeof exam.description === 'string') {
-            try { return !!JSON.parse(exam.description).blueprint_id; }
-            catch { return false; }
+            try { return JSON.parse(exam.description).blueprint_id || null; }
+            catch { return null; }
         }
-        return false;
+        return null;
     }, [exam?.description]);
+
+    const [blueprintData, setBlueprintData] = useState<any>(null);
+
+    useEffect(() => {
+        if (hasBlueprintId) {
+            fetch(`/api/admin/blueprints/${hasBlueprintId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setBlueprintData(data.data);
+                    }
+                })
+                .catch(err => console.error("Failed to fetch blueprint", err));
+        }
+    }, [hasBlueprintId]);
 
     const [pdfViewerOptions, setPdfViewerOptions] = useState({
         showAnswers: true,
@@ -325,9 +348,20 @@ export default function EditExamPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         title: { en: formData.titleEn, pa: formData.titlePa || formData.titleEn },
-                        description: formData.descriptionEn
-                            ? { en: formData.descriptionEn, pa: formData.descriptionPa || formData.descriptionEn }
-                            : null,
+                        description: (() => {
+                            let baseDesc = {};
+                            if (typeof exam?.description === 'object' && exam?.description !== null) {
+                                baseDesc = { ...exam.description };
+                            } else if (typeof exam?.description === 'string') {
+                                try { baseDesc = JSON.parse(exam.description); } catch { }
+                            }
+                            if (!formData.descriptionEn && Object.keys(baseDesc).length === 0) return null;
+                            return {
+                                ...baseDesc,
+                                en: formData.descriptionEn,
+                                pa: formData.descriptionPa || formData.descriptionEn
+                            };
+                        })(),
                         instructions: formData.instructionsEn
                             ? { en: formData.instructionsEn, pa: formData.instructionsPa || formData.instructionsEn }
                             : null,
@@ -620,31 +654,75 @@ export default function EditExamPage() {
     };
 
     const handleGenerateMissingAi = async () => {
-        confirm({
-            title: '✨ Generate Missing Questions',
-            message: 'This will use Gemini AI to generate the missing questions for this exam based on its original blueprint rules and linked knowledge base. This may take a minute. Continue?',
-            confirmText: 'Generate Now',
-            onConfirm: async () => {
-                setIsGeneratingMissing(true);
-                try {
-                    const res = await fetch(`/api/admin/exams/${examId}/generate-missing-ai`, {
-                        method: 'POST'
-                    });
-                    const data = await res.json();
-                    if (res.ok && data.success) {
-                        toast.success(`Generated ${data.generatedCount} missing questions successfully!`);
-                        if (activeSectionId) fetchSectionQuestions(activeSectionId);
-                        loadExam();
-                    } else {
-                        toast.error(data.error || 'Failed to generate missing questions');
-                    }
-                } catch (e) {
-                    toast.error('Error generating missing questions. The model might be busy.');
-                } finally {
-                    setIsGeneratingMissing(false);
-                }
+        if (!exam || !hasBlueprintId || typeof hasBlueprintId !== 'string') {
+            toast.error("No valid blueprint linked to this exam.");
+            return;
+        }
+
+        setIsGeneratingMissing(activeSectionId || "true");
+        try {
+            const urlQuery = activeSectionId ? `&sectionId=${activeSectionId}` : ``;
+            const checkRes = await fetch(`/api/admin/blueprints/${hasBlueprintId}/check-shortage?examId=${exam.id}${urlQuery}`);
+            const checkData = await checkRes.json();
+
+            if (!checkRes.ok || !checkData.success) {
+                toast.error("Could not calculate missing questions");
+                setIsGeneratingMissing(null);
+                return;
             }
-        });
+
+            const missingCount = checkData.totalShortage || 0;
+
+            if (missingCount === 0) {
+                toast.success("No missing questions! This section is fully populated according to the blueprint.");
+                setIsGeneratingMissing(null);
+                return;
+            }
+
+            // Open the custom modal with editable count
+            setMaxGenerateCount(missingCount);
+            setGenerateCount(missingCount);
+            setShortageDetails(checkData.shortages || []);
+            // Pre-populate board context from blueprint
+            if (blueprintData) {
+                setBoardName(blueprintData.board || 'PSEB');
+                setClassName(blueprintData.classLevel || '12th');
+                setSubjectName(blueprintData.subject || '');
+            }
+            setShowGenerateModal(true);
+            setIsGeneratingMissing(null);
+        } catch (e) {
+            toast.error("Failed to check shortage before generation.");
+            setIsGeneratingMissing(null);
+        }
+    };
+
+    const executeAiGeneration = async () => {
+        if (!exam || generateCount <= 0) return;
+        setShowGenerateModal(false);
+        setIsGeneratingMissing(activeSectionId || "true");
+        try {
+            const postUrl = activeSectionId
+                ? `/api/admin/exams/${examId}/generate-missing-ai?sectionId=${activeSectionId}&limit=${generateCount}`
+                : `/api/admin/exams/${examId}/generate-missing-ai?limit=${generateCount}`;
+            const res = await fetch(postUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: selectedModel, board: boardName, class: className, subject: subjectName })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success(`Generated ${data.generatedCount} questions successfully!`);
+                if (activeSectionId) fetchSectionQuestions(activeSectionId);
+                loadExam();
+            } else {
+                toast.error(data.error || 'Failed to generate missing questions');
+            }
+        } catch (e) {
+            toast.error('Error generating missing questions. The model might be busy.');
+        } finally {
+            setIsGeneratingMissing(null);
+        }
     };
 
     // Bulk move selected questions to another section
@@ -932,6 +1010,159 @@ export default function EditExamPage() {
             <div className="min-h-screen bg-gray-50">
                 <DialogComponent />
 
+                {/* Custom AI Generation Modal with editable count */}
+                {showGenerateModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="fixed inset-0 bg-black/50" onClick={() => setShowGenerateModal(false)} />
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                                <button onClick={() => setShowGenerateModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                                    <X className="w-5 h-5" />
+                                </button>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                                    <Wand2 className="w-5 h-5 text-purple-600" /> Generate Missing Questions
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-4">
+                                    {maxGenerateCount} questions missing in this section according to blueprint rules.
+                                </p>
+
+                                {/* Shortage breakdown table */}
+                                {shortageDetails.length > 0 && (
+                                    <div className="mb-4 max-h-40 overflow-y-auto border rounded-lg">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-gray-50 sticky top-0">
+                                                <tr>
+                                                    <th className="px-3 py-1.5 text-left font-medium text-gray-600">Type</th>
+                                                    <th className="px-3 py-1.5 text-left font-medium text-gray-600">Tags</th>
+                                                    <th className="px-3 py-1.5 text-center font-medium text-gray-600">Need</th>
+                                                    <th className="px-3 py-1.5 text-center font-medium text-gray-600">Have</th>
+                                                    <th className="px-3 py-1.5 text-center font-medium text-red-600">Missing</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {shortageDetails.map((s: any, i: number) => (
+                                                    <tr key={i} className="hover:bg-gray-50">
+                                                        <td className="px-3 py-1.5 text-gray-700">{s.type}</td>
+                                                        <td className="px-3 py-1.5 text-gray-500 truncate max-w-[140px]" title={s.tags}>{s.tags}</td>
+                                                        <td className="px-3 py-1.5 text-center text-gray-700">{s.required}</td>
+                                                        <td className="px-3 py-1.5 text-center text-green-600">{s.found}</td>
+                                                        <td className="px-3 py-1.5 text-center font-medium text-red-600">{s.missing}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Board Context (read-only, from blueprint) */}
+                                <div className="mb-4 grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Board</label>
+                                        <input
+                                            type="text"
+                                            value={boardName}
+                                            readOnly
+                                            className="w-full px-2 py-1.5 border rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Class / Level</label>
+                                        <input
+                                            type="text"
+                                            value={className}
+                                            readOnly
+                                            className="w-full px-2 py-1.5 border rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
+                                        <input
+                                            type="text"
+                                            value={subjectName || 'Not set'}
+                                            readOnly
+                                            className="w-full px-2 py-1.5 border rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-gray-400 -mt-3 mb-3">ℹ️ Board context is set in the blueprint. Edit the blueprint to change.</p>
+
+                                {/* Model Selector */}
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        AI Model
+                                    </label>
+                                    <select
+                                        value={selectedModel}
+                                        onChange={(e) => setSelectedModel(e.target.value)}
+                                        className="w-full px-3 py-2 border rounded-lg bg-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                    >
+                                        <optgroup label="🦙 Groq (Llama — Free & Fast)">
+                                            <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B (Fast)</option>
+                                            <option value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick 17B (High Context)</option>
+                                            <option value="llama-3.2-90b-vision-preview">Llama 3.2 90B Vision</option>
+                                        </optgroup>
+                                        <optgroup label="✨ Google Gemini">
+                                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
+                                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                        </optgroup>
+                                        <optgroup label="🤖 OpenAI">
+                                            <option value="gpt-4o">GPT-4o</option>
+                                        </optgroup>
+                                    </select>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        {selectedModel.includes('llama') || selectedModel.includes('meta-llama')
+                                            ? '🟢 Groq offers generous free tier — recommended to avoid quota issues'
+                                            : selectedModel.includes('gemini')
+                                                ? '⚠️ Gemini free tier has daily quota limits'
+                                                : '⚠️ OpenAI requires paid API key'}
+                                    </p>
+                                </div>
+
+                                {/* Editable count input */}
+                                <div className="mb-5">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Questions to generate
+                                    </label>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            max={maxGenerateCount}
+                                            value={generateCount}
+                                            onChange={(e) => setGenerateCount(Math.min(Math.max(1, Number(e.target.value)), maxGenerateCount))}
+                                            className="w-24 px-3 py-2 border rounded-lg text-center font-semibold text-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        />
+                                        <span className="text-sm text-gray-500">
+                                            of {maxGenerateCount} missing (reduce to avoid API limits)
+                                        </span>
+                                    </div>
+                                    {generateCount < maxGenerateCount && (
+                                        <p className="text-xs text-amber-600 mt-1">
+                                            ⚡ Generating {generateCount} now. You can generate the rest later.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowGenerateModal(false)}
+                                        className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={executeAiGeneration}
+                                        className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 flex items-center justify-center gap-2"
+                                    >
+                                        <Wand2 className="w-4 h-4" /> Generate {generateCount} Questions
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {showImportModal && exam && (
                     <MasterImportModal
                         isOpen={showImportModal}
@@ -1704,10 +1935,10 @@ export default function EditExamPage() {
                                                 {hasBlueprintId ? (
                                                     <button
                                                         onClick={() => handleGenerateMissingAi()}
-                                                        disabled={isGeneratingMissing}
+                                                        disabled={isGeneratingMissing === activeSectionId}
                                                         className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium ml-2"
                                                     >
-                                                        <Wand2 className="w-4 h-4" /> {isGeneratingMissing ? 'Synthesizing...' : '✨ Generate Missing AI'}
+                                                        <Wand2 className="w-4 h-4" /> {isGeneratingMissing === activeSectionId ? 'Synthesizing...' : '✨ Generate Missing AI'}
                                                     </button>
                                                 ) : null}
                                             </div>
@@ -1953,6 +2184,143 @@ export default function EditExamPage() {
                             ) : (
                                 <iframe src={exam.source_pdf_url} className="w-full h-full rounded-lg" title="Original PDF" />
                             )}
+                        </div>
+                    ) : activeTab === 'blueprint' ? (
+                        <div className="bg-white rounded-xl shadow-sm border p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Exam Blueprint Data</h2>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        This exam is dynamically linked to a Blueprint configuration.
+                                    </p>
+                                </div>
+                                <Link href="/admin/blueprints" target="_blank" className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                                    Manage Blueprints <ExternalLink className="w-4 h-4" />
+                                </Link>
+                            </div>
+                            <div className="bg-gray-50 border rounded-lg p-0 overflow-hidden min-h-[100px]">
+                                {blueprintData ? (
+                                    <div className="flex flex-col">
+                                        {blueprintData.sections?.length > 0 ? (
+                                            <div className="space-y-0">
+                                                {blueprintData.sections.map((section: any, idx: number) => {
+                                                    let secQ = 0; let secM = 0;
+                                                    section.rules?.forEach((r: any) => { secQ += r.numberOfQuestions; secM += (r.numberOfQuestions * r.marksPerQuestion); });
+                                                    return (
+                                                        <div key={section.id} className="bg-white border-b last:border-b-0">
+                                                            <div className="bg-gray-50/80 px-4 py-3 border-b flex justify-between items-center">
+                                                                <h5 className="font-semibold text-gray-800">{section.name?.en || `Section ${idx + 1}`}</h5>
+                                                                <div className="text-xs font-medium text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">
+                                                                    {secQ} Questions · {secM} Marks
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-0">
+                                                                <table className="w-full text-left text-sm">
+                                                                    <thead className="bg-white text-gray-500 text-xs uppercase tracking-wider border-b">
+                                                                        <tr>
+                                                                            <th className="px-4 py-3 font-medium">Topic/Tags</th>
+                                                                            <th className="px-4 py-3 font-medium">Type</th>
+                                                                            <th className="px-4 py-3 font-medium">Diff</th>
+                                                                            <th className="px-4 py-3 font-medium text-right">Qs</th>
+                                                                            <th className="px-4 py-3 font-medium text-right">Marks</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-gray-100">
+                                                                        {(() => {
+                                                                            if (!section.rules || section.rules.length === 0) {
+                                                                                return <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">No rules defined for this section.</td></tr>;
+                                                                            }
+
+                                                                            // Group rules by their exact tag combination
+                                                                            const groupedRules = section.rules.reduce((acc: any, rule: any) => {
+                                                                                // Sort tags so order doesn't matter for grouping
+                                                                                const tagNames = rule.topicTags?.length > 0
+                                                                                    ? rule.topicTags.map((t: any) => t.name).sort().join(' + ')
+                                                                                    : 'Global Pool';
+
+                                                                                if (!acc[tagNames]) {
+                                                                                    acc[tagNames] = {
+                                                                                        tagNames,
+                                                                                        tags: rule.topicTags, // Keep the original tag objects for rendering chips
+                                                                                        rules: []
+                                                                                    };
+                                                                                }
+                                                                                acc[tagNames].rules.push(rule);
+                                                                                return acc;
+                                                                            }, {});
+
+                                                                            return Object.values(groupedRules).map((group: any, gIdx: number) => {
+                                                                                // Sum up Qs and Marks for this group
+                                                                                let groupQs = 0;
+                                                                                let groupMarks = 0;
+                                                                                group.rules.forEach((r: any) => {
+                                                                                    groupQs += r.numberOfQuestions;
+                                                                                    groupMarks += (r.numberOfQuestions * r.marksPerQuestion);
+                                                                                });
+
+                                                                                return (
+                                                                                    <tr key={gIdx} className="hover:bg-gray-50/50 transition-colors border-l-4 border-l-blue-400">
+                                                                                        <td className="px-4 py-3 align-top border-r bg-gray-50/30">
+                                                                                            <div className="flex flex-col gap-1">
+                                                                                                <div className="font-semibold text-gray-800">{group.tagNames}</div>
+                                                                                                <div className="text-xs text-gray-500 font-medium">
+                                                                                                    {groupQs} Qs · {groupMarks} Marks
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        <td colSpan={4} className="p-0">
+                                                                                            <table className="w-full">
+                                                                                                <tbody className="divide-y divide-gray-100">
+                                                                                                    {group.rules.map((rule: any, rIdx: number) => (
+                                                                                                        <tr key={`${gIdx}-${rIdx}`} className="hover:bg-gray-50 transition-colors">
+                                                                                                            <td className="px-4 py-3 w-[25%]">
+                                                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 capitalize">
+                                                                                                                    {rule.questionType.replace('_', ' ')}
+                                                                                                                </span>
+                                                                                                            </td>
+                                                                                                            <td className="px-4 py-3 w-[25%]">
+                                                                                                                {rule.difficulty ? (
+                                                                                                                    <div className="flex gap-0.5" title={`Level ${rule.difficulty}`}>
+                                                                                                                        {Array.from({ length: 5 }).map((_, i) => (
+                                                                                                                            <div key={i} className={`w-1.5 h-3 rounded-sm ${i < rule.difficulty ? 'bg-orange-400' : 'bg-gray-200'}`} />
+                                                                                                                        ))}
+                                                                                                                    </div>
+                                                                                                                ) : <span className="text-gray-400">-</span>}
+                                                                                                            </td>
+                                                                                                            <td className="px-4 py-3 text-right font-medium text-gray-700 w-[25%]">{rule.numberOfQuestions}</td>
+                                                                                                            <td className="px-4 py-3 text-right text-gray-500 w-[25%]">
+                                                                                                                <div className="flex flex-col items-end leading-tight">
+                                                                                                                    <span className="text-green-600 font-medium">+{rule.marksPerQuestion}</span>
+                                                                                                                    {rule.negativeMarks > 0 && <span className="text-red-500 text-[10px]">-{rule.negativeMarks}</span>}
+                                                                                                                </div>
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    ))}
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            });
+                                                                        })()}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center text-gray-500 text-sm">No sections defined in this blueprint.</div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center p-8 text-gray-500">
+                                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                        <span>Loading blueprint structure...</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ) : null}
                 </main>

@@ -25,10 +25,16 @@ export default function AdminBlueprintsPage() {
     const [referenceMaterials, setReferenceMaterials] = useState<any[]>([]);
     const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
 
+    // Reference Data (Boards, Classes, Subjects)
+    const [refData, setRefData] = useState<{ boards: any[], classes: any[], subjects: any[], grouped: any }>({ boards: [], classes: [], subjects: [], grouped: {} });
+
     // New Blueprint State
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [generationMethod, setGenerationMethod] = useState<'pull_existing' | 'generate_novel'>('pull_existing');
+    const [bpBoard, setBpBoard] = useState('PSEB');
+    const [bpClassLevel, setBpClassLevel] = useState('12th');
+    const [bpSubject, setBpSubject] = useState('');
     const [sections, setSections] = useState<any[]>([
         { name: { en: 'Main Section', pa: 'ਮੁੱਖ ਭਾਗ' }, rules: [] }
     ]);
@@ -92,19 +98,22 @@ export default function AdminBlueprintsPage() {
 
     const loadData = async () => {
         try {
-            const [bpRes, tagsRes, matRes] = await Promise.all([
+            const [bpRes, tagsRes, matRes, refRes] = await Promise.all([
                 fetch('/api/admin/blueprints'),
                 fetch('/api/admin/tags'),
-                fetch('/api/admin/knowledge-base?limit=100')
+                fetch('/api/admin/knowledge-base?limit=100'),
+                fetch('/api/admin/reference-data')
             ]);
 
             const bpData = await bpRes.json();
             const tagsData = await tagsRes.json();
             const matData = await matRes.json();
+            const refDataRes = await refRes.json();
 
             if (bpData.success) setBlueprints(bpData.data);
             if (tagsData.success) setTags(tagsData.tags);
             if (matData.success) setReferenceMaterials(matData.data || []);
+            if (refDataRes.success) setRefData(refDataRes.data);
         } catch (error) {
             toast.error('Failed to load data');
         } finally {
@@ -117,6 +126,9 @@ export default function AdminBlueprintsPage() {
         setName(bp.name);
         setDescription(bp.description || '');
         setGenerationMethod(bp.generationMethod || 'pull_existing');
+        setBpBoard(bp.board || 'PSEB');
+        setBpClassLevel(bp.classLevel || '12th');
+        setBpSubject(bp.subject || '');
         // Pre-fill selected materials if available in the relation
         setSelectedMaterialIds(bp.materials?.map((m: any) => m.id) || []);
 
@@ -203,6 +215,9 @@ export default function AdminBlueprintsPage() {
                     name,
                     description,
                     generationMethod,
+                    board: bpBoard,
+                    classLevel: bpClassLevel,
+                    subject: bpSubject,
                     createdById: user?.id,
                     sections,
                     materialIds: selectedMaterialIds
@@ -406,6 +421,9 @@ export default function AdminBlueprintsPage() {
         setName('');
         setDescription('');
         setGenerationMethod('pull_existing');
+        setBpBoard('PSEB');
+        setBpClassLevel('12th');
+        setBpSubject('');
         setSections([{ name: { en: 'Main Section', pa: 'ਮੁੱਖ ਭਾਗ' }, rules: [] }]);
     };
 
@@ -567,6 +585,7 @@ export default function AdminBlueprintsPage() {
                                         <th className="p-4 font-semibold">Name</th>
                                         <th className="p-4 font-semibold">Description</th>
                                         <th className="p-4 font-semibold">Structure</th>
+                                        <th className="p-4 font-semibold text-center">Exams Spawned</th>
                                         <th className="p-4 font-semibold">Created</th>
                                         <th className="p-4 text-right font-semibold relative">Actions</th>
                                     </tr>
@@ -609,6 +628,9 @@ export default function AdminBlueprintsPage() {
                                                 </td>
                                                 <td className="p-4 text-sm text-blue-800 font-medium">
                                                     {bp.sections?.length || 0} Sections · {bpQ} Qs · {bpM} Marks
+                                                </td>
+                                                <td className="p-4 text-sm text-center font-bold text-gray-700">
+                                                    {bp._count?.exams || 0}
                                                 </td>
                                                 <td className="p-4 text-sm text-gray-500">
                                                     {formatDateTimeIST(bp.createdAt).split(',')[0]}
@@ -711,6 +733,59 @@ export default function AdminBlueprintsPage() {
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Board / Exam</label>
+                                        <select
+                                            value={bpBoard}
+                                            onChange={e => setBpBoard(e.target.value)}
+                                            className="w-full border rounded-lg p-2 bg-white text-sm"
+                                        >
+                                            <option value="">-- Select Board --</option>
+                                            {refData.grouped?.boards && Object.entries(refData.grouped.boards).map(([cat, items]: [string, any]) => (
+                                                <optgroup key={cat} label={cat === 'state_board' ? '📋 State Boards' : cat === 'national' ? '🏛️ National Boards' : cat === 'competitive' ? '🏆 Competitive Exams' : cat === 'university' ? '🎓 Universities' : cat}>
+                                                    {(items as any[]).map((b: any) => (
+                                                        <option key={b.code} value={b.code}>{b.name}{b.state && b.state !== 'All India' ? ` (${b.state})` : ''}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Class / Level</label>
+                                        <select
+                                            value={bpClassLevel}
+                                            onChange={e => setBpClassLevel(e.target.value)}
+                                            className="w-full border rounded-lg p-2 bg-white text-sm"
+                                        >
+                                            <option value="">-- Select Class --</option>
+                                            {refData.grouped?.classes && Object.entries(refData.grouped.classes).map(([cat, items]: [string, any]) => (
+                                                <optgroup key={cat} label={cat === 'school' ? '🏫 School' : cat === 'college' ? '🎓 College' : cat === 'competitive' ? '📝 Competitive' : cat === 'vocational' ? '🔧 Vocational' : cat}>
+                                                    {(items as any[]).map((c: any) => (
+                                                        <option key={c.code} value={c.code}>{c.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                                        <select
+                                            value={bpSubject}
+                                            onChange={e => setBpSubject(e.target.value)}
+                                            className="w-full border rounded-lg p-2 bg-white text-sm"
+                                        >
+                                            <option value="">-- Select Subject --</option>
+                                            {refData.grouped?.subjects && Object.entries(refData.grouped.subjects).map(([cat, items]: [string, any]) => (
+                                                <optgroup key={cat} label={cat === 'science' ? '🔬 Science' : cat === 'commerce' ? '💼 Commerce' : cat === 'language' ? '📖 Languages' : cat === 'humanities' ? '📚 Humanities' : cat === 'general' ? '📋 General/Aptitude' : cat === 'technical' ? '⚙️ Technical' : cat === 'evs' ? '🌿 Environment' : cat === 'social' ? '🌍 Social' : cat}>
+                                                    {(items as any[]).map((s: any) => (
+                                                        <option key={s.code} value={s.name}>{s.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -1057,122 +1132,163 @@ export default function AdminBlueprintsPage() {
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* View Blueprint Modal */}
-            {viewingBp && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 transition-opacity">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                    {viewingBp.name}
-                                    {viewingBp.generationMethod === 'generate_novel' && (
-                                        <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
-                                            ✨ AI Native
-                                        </span>
-                                    )}
-                                </h3>
-                                {viewingBp.description && <p className="text-sm text-gray-500 mt-1">{viewingBp.description}</p>}
+            {
+                viewingBp && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 transition-opacity">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                        {viewingBp.name}
+                                        {viewingBp.generationMethod === 'generate_novel' && (
+                                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                                ✨ AI Native
+                                            </span>
+                                        )}
+                                    </h3>
+                                    {viewingBp.description && <p className="text-sm text-gray-500 mt-1">{viewingBp.description}</p>}
+                                </div>
+                                <button onClick={closeViewModal} className="text-gray-400 hover:bg-gray-100 hover:text-gray-600 p-2 rounded-lg transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                            <button onClick={closeViewModal} className="text-gray-400 hover:bg-gray-100 hover:text-gray-600 p-2 rounded-lg transition-colors">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="overflow-y-auto px-6 py-6 flex-1 bg-gray-50">
-                            <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div> Blueprint Structure</h4>
-                            {viewingBp.sections?.length > 0 ? (
-                                <div className="space-y-6">
-                                    {viewingBp.sections.map((section: any, idx: number) => {
-                                        let secQ = 0; let secM = 0;
-                                        section.rules?.forEach((r: any) => { secQ += r.numberOfQuestions; secM += (r.numberOfQuestions * r.marksPerQuestion); });
-                                        return (
-                                            <div key={section.id} className="bg-white border shadow-sm rounded-xl overflow-hidden">
-                                                <div className="bg-gray-50/80 px-4 py-3 border-b flex justify-between items-center">
-                                                    <h5 className="font-semibold text-gray-800">{section.name?.en || `Section ${idx + 1}`}</h5>
-                                                    <div className="text-xs font-medium text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">
-                                                        {secQ} Questions · {secM} Marks
+                            <div className="overflow-y-auto px-6 py-6 flex-1 bg-gray-50">
+                                <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div> Blueprint Structure</h4>
+                                {viewingBp.sections?.length > 0 ? (
+                                    <div className="space-y-6">
+                                        {viewingBp.sections.map((section: any, idx: number) => {
+                                            let secQ = 0; let secM = 0;
+                                            section.rules?.forEach((r: any) => { secQ += r.numberOfQuestions; secM += (r.numberOfQuestions * r.marksPerQuestion); });
+                                            return (
+                                                <div key={section.id} className="bg-white border shadow-sm rounded-xl overflow-hidden">
+                                                    <div className="bg-gray-50/80 px-4 py-3 border-b flex justify-between items-center">
+                                                        <h5 className="font-semibold text-gray-800">{section.name?.en || `Section ${idx + 1}`}</h5>
+                                                        <div className="text-xs font-medium text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">
+                                                            {secQ} Questions · {secM} Marks
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-0">
+                                                        <table className="w-full text-left text-sm">
+                                                            <thead className="bg-gray-50/50 text-gray-500 text-xs uppercase tracking-wider">
+                                                                <tr>
+                                                                    <th className="px-4 py-3 font-medium">Topic/Tags</th>
+                                                                    <th className="px-4 py-3 font-medium">Type</th>
+                                                                    <th className="px-4 py-3 font-medium">Diff</th>
+                                                                    <th className="px-4 py-3 font-medium text-right">Qs</th>
+                                                                    <th className="px-4 py-3 font-medium text-right">Marks</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-100">
+                                                                {(() => {
+                                                                    if (!section.rules || section.rules.length === 0) {
+                                                                        return <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">No rules defined for this section.</td></tr>;
+                                                                    }
+
+                                                                    // Group rules by their exact tag combination
+                                                                    const groupedRules = section.rules.reduce((acc: any, rule: any) => {
+                                                                        // Sort tags so order doesn't matter for grouping
+                                                                        const tagNames = rule.topicTags?.length > 0
+                                                                            ? rule.topicTags.map((t: any) => t.name).sort().join(' + ')
+                                                                            : 'Global Pool';
+
+                                                                        if (!acc[tagNames]) {
+                                                                            acc[tagNames] = {
+                                                                                tagNames,
+                                                                                tags: rule.topicTags, // Keep the original tag objects for rendering chips
+                                                                                rules: []
+                                                                            };
+                                                                        }
+                                                                        acc[tagNames].rules.push(rule);
+                                                                        return acc;
+                                                                    }, {});
+
+                                                                    return Object.values(groupedRules).map((group: any, gIdx: number) => {
+                                                                        // Sum up Qs and Marks for this group
+                                                                        let groupQs = 0;
+                                                                        let groupMarks = 0;
+                                                                        group.rules.forEach((r: any) => {
+                                                                            groupQs += r.numberOfQuestions;
+                                                                            groupMarks += (r.numberOfQuestions * r.marksPerQuestion);
+                                                                        });
+
+                                                                        return (
+                                                                            <tr key={gIdx} className="hover:bg-gray-50/50 transition-colors border-l-4 border-l-blue-400">
+                                                                                <td className="px-4 py-3 align-top border-r bg-gray-50/30">
+                                                                                    <div className="flex flex-col gap-1">
+                                                                                        <div className="font-semibold text-gray-800">{group.tagNames}</div>
+                                                                                        <div className="text-xs text-gray-500 font-medium">
+                                                                                            {groupQs} Qs · {groupMarks} Marks
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td colSpan={4} className="p-0">
+                                                                                    <table className="w-full">
+                                                                                        <tbody className="divide-y divide-gray-100">
+                                                                                            {group.rules.map((rule: any, rIdx: number) => (
+                                                                                                <tr key={`${gIdx}-${rIdx}`} className="hover:bg-gray-50 transition-colors">
+                                                                                                    <td className="px-4 py-3 w-[25%]">
+                                                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 capitalize">
+                                                                                                            {rule.questionType.replace('_', ' ')}
+                                                                                                        </span>
+                                                                                                    </td>
+                                                                                                    <td className="px-4 py-3 w-[25%]">
+                                                                                                        {rule.difficulty ? (
+                                                                                                            <div className="flex gap-0.5" title={`Level ${rule.difficulty}`}>
+                                                                                                                {Array.from({ length: 5 }).map((_, i) => (
+                                                                                                                    <div key={i} className={`w-1.5 h-3 rounded-sm ${i < rule.difficulty ? 'bg-orange-400' : 'bg-gray-200'}`} />
+                                                                                                                ))}
+                                                                                                            </div>
+                                                                                                        ) : <span className="text-gray-400">-</span>}
+                                                                                                    </td>
+                                                                                                    <td className="px-4 py-3 text-right font-medium text-gray-700 w-[25%]">{rule.numberOfQuestions}</td>
+                                                                                                    <td className="px-4 py-3 text-right text-gray-500 w-[25%]">
+                                                                                                        <div className="flex flex-col items-end leading-tight">
+                                                                                                            <span className="text-green-600 font-medium">+{rule.marksPerQuestion}</span>
+                                                                                                            {rule.negativeMarks > 0 && <span className="text-red-500 text-[10px]">-{rule.negativeMarks}</span>}
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            ))}
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    });
+                                                                })()}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
                                                 </div>
-                                                <div className="p-0">
-                                                    <table className="w-full text-left text-sm">
-                                                        <thead className="bg-gray-50/50 text-gray-500 text-xs uppercase tracking-wider">
-                                                            <tr>
-                                                                <th className="px-4 py-3 font-medium">Topic/Tags</th>
-                                                                <th className="px-4 py-3 font-medium">Type</th>
-                                                                <th className="px-4 py-3 font-medium">Diff</th>
-                                                                <th className="px-4 py-3 font-medium text-right">Qs</th>
-                                                                <th className="px-4 py-3 font-medium text-right">Marks</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100">
-                                                            {section.rules?.map((rule: any) => (
-                                                                <tr key={rule.id} className="hover:bg-gray-50/50 transition-colors">
-                                                                    <td className="px-4 py-3">
-                                                                        {rule.topicTags?.length > 0 ? (
-                                                                            <div className="flex flex-wrap gap-1.5">
-                                                                                {rule.topicTags.map((tag: any) => (
-                                                                                    <span key={tag.id} className="inline-block bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-medium border border-blue-100">
-                                                                                        {tag.name}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        ) : <span className="text-gray-400 italic text-xs">Global Pool</span>}
-                                                                    </td>
-                                                                    <td className="px-4 py-3">
-                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 capitalize">
-                                                                            {rule.questionType.replace('_', ' ')}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4 py-3">
-                                                                        {rule.difficulty ? (
-                                                                            <div className="flex gap-0.5">
-                                                                                {Array.from({ length: 5 }).map((_, i) => (
-                                                                                    <div key={i} className={`w-1.5 h-3 rounded-sm ${i < rule.difficulty ? 'bg-orange-400' : 'bg-gray-200'}`} />
-                                                                                ))}
-                                                                            </div>
-                                                                        ) : <span className="text-gray-400">-</span>}
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-right font-medium text-gray-700">{rule.numberOfQuestions}</td>
-                                                                    <td className="px-4 py-3 text-right text-gray-500">
-                                                                        <div className="flex flex-col items-end leading-tight">
-                                                                            <span className="text-green-600 font-medium">+{rule.marksPerQuestion}</span>
-                                                                            {rule.negativeMarks > 0 && <span className="text-red-500 text-[10px]">-{rule.negativeMarks}</span>}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                            {(!section.rules || section.rules.length === 0) && (
-                                                                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">No rules defined for this section.</td></tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12 bg-white border rounded-xl shadow-sm">
-                                    <div className="w-12 h-12 bg-gray-100 text-gray-400 flex items-center justify-center rounded-full mx-auto mb-3">
-                                        <Eye className="w-6 h-6" />
+                                            );
+                                        })}
                                     </div>
-                                    <h5 className="text-gray-900 font-medium">Empty Blueprint</h5>
-                                    <p className="text-gray-500 text-sm mt-1">This blueprint has no sections or rules defined.</p>
-                                </div>
-                            )}
-                        </div>
-                        <div className="border-t border-gray-100 p-4 bg-white rounded-b-xl flex justify-between items-center">
-                            <div className="text-xs text-gray-500">
-                                Created By: <span className="font-medium text-gray-700">{viewingBp.createdBy?.name || 'Unknown'}</span>
+                                ) : (
+                                    <div className="text-center py-12 bg-white border rounded-xl shadow-sm">
+                                        <div className="w-12 h-12 bg-gray-100 text-gray-400 flex items-center justify-center rounded-full mx-auto mb-3">
+                                            <Eye className="w-6 h-6" />
+                                        </div>
+                                        <h5 className="text-gray-900 font-medium">Empty Blueprint</h5>
+                                        <p className="text-gray-500 text-sm mt-1">This blueprint has no sections or rules defined.</p>
+                                    </div>
+                                )}
                             </div>
-                            <button onClick={closeViewModal} className="px-5 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors text-sm">
-                                Close
-                            </button>
+                            <div className="border-t border-gray-100 p-4 bg-white rounded-b-xl flex justify-between items-center">
+                                <div className="text-xs text-gray-500">
+                                    Created By: <span className="font-medium text-gray-700">{viewingBp.createdBy?.name || 'Unknown'}</span>
+                                </div>
+                                <button onClick={closeViewModal} className="px-5 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-colors text-sm">
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

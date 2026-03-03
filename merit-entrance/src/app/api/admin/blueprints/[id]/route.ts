@@ -1,10 +1,48 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export async function GET(request: Request, { params }: { params: { id: string } }) {
+    try {
+        const blueprintId = params.id;
+
+        if (!blueprintId) {
+            return NextResponse.json({ success: false, error: 'Blueprint ID is required' }, { status: 400 });
+        }
+
+        const blueprint = await prisma.examBlueprint.findUnique({
+            where: { id: blueprintId },
+            include: {
+                materials: true,
+                sections: {
+                    include: {
+                        rules: {
+                            include: {
+                                topicTags: true,
+                            }
+                        }
+                    },
+                    orderBy: {
+                        order: 'asc'
+                    }
+                }
+            }
+        });
+
+        if (!blueprint) {
+            return NextResponse.json({ success: false, error: 'Blueprint not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true, data: blueprint });
+    } catch (error: any) {
+        console.error('Error fetching blueprint:', error);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}
+
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
     try {
         const body = await request.json();
-        const { name, description, sections, generationMethod, materialIds } = body;
+        const { name, description, sections, generationMethod, materialIds, board, classLevel, subject } = body;
         const blueprintId = params.id;
 
         if (!blueprintId) {
@@ -15,17 +53,30 @@ export async function PUT(request: Request, { params }: { params: { id: string }
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
         }
 
+        // Update blueprint without nested relations (to avoid Neon HTTP transaction error)
         const bp = await prisma.examBlueprint.update({
             where: { id: blueprintId },
             data: {
                 name,
                 description,
                 generationMethod,
-                materials: {
-                    set: materialIds ? materialIds.map((id: string) => ({ id })) : []
-                }
+                board: board || undefined,
+                classLevel: classLevel || undefined,
+                subject: subject || undefined,
             }
         });
+
+        // Update materials separately using raw SQL to avoid transaction
+        await prisma.$executeRawUnsafe(
+            `DELETE FROM "_BlueprintToMaterial" WHERE "A" = '${blueprintId}'`
+        );
+        if (materialIds && Array.isArray(materialIds)) {
+            for (const matId of materialIds) {
+                await prisma.$executeRawUnsafe(
+                    `INSERT INTO "_BlueprintToMaterial" ("A", "B") VALUES ('${blueprintId}', '${matId}') ON CONFLICT DO NOTHING`
+                );
+            }
+        }
 
         const oldRules = await prisma.blueprintRule.findMany({
             where: { blueprintId: blueprintId },
