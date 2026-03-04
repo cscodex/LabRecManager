@@ -5,13 +5,7 @@ import { v2 as cloudinary } from 'cloudinary';
 
 // Configure NextJS Serverless limits
 export const maxDuration = 60; // 60 seconds
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '10mb',
-        },
-    },
-};
+
 
 // Configure Cloudinary
 cloudinary.config({
