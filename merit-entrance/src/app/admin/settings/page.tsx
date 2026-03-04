@@ -96,10 +96,21 @@ export default function AdminSettingsPage() {
     };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+        const target = e.target;
+        const file = target.files?.[0];
+
+        // Reset input immediately to prevent onChange from firing again or hanging the input state
+        target.value = '';
+
         if (!file) return;
 
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('Logo file is too large. Please upload an image smaller than 2MB.');
+            return;
+        }
+
         setUploadingLogo(true);
+        const toastId = toast.loading('Uploading logo...');
         try {
             const formData = new FormData();
             formData.append('file', file);
@@ -113,16 +124,15 @@ export default function AdminSettingsPage() {
             const data = await res.json();
             if (res.ok && data.url) {
                 setSettings(prev => ({ ...prev, siteLogoUrl: data.url }));
-                toast.success('Logo uploaded! Click Save Changes to apply.');
+                toast.success('Logo uploaded! Click Save Changes to apply.', { id: toastId });
             } else {
-                toast.error(data.error || 'Failed to upload logo');
+                toast.error(data.error || 'Failed to upload logo', { id: toastId });
             }
         } catch (err) {
-            toast.error('Upload failed');
+            toast.error('Upload failed, connection may have timed out.', { id: toastId });
             console.error(err);
         } finally {
             setUploadingLogo(false);
-            if (e.target) e.target.value = ''; // Reset input
         }
     };
 
