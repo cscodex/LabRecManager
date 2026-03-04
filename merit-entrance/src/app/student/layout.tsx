@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useSettingsStore } from '@/lib/store';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LayoutDashboard, History, User, LogOut, Menu, X } from 'lucide-react';
@@ -15,6 +15,14 @@ export default function StudentLayout({
     const router = useRouter();
     const pathname = usePathname();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+
+    useEffect(() => {
+        if (!isLoaded) {
+            fetchSettings();
+        }
+    }, [isLoaded, fetchSettings]);
 
     // Close mobile menu on route change
     useEffect(() => {
@@ -51,11 +59,15 @@ export default function StudentLayout({
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
-                            <Link href="/student/dashboard" className="flex-shrink-0 flex items-center gap-2">
-                                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
-                                    M
-                                </div>
-                                <span className="font-bold text-xl text-gray-900 hidden sm:block">Merit Entrance</span>
+                            <Link href="/student/dashboard" className="flex-shrink-0 flex items-center gap-2 overflow-hidden">
+                                {siteLogoUrl ? (
+                                    <img src={siteLogoUrl} alt={siteName} className="w-8 h-8 rounded-lg flex-shrink-0 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                ) : (
+                                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0">
+                                        {siteName.charAt(0)}
+                                    </div>
+                                )}
+                                <span className="font-bold text-xl text-gray-900 hidden sm:block truncate" title={siteName}>{siteName}</span>
                             </Link>
                         </div>
 

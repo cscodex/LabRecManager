@@ -4,31 +4,45 @@ import { Inter } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import SessionWrapper from '@/components/SessionWrapper';
 import { MathJaxProvider } from '@/components/providers/MathJaxProvider';
+import { neon } from '@neondatabase/serverless';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: 'Merit Entrance - Online Exam Platform',
-  description: 'Meritorious School & School of Eminence Entrance Exam Preparation',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Merit Entrance',
-  },
-  formatDetection: {
-    telephone: false,
-  },
-  icons: {
-    icon: [
-      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
-    ],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let siteName = 'Merit Entrance';
+  try {
+    const sql = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
+    const rows = await sql`SELECT value FROM system_settings WHERE key = 'siteName'`;
+    if (rows.length > 0) {
+      siteName = rows[0].value.replace(/^"|"$/g, '');
+    }
+  } catch (err) {
+    console.error('Failed to load siteName for metadata', err);
+  }
+
+  return {
+    title: `${siteName} - Online Exam Platform`,
+    description: `${siteName} Entrance Exam Preparation`,
+    manifest: '/manifest.json',
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: siteName,
+    },
+    formatDetection: {
+      telephone: false,
+    },
+    icons: {
+      icon: [
+        { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+        { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+      ],
+      apple: [
+        { url: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
+      ],
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',

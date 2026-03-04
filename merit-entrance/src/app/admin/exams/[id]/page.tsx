@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useSettingsStore } from '@/lib/store';
 import { getText } from '@/lib/utils';
 import { getDifficultyColor } from '@/lib/performance';
 import {
@@ -199,8 +199,9 @@ export default function EditExamPage() {
 
     // Download PDF Generation Modal
     const [showDownloadPdfModal, setShowDownloadPdfModal] = useState(false);
+    const { siteName } = useSettingsStore();
     const [pdfSettings, setPdfSettings] = useState({
-        schoolName: 'Merit Entrance Exam',
+        schoolName: siteName || 'Merit Entrance Exam',
         examNameOption: '',
         showPageNumbers: true,
         showDateTime: true,

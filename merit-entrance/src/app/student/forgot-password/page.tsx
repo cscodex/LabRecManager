@@ -1,11 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSettingsStore } from '@/lib/store';
 import { BookOpen, Mail, User, ArrowLeft, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ForgotPasswordPage() {
+    const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+    useEffect(() => {
+        if (!isLoaded) fetchSettings();
+    }, [isLoaded, fetchSettings]);
+
     const [identifier, setIdentifier] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [emailSent, setEmailSent] = useState(false);
@@ -45,9 +51,13 @@ export default function ForgotPasswordPage() {
             <div className="w-full max-w-md">
                 {/* Logo/Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
-                        <BookOpen className="w-8 h-8 text-blue-600" />
-                    </div>
+                    {siteLogoUrl ? (
+                        <img src={siteLogoUrl} alt={siteName} className="mx-auto w-16 h-16 object-contain bg-white rounded-2xl p-2 shadow-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : (
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
+                            <BookOpen className="w-8 h-8 text-blue-600" />
+                        </div>
+                    )}
                     <h1 className="text-3xl font-bold text-white">Forgot Password</h1>
                     <p className="text-blue-200 mt-2">We&apos;ll send you a reset link</p>
                 </div>
@@ -125,7 +135,7 @@ export default function ForgotPasswordPage() {
 
                 {/* Bottom Info */}
                 <p className="text-center text-blue-200 text-sm mt-6">
-                    © 2026 Merit Entrance
+                    © {new Date().getFullYear()} {siteName}
                 </p>
             </div>
         </div>

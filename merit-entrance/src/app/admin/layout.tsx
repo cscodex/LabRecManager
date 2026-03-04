@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useSettingsStore } from '@/lib/store';
 import {
     LayoutDashboard,
     FileText,
@@ -37,6 +37,14 @@ export default function AdminLayout({
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isSystemMenuOpen, setSystemMenuOpen] = useState(true);
     const [isCollapsed, setIsCollapsed] = useState(false);
+
+    const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+
+    useEffect(() => {
+        if (!isLoaded) {
+            fetchSettings();
+        }
+    }, [isLoaded, fetchSettings]);
 
     const isPublicRoute = pathname.includes('/forgot-password') || pathname.includes('/reset-password');
 
@@ -111,9 +119,13 @@ export default function AdminLayout({
                 <div className="flex flex-col h-full">
                     {/* Brand */}
                     <div className={`h-16 flex items-center px-4 border-b ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-                        <Link href="/admin/dashboard" className="flex items-center gap-2 text-blue-600 overflow-hidden">
-                            <Shield className="w-8 h-8 flex-shrink-0" />
-                            {!isCollapsed && <span className="font-bold text-gray-900 text-lg truncate">Admin Panel</span>}
+                        <Link href="/admin/dashboard" className="flex items-center gap-2 overflow-hidden">
+                            {siteLogoUrl ? (
+                                <img src={siteLogoUrl} alt={siteName} className="w-8 h-8 flex-shrink-0 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            ) : (
+                                <Shield className="w-8 h-8 flex-shrink-0 text-blue-600" />
+                            )}
+                            {!isCollapsed && <span className="font-bold text-gray-900 text-lg truncate" title={siteName + " Admin"}>{siteName} Admin</span>}
                         </Link>
                         {/* Mobile Close Button */}
                         <button
@@ -221,7 +233,7 @@ export default function AdminLayout({
                     >
                         <Menu className="w-6 h-6" />
                     </button>
-                    <span className="ml-4 font-bold text-gray-900">Merit Entrance</span>
+                    <span className="ml-4 font-bold text-gray-900 truncate">{siteName}</span>
                 </header>
 
                 <main className="flex-1 p-4 lg:p-8 overflow-x-hidden">

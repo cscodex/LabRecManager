@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/useTranslation';
+import { useSettingsStore } from '@/lib/store';
 import { BookOpen, AlertCircle, Mail, User, Phone, School, GraduationCap, Lock, Eye, EyeOff, Check, X, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { signIn } from 'next-auth/react';
@@ -22,6 +23,11 @@ function RegistrationContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { t } = useTranslation();
+    const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+
+    useEffect(() => {
+        if (!isLoaded) fetchSettings();
+    }, [isLoaded, fetchSettings]);
 
     // Check if coming from Google OAuth redirect
     const googleEmail = searchParams.get('email');
@@ -153,11 +159,15 @@ function RegistrationContent() {
             <div className="w-full max-w-md">
                 {/* Logo/Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
-                        <BookOpen className="w-8 h-8 text-blue-600" />
-                    </div>
+                    {siteLogoUrl ? (
+                        <img src={siteLogoUrl} alt={siteName} className="mx-auto w-16 h-16 object-contain bg-white rounded-2xl p-2 shadow-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : (
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
+                            <BookOpen className="w-8 h-8 text-blue-600" />
+                        </div>
+                    )}
                     <h1 className="text-3xl font-bold text-white">Create Account</h1>
-                    <p className="text-blue-200 mt-2">Join Merit Entrance today</p>
+                    <p className="text-blue-200 mt-2">Join {siteName} today</p>
                 </div>
 
                 {/* Register Card */}
@@ -498,7 +508,7 @@ function RegistrationContent() {
 
                 {/* Bottom Info */}
                 <p className="text-center text-blue-200 text-sm mt-6">
-                    © 2026 Merit Entrance
+                    © {new Date().getFullYear()} {siteName}
                 </p>
             </div>
         </div>
@@ -506,6 +516,7 @@ function RegistrationContent() {
 }
 
 export default function StudentRegisterPage() {
+
     return (
         <Suspense fallback={
             <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex items-center justify-center">

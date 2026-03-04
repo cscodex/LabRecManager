@@ -1,4 +1,5 @@
 import { resend } from './resend';
+import { neon } from '@neondatabase/serverless';
 
 // Helper to determine the sender address
 // If RESEND_VERIFIED_DOMAIN is set, use it. Otherwise default to user's registered email via Resend's onboarding domain
@@ -11,15 +12,26 @@ export async function sendVerificationEmail(
     name: string,
     token: string
 ): Promise<boolean> {
+    let siteName = 'Merit Entrance';
+    try {
+        const sqlInstance = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
+        const rows = await sqlInstance`SELECT value FROM system_settings WHERE key = 'siteName'`;
+        if (rows.length > 0) {
+            siteName = rows[0].value.replace(/^"|"$/g, '');
+        }
+    } catch (err) {
+        console.error('Failed to load siteName for email', err);
+    }
+
     const verificationUrl = `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify-email?token=${token}`;
 
     try {
         console.log(`Sending verification email via Resend to: ${email}`);
 
         const { data, error } = await resend.emails.send({
-            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+            from: `${siteName} <${SENDER_EMAIL}>`,
             to: email, // Must be the registered email if using onboarding@resend.dev
-            subject: 'Verify your Merit Entrance account',
+            subject: `Verify your ${siteName} account`,
             html: `
                 <!DOCTYPE html>
                 <html>
@@ -30,7 +42,7 @@ export async function sendVerificationEmail(
                 <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f7fb;">
                     <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
                         <div style="background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
-                            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Merit Entrance</h1>
+                            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">${siteName}</h1>
                             <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">Online Exam Platform</p>
                         </div>
                         
@@ -38,7 +50,7 @@ export async function sendVerificationEmail(
                             <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 22px;">Welcome, ${name}!</h2>
                             
                             <p style="color: #4b5563; line-height: 1.6; margin: 0 0 25px 0;">
-                                Thank you for registering with Merit Entrance. Please verify your email address to complete your registration and start taking exams.
+                                Thank you for registering with ${siteName}. Please verify your email address to complete your registration and start taking exams.
                             </p>
                             
                             <div style="text-align: center; margin: 30px 0;">
@@ -64,7 +76,7 @@ export async function sendVerificationEmail(
                         </div>
                         
                         <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 20px 0 0 0;">
-                            © 2026 Merit Entrance. All rights reserved.
+                            © ${new Date().getFullYear()} ${siteName}. All rights reserved.
                         </p>
                     </div>
                 </body>

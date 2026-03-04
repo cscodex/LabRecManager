@@ -11,15 +11,26 @@ const SENDER_EMAIL = process.env.RESEND_VERIFIED_DOMAIN_EMAIL || 'onboarding@res
 const SENDER_NAME = 'Merit Entrance';
 
 async function sendPasswordResetEmail(email: string, name: string, token: string, type: 'student' | 'admin' = 'student'): Promise<boolean> {
+    let siteName = 'Merit Entrance';
+    try {
+        const sqlInstance = neon(process.env.MERIT_DATABASE_URL || process.env.MERIT_DIRECT_URL || '');
+        const rows = await sqlInstance`SELECT value FROM system_settings WHERE key = 'siteName'`;
+        if (rows.length > 0) {
+            siteName = rows[0].value.replace(/^"|"$/g, '');
+        }
+    } catch (err) {
+        console.error('Failed to load siteName for email', err);
+    }
+
     const resetUrl = `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/${type}/reset-password?token=${token}`;
 
     try {
         console.log(`Sending password reset email via Resend to: ${email}`);
 
         const { data, error } = await resend.emails.send({
-            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+            from: `${siteName} <${SENDER_EMAIL}>`,
             to: email,
-            subject: 'Reset your Merit Entrance password',
+            subject: `Reset your ${siteName} password`,
             html: `
             <!DOCTYPE html>
             <html>
@@ -31,7 +42,7 @@ async function sendPasswordResetEmail(email: string, name: string, token: string
                 <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
                     <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
                         <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Password Reset</h1>
-                        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">Merit Entrance</p>
+                        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">${siteName}</p>
                     </div>
                     
                     <div style="background: white; padding: 40px 30px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -64,7 +75,7 @@ async function sendPasswordResetEmail(email: string, name: string, token: string
                     </div>
                     
                     <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 20px 0 0 0;">
-                        © 2026 Merit Entrance. All rights reserved.
+                        © ${new Date().getFullYear()} ${siteName}. All rights reserved.
                     </p>
                 </div>
             </body>

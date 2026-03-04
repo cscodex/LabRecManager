@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useSettingsStore } from '@/lib/store';
 import { BookOpen, Lock, Eye, EyeOff, Check, X, CheckCircle, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +20,11 @@ function ResetPasswordContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const token = searchParams.get('token');
+    const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+
+    useEffect(() => {
+        if (!isLoaded) fetchSettings();
+    }, [isLoaded, fetchSettings]);
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -122,9 +128,13 @@ function ResetPasswordContent() {
             <div className="w-full max-w-md">
                 {/* Logo/Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
-                        <BookOpen className="w-8 h-8 text-blue-600" />
-                    </div>
+                    {siteLogoUrl ? (
+                        <img src={siteLogoUrl} alt={siteName} className="mx-auto w-16 h-16 object-contain bg-white rounded-2xl p-2 shadow-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : (
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
+                            <BookOpen className="w-8 h-8 text-blue-600" />
+                        </div>
+                    )}
                     <h1 className="text-3xl font-bold text-white">Reset Password</h1>
                     <p className="text-blue-200 mt-2">Create a new password</p>
                 </div>
@@ -174,8 +184,8 @@ function ResetPasswordContent() {
                                                     />
                                                 </div>
                                                 <span className={`text-xs font-medium ${passwordStrength.percentage < 40 ? 'text-red-600' :
-                                                        passwordStrength.percentage < 60 ? 'text-orange-600' :
-                                                            passwordStrength.percentage < 80 ? 'text-yellow-600' : 'text-green-600'
+                                                    passwordStrength.percentage < 60 ? 'text-orange-600' :
+                                                        passwordStrength.percentage < 80 ? 'text-yellow-600' : 'text-green-600'
                                                     }`}>
                                                     {getStrengthLabel(passwordStrength.percentage)}
                                                 </span>
@@ -208,10 +218,10 @@ function ResetPasswordContent() {
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
                                             className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${confirmPassword && password !== confirmPassword
-                                                    ? 'border-red-300 bg-red-50'
-                                                    : confirmPassword && password === confirmPassword
-                                                        ? 'border-green-300 bg-green-50'
-                                                        : 'border-gray-300'
+                                                ? 'border-red-300 bg-red-50'
+                                                : confirmPassword && password === confirmPassword
+                                                    ? 'border-green-300 bg-green-50'
+                                                    : 'border-gray-300'
                                                 }`}
                                             placeholder="Confirm your password"
                                             required
@@ -283,7 +293,7 @@ function ResetPasswordContent() {
 
                 {/* Bottom Info */}
                 <p className="text-center text-blue-200 text-sm mt-6">
-                    © 2026 Merit Entrance
+                    © {new Date().getFullYear()} {siteName}
                 </p>
             </div>
         </div>
@@ -291,6 +301,7 @@ function ResetPasswordContent() {
 }
 
 export default function ResetPasswordPage() {
+
     return (
         <Suspense fallback={
             <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex items-center justify-center">

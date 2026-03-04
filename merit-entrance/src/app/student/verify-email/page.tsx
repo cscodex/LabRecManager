@@ -2,10 +2,16 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useSettingsStore } from '@/lib/store';
 import { Mail, Clock, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function VerifyEmailContent() {
+    const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+    useEffect(() => {
+        if (!isLoaded) fetchSettings();
+    }, [isLoaded, fetchSettings]);
+
     const searchParams = useSearchParams();
     const router = useRouter();
     const email = searchParams.get('email') || '';
@@ -186,7 +192,7 @@ function VerifyEmailContent() {
                 </div>
 
                 <p className="text-center text-blue-200 text-sm mt-6">
-                    © 2026 Merit Entrance
+                    © {new Date().getFullYear()} {siteName}
                 </p>
             </div>
         </div>
@@ -194,6 +200,7 @@ function VerifyEmailContent() {
 }
 
 export default function VerifyEmailPage() {
+
     return (
         <Suspense fallback={
             <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex items-center justify-center">

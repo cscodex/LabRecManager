@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useSettingsStore } from '@/lib/store';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/useTranslation';
 import { LanguageToggle } from '@/components/LanguageToggle';
@@ -15,6 +15,11 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const { setUser } = useAuthStore();
   const { t } = useTranslation();
+  const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
+
+  useEffect(() => {
+    if (!isLoaded) fetchSettings();
+  }, [isLoaded, fetchSettings]);
   const [loginType, setLoginType] = useState<'student' | 'admin'>('student');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -87,10 +92,14 @@ function LoginContent() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
-            <BookOpen className="w-8 h-8 text-blue-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">{t('common.appName')}</h1>
+          {siteLogoUrl ? (
+            <img src={siteLogoUrl} alt={siteName} className="mx-auto w-16 h-16 object-contain bg-white rounded-2xl p-2 shadow-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          ) : (
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
+              <BookOpen className="w-8 h-8 text-blue-600" />
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-white">{siteName}</h1>
           <p className="text-blue-200 mt-2">{t('common.tagline')}</p>
         </div>
 
@@ -241,7 +250,7 @@ function LoginContent() {
 
         {/* Bottom Info */}
         <p className="text-center text-blue-200 text-sm mt-6">
-          © 2026 {t('common.appName')} <span className="text-blue-300/70">• Build v443</span>
+          © {new Date().getFullYear()} {siteName} <span className="text-blue-300/70">• Build v443</span>
         </p>
       </div>
     </div>
