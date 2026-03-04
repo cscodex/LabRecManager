@@ -11,8 +11,12 @@ const extractText = (field: any) => {
     if (typeof field === 'string') {
         try { field = JSON.parse(field); } catch { return field; }
     }
-    const en = field.en || '';
-    const pa = field.pa || '';
+    let en = field.en || '';
+    let pa = field.pa || '';
+
+    // Remove [IMAGE] placeholders from AI extraction text
+    en = en.replace(/\[IMAGE\]/gi, '').trim();
+    pa = pa.replace(/\[IMAGE\]/gi, '').trim();
 
     // If en and pa are same, or en already contains Punjabi text, just show en
     if (!pa || en === pa || hasPunjabi(en)) return en;

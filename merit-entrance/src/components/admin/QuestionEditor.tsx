@@ -466,13 +466,21 @@ export default function QuestionEditor({
 
                             <div className="ml-10 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <textarea
-                                        placeholder="Question Text (En - supports HTML)"
-                                        value={sq.textEn}
-                                        onChange={e => updateParaSubQuestion(idx, { textEn: e.target.value })}
-                                        rows={2}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    />
+                                    <div>
+                                        <textarea
+                                            placeholder="Question Text (En - supports HTML)"
+                                            value={sq.textEn}
+                                            onChange={e => updateParaSubQuestion(idx, { textEn: e.target.value })}
+                                            rows={2}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                        />
+                                        {sq.textEn && (
+                                            <div className="mt-1 p-2 bg-white rounded border text-sm">
+                                                <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                                <MathText text={sq.textEn} />
+                                            </div>
+                                        )}
+                                    </div>
                                     <textarea
                                         placeholder="Question Text (Pa - supports HTML)"
                                         value={sq.textPa}
@@ -537,13 +545,20 @@ export default function QuestionEditor({
                                                 >
                                                     {sq.correctAnswer.includes(opt.id) && <CheckCircle className="w-3 h-3" />}
                                                 </button>
-                                                <textarea
-                                                    value={opt.textEn}
-                                                    onChange={e => updateSubQuestionOption(idx, oIdx, { textEn: e.target.value })}
-                                                    rows={1}
-                                                    className="flex-1 px-2 py-1 border rounded text-sm"
-                                                    placeholder={`Option ${opt.id}`}
-                                                />
+                                                <div className="flex-1 space-y-1">
+                                                    <textarea
+                                                        value={opt.textEn}
+                                                        onChange={e => updateSubQuestionOption(idx, oIdx, { textEn: e.target.value })}
+                                                        rows={1}
+                                                        className="w-full px-2 py-1 border rounded text-sm"
+                                                        placeholder={`Option ${opt.id}`}
+                                                    />
+                                                    {opt.textEn && (
+                                                        <div className="p-1.5 bg-white rounded border text-xs">
+                                                            <MathText text={opt.textEn} />
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <textarea
                                                     value={opt.textPa}
                                                     onChange={e => updateSubQuestionOption(idx, oIdx, { textPa: e.target.value })}
@@ -567,6 +582,12 @@ export default function QuestionEditor({
                                             className="w-full px-2 py-1 border rounded text-sm"
                                             placeholder="Explanation in English"
                                         />
+                                        {sq.explanationEn && (
+                                            <div className="mt-1 p-1.5 bg-white rounded border text-xs">
+                                                <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                                <MathText text={sq.explanationEn} />
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">Explanation (Pa)</label>
@@ -898,17 +919,25 @@ export default function QuestionEditor({
                                         <button onClick={() => removeOption(opt.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                     <div className="flex-1 space-y-2">
-                                        <textarea
-                                            value={opt.textEn}
-                                            onChange={e => {
-                                                const newOpts = [...formData.options];
-                                                newOpts[idx].textEn = e.target.value;
-                                                setFormData({ ...formData, options: newOpts });
-                                            }}
-                                            rows={2}
-                                            className="w-full px-2 py-1 border rounded text-sm"
-                                            placeholder={`Option ${opt.id.toUpperCase()}`}
-                                        />
+                                        <div>
+                                            <textarea
+                                                value={opt.textEn}
+                                                onChange={e => {
+                                                    const newOpts = [...formData.options];
+                                                    newOpts[idx].textEn = e.target.value;
+                                                    setFormData({ ...formData, options: newOpts });
+                                                }}
+                                                rows={2}
+                                                className="w-full px-2 py-1 border rounded text-sm"
+                                                placeholder={`Option ${opt.id.toUpperCase()}`}
+                                            />
+                                            {opt.textEn && (
+                                                <div className="mt-1 p-2 bg-white rounded border text-sm">
+                                                    <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                                    <MathText text={opt.textEn} />
+                                                </div>
+                                            )}
+                                        </div>
                                         <textarea
                                             value={opt.textPa}
                                             onChange={e => {
@@ -960,6 +989,12 @@ export default function QuestionEditor({
                             onChange={(val) => setFormData({ ...formData, explanationEn: val })}
                             placeholder="Explanation (English)..."
                         />
+                        {formData.explanationEn && (
+                            <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
+                                <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                <MathText text={formData.explanationEn} />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Explanation (Pa)</label>

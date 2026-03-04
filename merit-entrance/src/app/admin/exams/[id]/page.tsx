@@ -2757,6 +2757,12 @@ export default function EditExamPage() {
                             placeholder="e.g. Physics"
                             autoFocus
                         />
+                        {newSection.nameEn && (
+                            <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
+                                <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                <MathText text={newSection.nameEn} />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Name (Punjabi)</label>
@@ -2833,6 +2839,12 @@ export default function EditExamPage() {
                             onChange={(e) => setEditSectionData({ ...editSectionData, nameEn: e.target.value })}
                             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
+                        {editSectionData.nameEn && (
+                            <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
+                                <span className="text-[10px] text-gray-400 uppercase">Preview</span>
+                                <MathText text={editSectionData.nameEn} />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Name (Punjabi)</label>
