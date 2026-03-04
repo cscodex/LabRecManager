@@ -17,6 +17,11 @@ function LoginContent() {
   const { t } = useTranslation();
   const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
 
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!isLoaded) fetchSettings();
   }, [isLoaded, fetchSettings]);
@@ -92,14 +97,14 @@ function LoginContent() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          {siteLogoUrl ? (
-            <img src={siteLogoUrl} alt={siteName} className="mx-auto w-16 h-16 object-contain bg-white rounded-2xl p-2 shadow-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          {(isMounted ? siteLogoUrl : '/default-logo.png') ? (
+            <img src={isMounted ? siteLogoUrl : '/default-logo.png'} alt={isMounted ? siteName : 'Merit Entrance'} className="mx-auto w-16 h-16 object-contain bg-white rounded-2xl p-2 shadow-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           ) : (
             <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
               <BookOpen className="w-8 h-8 text-blue-600" />
             </div>
           )}
-          <h1 className="text-3xl font-bold text-white">{siteName}</h1>
+          <h1 className="text-3xl font-bold text-white">{isMounted ? siteName : 'Merit Entrance'}</h1>
           <p className="text-blue-200 mt-2">{t('common.tagline')}</p>
         </div>
 

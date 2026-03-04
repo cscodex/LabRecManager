@@ -40,6 +40,11 @@ export default function AdminLayout({
 
     const { siteName, siteLogoUrl, fetchSettings, isLoaded } = useSettingsStore();
 
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     useEffect(() => {
         if (!isLoaded) {
             fetchSettings();
@@ -120,12 +125,12 @@ export default function AdminLayout({
                     {/* Brand */}
                     <div className={`h-16 flex items-center px-4 border-b ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
                         <Link href="/admin/dashboard" className="flex items-center gap-2 overflow-hidden">
-                            {siteLogoUrl ? (
-                                <img src={siteLogoUrl} alt={siteName} className="w-8 h-8 flex-shrink-0 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            {(isMounted ? siteLogoUrl : '/default-logo.png') ? (
+                                <img src={isMounted ? siteLogoUrl : '/default-logo.png'} alt={isMounted ? siteName : 'Merit Entrance'} className="w-8 h-8 flex-shrink-0 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             ) : (
                                 <Shield className="w-8 h-8 flex-shrink-0 text-blue-600" />
                             )}
-                            {!isCollapsed && <span className="font-bold text-gray-900 text-lg truncate" title={siteName + " Admin"}>{siteName} Admin</span>}
+                            {!isCollapsed && <span className="font-bold text-gray-900 text-lg truncate" title={(isMounted ? siteName : 'Merit Entrance') + " Admin"}>{isMounted ? siteName : 'Merit Entrance'} Admin</span>}
                         </Link>
                         {/* Mobile Close Button */}
                         <button

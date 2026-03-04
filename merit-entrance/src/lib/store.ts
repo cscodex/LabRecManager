@@ -131,8 +131,6 @@ interface SettingsState {
     siteName: string;
     siteLogoUrl: string;
     isLoaded: boolean;
-    _hasHydrated: boolean;
-    setHasHydrated: (state: boolean) => void;
     fetchSettings: () => Promise<void>;
     updateSettings: (siteName: string, siteLogoUrl: string) => void;
 }
@@ -143,11 +141,9 @@ export const useSettingsStore = create<SettingsState>()(
             siteName: 'Merit Entrance',
             siteLogoUrl: '/default-logo.png',
             isLoaded: false,
-            _hasHydrated: false,
-            setHasHydrated: (state) => set({ _hasHydrated: state }),
             fetchSettings: async () => {
                 try {
-                    const res = await fetch('/api/settings', { cache: 'no-store' });
+                    const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
                     const data = await res.json();
                     if (data.success && data.settings) {
                         set({
@@ -168,9 +164,6 @@ export const useSettingsStore = create<SettingsState>()(
                 siteName: state.siteName,
                 siteLogoUrl: state.siteLogoUrl,
             }),
-            onRehydrateStorage: () => (state) => {
-                state?.setHasHydrated(true);
-            },
         }
     )
 );
