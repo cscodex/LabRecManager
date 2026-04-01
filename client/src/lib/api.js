@@ -549,5 +549,34 @@ export const schoolAPI = {
     }
 };
 
+// Timetable API
+export const timetableAPI = {
+    // Timetable CRUD
+    get: (params) => api.get('/timetable', { params }),
+    create: (data) => api.post('/timetable', data),
+    update: (id, data) => api.put(`/timetable/${id}`, data),
+    
+    // Slots
+    addSlot: (timetableId, data) => api.post(`/timetable/${timetableId}/slots`, data),
+    addSlotsBulk: (timetableId, slots) => api.post(`/timetable/${timetableId}/slots/bulk`, { slots }),
+    updateSlot: (slotId, data) => api.put(`/timetable/slots/${slotId}`, data),
+    deleteSlot: (slotId) => api.delete(`/timetable/slots/${slotId}`),
+    
+    // Live period
+    getLive: () => api.get('/timetable/live'),
+    
+    // Teacher schedule
+    getTeacherSchedule: (teacherId) => api.get(`/timetable/teacher/${teacherId}`),
+};
+
+// Calendar API
+export const calendarAPI = {
+    getEvents: (params) => api.get('/timetable/calendar', { params }),
+    addEvent: (data) => api.post('/timetable/calendar', data),
+    updateEvent: (id, data) => api.put(`/timetable/calendar/${id}`, data),
+    deleteEvent: (id) => api.delete(`/timetable/calendar/${id}`),
+    seedPunjabHolidays: (data) => api.post('/timetable/calendar/seed-punjab', data),
+};
+
 export default api;
 
