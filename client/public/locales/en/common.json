@@ -26,7 +26,10 @@
     "reports": "Reports",
     "settings": "Settings",
     "mySubmissions": "My Submissions",
-    "myWork": "Assigned Work"
+    "myWork": "Assigned Work",
+    "timetable": "Timetable",
+    "calendar": "Calendar",
+    "myTimetable": "My Timetable"
   },
   "common": {
     "save": "Save",

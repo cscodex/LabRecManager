@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 import {
     Home, BookOpen, FileText, Award, Users, GraduationCap,
     Video, BarChart3, Settings, LogOut, Menu, X, ChevronLeft,
-    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil, Ticket, Building, Film, HardDrive
+    Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil, Ticket, Building, Film, HardDrive,
+    Clock, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import LanguageSelector from './LanguageSelector';
@@ -31,6 +32,8 @@ const navItems = {
         { href: '/activity-logs', labelKey: 'nav.activityLogs', icon: Activity },
         { href: '/tickets', labelKey: 'nav.tickets', icon: Ticket },
         { href: '/admin/school-profile', labelKey: 'nav.schoolProfile', icon: Building },
+        { href: '/admin/timetable', labelKey: 'nav.timetable', icon: Clock },
+        { href: '/admin/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
         { href: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
         { href: '/settings', labelKey: 'nav.settings', icon: Settings },
     ],
@@ -44,6 +47,8 @@ const navItems = {
         { href: '/activity-logs', labelKey: 'nav.activityLogs', icon: Activity },
         { href: '/tickets', labelKey: 'nav.tickets', icon: Ticket },
         { href: '/admin/school-profile', labelKey: 'nav.schoolProfile', icon: Building },
+        { href: '/admin/timetable', labelKey: 'nav.timetable', icon: Clock },
+        { href: '/admin/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
         { href: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
         { href: '/settings', labelKey: 'nav.settings', icon: Settings },
     ],
@@ -59,6 +64,7 @@ const navItems = {
         { href: '/whiteboard', labelKey: 'nav.whiteboard', icon: Pencil },
         { href: '/recordings', labelKey: 'nav.recordings', icon: Film },
         { href: '/activity-logs', labelKey: 'nav.activityLogs', icon: Activity },
+        { href: '/timetable', labelKey: 'nav.myTimetable', icon: Clock },
         { href: '/tickets', labelKey: 'nav.tickets', icon: Ticket },
         { href: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
         { href: '/settings', labelKey: 'nav.settings', icon: Settings },
@@ -82,6 +88,7 @@ const navItems = {
         { href: '/grades', labelKey: 'nav.myGrades', icon: Award },
         { href: '/viva', labelKey: 'nav.viva', icon: Video },
         { href: '/live-board', labelKey: 'nav.liveBoard', icon: Pencil },
+        { href: '/timetable', labelKey: 'nav.myTimetable', icon: Clock },
         { href: '/tickets', labelKey: 'nav.reportIssue', icon: Ticket },
         { href: '/settings', labelKey: 'nav.settings', icon: Settings },
     ],

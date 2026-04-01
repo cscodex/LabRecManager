@@ -25,7 +25,10 @@
     "assignments": "कार्य",
     "labsPCs": "प्रयोगशालाएँ और पीसी",
     "recordings": "रिकॉर्डिंग",
-    "reviewSubmissions": "प्रस्तुतियाँ समीक्षा करें"
+    "reviewSubmissions": "प्रस्तुतियाँ समीक्षा करें",
+    "timetable": "समय सारणी",
+    "calendar": "कैलेंडर",
+    "myTimetable": "मेरा समय सारणी"
   },
   "common": {
     "filter": "फ़िल्टर",
