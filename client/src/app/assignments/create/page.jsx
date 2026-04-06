@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { ArrowLeft, Save, Upload, Zap, Calendar, FileText, X } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { assignmentsAPI } from '@/lib/api';
+import { assignmentsAPI, trainingAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import PageHeader from '@/components/PageHeader';
@@ -19,6 +19,7 @@ export default function CreateAssignmentPage() {
     const [subjects, setSubjects] = useState([]);
     const [labs, setLabs] = useState([]);
     const [classes, setClasses] = useState([]);
+    const [trainingModules, setTrainingModules] = useState([]);
     const [pdfFile, setPdfFile] = useState(null);
     const [uploadingPdf, setUploadingPdf] = useState(false);
     const [editId, setEditId] = useState(null);
@@ -63,12 +64,14 @@ export default function CreateAssignmentPage() {
 
     const loadFormData = async () => {
         try {
-            const [subjectsRes, classesRes] = await Promise.all([
+            const [subjectsRes, classesRes, modulesRes] = await Promise.all([
                 axios.get('/api/subjects', { headers: { Authorization: `Bearer ${accessToken}` } }),
-                axios.get('/api/classes', { headers: { Authorization: `Bearer ${accessToken}` } })
+                axios.get('/api/classes', { headers: { Authorization: `Bearer ${accessToken}` } }),
+                trainingAPI.getModules()
             ]);
             setSubjects(subjectsRes.data.data.subjects || []);
             setClasses(classesRes.data.data.classes || []);
+            setTrainingModules(modulesRes?.data?.data?.modules || []);
         } catch (error) {
             console.error('Failed to load form data:', error);
         }
@@ -96,6 +99,7 @@ export default function CreateAssignmentPage() {
             setValue('practicalMarks', a.practicalMarks || 60);
             setValue('outputMarks', a.outputMarks || 20);
             setValue('programmingLanguage', a.programmingLanguage || '');
+            setValue('trainingModuleId', a.trainingModuleId || '');
             if (a.publishDate) {
                 setValue('publishDate', new Date(a.publishDate).toISOString().slice(0, 16));
             }
@@ -237,9 +241,27 @@ export default function CreateAssignmentPage() {
                                         <option value="project">Project</option>
                                         <option value="observation">Observation</option>
                                         <option value="viva_only">Viva Only</option>
+                                        <option value="training_module">Training Module</option>
                                     </select>
                                 </div>
                             </div>
+                            {watch('assignmentType') === 'training_module' && (
+                                <div className="mt-4">
+                                    <label className="label text-emerald-700">Select Training Module *</label>
+                                    <select 
+                                        className="input border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500" 
+                                        {...register('trainingModuleId', { required: 'Please select a training module when type is Training Module' })}
+                                    >
+                                        <option value="">-- Choose a predefined module --</option>
+                                        {trainingModules.map(m => (
+                                            <option key={m.id} value={m.id}>
+                                                {m.title} ({m._count?.units || 0} Units)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {errors.trainingModuleId && <p className="text-red-500 text-sm mt-1">{errors.trainingModuleId.message}</p>}
+                                </div>
+                            )}
 
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>

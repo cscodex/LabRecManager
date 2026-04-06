@@ -41,6 +41,7 @@ const recordingRoutes = require('./routes/recording.routes');
 const storageRoutes = require('./routes/storage.routes');
 const timetableRoutes = require('./routes/timetable.routes');
 const teachingRoutes = require('./routes/teaching.routes');
+const trainingRoutes = require('./routes/training.routes');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -110,6 +111,7 @@ app.use('/api/storage', storageRoutes);
 app.use('/api/folders', require('./routes/folder.routes'));
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/teaching', teachingRoutes);
+app.use('/api/training', trainingRoutes);
 
 const prisma = require('./config/database');
 

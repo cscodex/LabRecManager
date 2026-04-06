@@ -448,7 +448,7 @@ router.get('/:id', authenticate, asyncHandler(async (req, res) => {
 router.post('/', authenticate, authorize('instructor', 'lab_assistant', 'admin', 'principal'), [
     body('title').trim().notEmpty().withMessage('Title is required'),
     body('subjectId').isUUID().withMessage('Valid subject ID is required'),
-    body('assignmentType').isIn(['program', 'experiment', 'project', 'observation', 'viva_only'])
+    body('assignmentType').isIn(['program', 'experiment', 'project', 'observation', 'viva_only', 'training_module'])
         .withMessage('Valid assignment type is required'),
     body('maxMarks').optional().isInt({ min: 1 }).withMessage('Max marks must be positive')
 ], asyncHandler(async (req, res) => {
@@ -469,7 +469,7 @@ router.post('/', authenticate, authorize('instructor', 'lab_assistant', 'admin',
         procedure, procedureHindi, expectedOutput, referenceCode,
         maxMarks, passingMarks, vivaMarks, practicalMarks, outputMarks,
         lateSubmissionAllowed, latePenaltyPercent,
-        status
+        status, trainingModuleId
     } = req.body;
 
     // Use X-Academic-Session header as fallback for academicYearId
@@ -506,7 +506,8 @@ router.post('/', authenticate, authorize('instructor', 'lab_assistant', 'admin',
             outputMarks: outputMarks || 20,
             lateSubmissionAllowed: lateSubmissionAllowed !== false,
             latePenaltyPercent: latePenaltyPercent || 10,
-            status: status || 'draft'
+            status: status || 'draft',
+            trainingModuleId
         },
         include: {
             subject: true,
@@ -574,7 +575,7 @@ router.put('/:id', authenticate, authorize('instructor', 'lab_assistant', 'admin
             'aim', 'aimHindi', 'theory', 'theoryHindi', 'procedure', 'procedureHindi',
             'expectedOutput', 'referenceCode', 'programmingLanguage',
             'maxMarks', 'passingMarks', 'vivaMarks', 'practicalMarks', 'outputMarks',
-            'lateSubmissionAllowed', 'latePenaltyPercent', 'status'
+            'lateSubmissionAllowed', 'latePenaltyPercent', 'status', 'trainingModuleId'
         ];
 
         for (const field of allowedFields) {

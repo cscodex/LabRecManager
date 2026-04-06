@@ -553,6 +553,7 @@ export const schoolAPI = {
 export const timetableAPI = {
     // Timetable CRUD
     get: (params) => api.get('/timetable', { params }),
+    getAll: (params) => api.get('/timetable/all', { params }),
     create: (data) => api.post('/timetable', data),
     update: (id, data) => api.put(`/timetable/${id}`, data),
     
@@ -603,6 +604,16 @@ export const teachingAPI = {
     createPoll: (sessionId, data) => api.post(`/teaching/sessions/${sessionId}/polls`, data),
     endPoll: (pollId) => api.put(`/teaching/polls/${pollId}/end`),
     respondToPoll: (pollId, data) => api.post(`/teaching/polls/${pollId}/respond`, data)
+};
+
+// Training API
+export const trainingAPI = {
+    getModules: () => api.get('/training/modules'),
+    getModuleDetails: (id) => api.get(`/training/modules/${id}`),
+    getExercise: (id) => api.get(`/training/exercises/${id}`),
+    runCode: (id, data) => api.post(`/training/exercises/${id}/run`, data),
+    submitCode: (id, data) => api.post(`/training/exercises/${id}/submit`, data),
+    getClassAnalytics: (classId) => api.get(`/training/class/${classId}/analytics`)
 };
 
 export default api;

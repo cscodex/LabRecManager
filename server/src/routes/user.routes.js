@@ -329,7 +329,7 @@ router.post('/', authenticate, authorize('admin', 'principal', 'instructor'), [
             entityType: 'user',
             entityId: user.id,
             description: `Created ${role} account: ${firstName} ${lastName}`,
-            descriptionHindi: `${role === 'student' ? 'छात्र' : role === 'instructor' ? 'शिक्षक' : role} खाता बनाया: ${firstName} ${lastName}`
+            description_hindi: `${role === 'student' ? 'छात्र' : role === 'instructor' ? 'शिक्षक' : role} खाता बनाया: ${firstName} ${lastName}`
         }
     });
 
