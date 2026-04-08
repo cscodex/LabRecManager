@@ -5,9 +5,10 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Users, GraduationCap, ArrowLeft, UserPlus, UsersRound, Plus, Search, Mail, Phone, Calendar, Lock, ChevronLeft, ChevronRight, Shuffle, Trash2, UserMinus, X, ChevronDown, ChevronUp, Monitor } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { classesAPI, labsAPI } from '@/lib/api';
+import { classesAPI, labsAPI, trainingAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 import PageHeader from '@/components/PageHeader';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function ClassDetailPage() {
     const router = useRouter();
@@ -20,6 +21,10 @@ export default function ClassDetailPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('students');
     const [initialSessionId, setInitialSessionId] = useState(null);
+
+    // Training analytics
+    const [trainingAnalytics, setTrainingAnalytics] = useState(null);
+    const [loadingTraining, setLoadingTraining] = useState(false);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -114,6 +119,21 @@ export default function ClassDetailPage() {
             toast.error(error.response?.data?.message || 'Failed to create groups');
         } finally {
             setAutoGrouping(false);
+        }
+    };
+
+    const handleLoadTrainingAnalytics = async () => {
+        setActiveTab('training');
+        if (!trainingAnalytics) {
+            setLoadingTraining(true);
+            try {
+                const res = await trainingAPI.getClassAnalytics(params.id);
+                setTrainingAnalytics(res.data.data.analytics || []);
+            } catch (error) {
+                toast.error('Failed to load training analytics');
+            } finally {
+                setLoadingTraining(false);
+            }
         }
     };
 
@@ -318,6 +338,18 @@ export default function ClassDetailPage() {
                         <UsersRound className="w-4 h-4 inline mr-2" />
                         Groups ({groups.length})
                     </button>
+                    {(isAdmin || isInstructor) && (
+                        <button
+                            onClick={handleLoadTrainingAnalytics}
+                            className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === 'training'
+                                ? 'bg-primary-500 text-white'
+                                : 'bg-white text-slate-600 hover:bg-slate-100'
+                                }`}
+                        >
+                            <GraduationCap className="w-4 h-4 inline mr-2" />
+                            Training Analytics
+                        </button>
+                    )}
                 </div>
 
                 {/* Students Tab */}
@@ -673,6 +705,99 @@ export default function ClassDetailPage() {
                             </div>
                         )}
                     </>
+                )}
+
+                {/* Training Analytics Tab */}
+                {activeTab === 'training' && (isAdmin || isInstructor) && (
+                    <div className="card p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-slate-900 border-b border-primary-100 pb-2 border-b-2 inline-block">
+                                Training Progress & Leaderboard
+                            </h3>
+                        </div>
+
+                        {loadingTraining ? (
+                            <div className="flex justify-center p-12">
+                                <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full"></div>
+                            </div>
+                        ) : !trainingAnalytics || trainingAnalytics.length === 0 ? (
+                            <div className="text-center p-12 bg-slate-50 rounded-xl border border-slate-100 pb-16">
+                                <GraduationCap className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                                <h3 className="text-lg font-medium text-slate-700">No Training Data</h3>
+                                <p className="text-slate-500">Students have not started any training modules yet.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-8">
+                                {/* Group Charts */}
+                                {groups && groups.length > 0 && (
+                                    <div className="bg-white rounded-xl border border-slate-200 p-6">
+                                        <h4 className="text-lg font-semibold text-slate-800 mb-6">Group Analytics (Average XP)</h4>
+                                        <div className="h-64">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={
+                                                    groups.map(g => {
+                                                        const memberIds = g.members?.map(m => m.student.id) || [];
+                                                        const memberAnalytics = trainingAnalytics.filter(a => memberIds.includes(a.student.id));
+                                                        const totalGroupXP = memberAnalytics.reduce((sum, a) => sum + (a.totalXP || 0), 0);
+                                                        const avgXP = memberAnalytics.length > 0 ? totalGroupXP / memberAnalytics.length : 0;
+                                                        return {
+                                                            name: g.name,
+                                                            avgXP: Math.round(avgXP)
+                                                        };
+                                                    })
+                                                }>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                    <XAxis dataKey="name" />
+                                                    <YAxis />
+                                                    <Tooltip />
+                                                    <Bar dataKey="avgXP" fill="#10b981" name="Average XP" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Leaderboard Table */}
+                                <div className="overflow-hidden rounded-xl border border-slate-200">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-50 border-b border-slate-200">
+                                            <tr>
+                                                <th className="p-4 font-semibold text-sm text-slate-600">Rank</th>
+                                                <th className="p-4 font-semibold text-sm text-slate-600">Student</th>
+                                                <th className="p-4 font-semibold text-sm text-slate-600">Completed Modules</th>
+                                                <th className="p-4 font-semibold text-sm text-slate-600 text-right">Total XP</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {trainingAnalytics
+                                                .sort((a, b) => b.totalXP - a.totalXP)
+                                                .map((studentSummary, index) => (
+                                                    <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="p-4">
+                                                            {index === 0 ? <span className="text-yellow-500 font-bold text-lg">#1</span> : 
+                                                             index === 1 ? <span className="text-slate-400 font-bold text-lg">#2</span> :
+                                                             index === 2 ? <span className="text-amber-600 font-bold text-lg">#3</span> : 
+                                                             <span className="text-slate-500 font-medium">#{index + 1}</span>}
+                                                        </td>
+                                                        <td className="p-4 font-medium text-slate-900">
+                                                            {studentSummary.student?.firstName} {studentSummary.student?.lastName}
+                                                        </td>
+                                                        <td className="p-4 text-slate-600 font-mono">
+                                                            {studentSummary.modulesProgress?.filter(m => m.overallProgress >= 100).length || 0}
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <span className="px-3 py-1 bg-gradient-to-r from-emerald-100 to-green-100 text-green-800 font-bold rounded-full">
+                                                                {studentSummary.totalXP} XP
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 )}
             </main>
         </div>

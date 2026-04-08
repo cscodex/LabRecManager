@@ -293,7 +293,7 @@ model Class {
   timetables         Timetable[]
   lecturePlans       LecturePlan[]
 
-  @@unique([schoolId, name], name: "unique_class_name_per_school")
+  @@unique([schoolId, name, academicYearId], name: "unique_class_name_per_school")
   @@index([academicYearId])
   @@index([schoolId, academicYearId])
   @@index([schoolId], map: "idx_classes_school")

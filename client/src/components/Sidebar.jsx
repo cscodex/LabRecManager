@@ -20,6 +20,7 @@ const navItems = {
         { href: '/users', labelKey: 'nav.manageUsers', icon: UserPlus },
         { href: '/admin/labs', labelKey: 'nav.labsPCs', icon: Monitor },
         { href: '/assignments', labelKey: 'nav.assignments', icon: BookOpen },
+        { href: '/training', labelKey: 'Training', icon: GraduationCap },
         { href: '/assigned-work', labelKey: 'nav.assignedWork', icon: ListChecks },
         { href: '/submissions', labelKey: 'nav.reviewSubmissions', icon: ClipboardList },
         { href: '/admin/documents', labelKey: 'nav.documents', icon: FolderOpen },
@@ -43,6 +44,7 @@ const navItems = {
         { href: '/users', labelKey: 'nav.manageUsers', icon: UserPlus },
         { href: '/admin/documents', labelKey: 'nav.documents', icon: FolderOpen },
         { href: '/admin/storage', labelKey: 'nav.storage', icon: HardDrive },
+        { href: '/training', labelKey: 'Training', icon: GraduationCap },
         { href: '/grades', labelKey: 'nav.grades', icon: Award },
         { href: '/activity-logs', labelKey: 'nav.activityLogs', icon: Activity },
         { href: '/tickets', labelKey: 'nav.tickets', icon: Ticket },
@@ -58,6 +60,7 @@ const navItems = {
         { href: '/teaching', labelKey: 'nav.teachingDashboard', icon: Presentation },
         { href: '/teaching/plans', labelKey: 'nav.lecturePlans', icon: BookMarked },
         { href: '/assignments', labelKey: 'nav.assignments', icon: BookOpen },
+        { href: '/training', labelKey: 'Training', icon: GraduationCap },
         { href: '/assigned-work', labelKey: 'nav.assignedWork', icon: ListChecks },
         { href: '/submissions', labelKey: 'nav.review', icon: ClipboardList },
         { href: '/documents', labelKey: 'nav.sharedDocs', icon: FolderOpen },
@@ -76,6 +79,7 @@ const navItems = {
         { href: '/classes', labelKey: 'nav.classes', icon: Users },
         { href: '/admin/labs', labelKey: 'nav.labsPCs', icon: Monitor },
         { href: '/assignments', labelKey: 'nav.assignments', icon: BookOpen },
+        { href: '/training', labelKey: 'Training', icon: GraduationCap },
         { href: '/assigned-work', labelKey: 'nav.assignedWork', icon: ListChecks },
         { href: '/submissions', labelKey: 'nav.reviewSubmissions', icon: FileText },
         { href: '/documents', labelKey: 'nav.sharedDocs', icon: FolderOpen },
@@ -86,6 +90,7 @@ const navItems = {
         { href: '/dashboard', labelKey: 'nav.dashboard', icon: Home },
         { href: '/my-work', labelKey: 'nav.myWork', icon: ClipboardCheck },
         { href: '/submissions', labelKey: 'nav.mySubmissions', icon: FileText },
+        { href: '/training', labelKey: 'Training', icon: GraduationCap },
         { href: '/documents', labelKey: 'nav.sharedDocs', icon: FolderOpen },
         { href: '/grades', labelKey: 'nav.myGrades', icon: Award },
         { href: '/viva', labelKey: 'nav.viva', icon: Video },
@@ -170,10 +175,17 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                             <h1 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-none truncate max-w-[150px]" title={schoolInfo.name}>{schoolInfo.name}</h1>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{t('sidebar.unifiedLabRecords')}</p>
                             {process.env.NEXT_PUBLIC_COMMIT_HASH && (
-                                <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
-                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    {process.env.NEXT_PUBLIC_COMMIT_HASH}
-                                </p>
+                                <div className="mt-0.5">
+                                    <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        {process.env.NEXT_PUBLIC_COMMIT_HASH}
+                                    </p>
+                                    {process.env.NEXT_PUBLIC_COMMIT_TIME && (
+                                        <p className="text-[9px] font-mono text-slate-400 dark:text-slate-500 opacity-75 mt-0.5">
+                                            {process.env.NEXT_PUBLIC_COMMIT_TIME}
+                                        </p>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </Link>
@@ -200,9 +212,11 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                         // Special handling for /assignments to prevent highlighting on /assignments/assign
                         const isActive = item.href === '/assignments'
                             ? pathname === '/assignments' || (pathname.startsWith('/assignments/') && !pathname.startsWith('/assignments/assign'))
-                            : pathname === item.href || pathname.startsWith(item.href + '/');
+                            : item.href === '/training' 
+                                ? pathname === '/training' || pathname.startsWith('/training/')
+                                : pathname === item.href || pathname.startsWith(item.href + '/');
                         const Icon = item.icon;
-                        const label = t(item.labelKey);
+                        const label = item.labelKey === 'Training' ? 'Training' : t(item.labelKey);
                         return (
                             <li key={item.href}>
                                 <Link

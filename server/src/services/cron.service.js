@@ -91,12 +91,89 @@ const ensureCurrentSession = async () => {
     }
 };
 
+const checkTrainingDelays = async () => {
+    try {
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+        const delayedProgress = await prisma.studentTrainingProgress.findMany({
+            where: {
+                overallProgress: { lt: 100 },
+                lastActiveAt: { lt: threeDaysAgo },
+            },
+            include: {
+                student: { include: { enrollments: true } },
+                module: true
+            }
+        });
+
+        if (delayedProgress.length === 0) return;
+
+        // Group by classId to notify instructors efficiently
+        const classDelays = {}; 
+
+        for (const progress of delayedProgress) {
+            // Notify student
+            await prisma.notification.create({
+                data: {
+                    userId: progress.studentId,
+                    title: 'Training Module Delayed',
+                    message: `You haven't worked on "${progress.module.title}" for over 3 days. Pick up right where you left off!`,
+                    type: 'training_alert',
+                    action_url: `/training/${progress.moduleId}`
+                }
+            });
+
+            // Add to instructor aggregation
+            for (const enrollment of progress.student.enrollments) {
+                if (enrollment.status === 'active') {
+                    if (!classDelays[enrollment.classId]) {
+                        classDelays[enrollment.classId] = [];
+                    }
+                    classDelays[enrollment.classId].push({
+                        studentName: `${progress.student.firstName} ${progress.student.lastName}`,
+                        moduleTitle: progress.module.title
+                    });
+                }
+            }
+        }
+
+        // Notify instructors of those classes
+        for (const [classId, delays] of Object.entries(classDelays)) {
+            const classData = await prisma.class.findUnique({
+                where: { id: classId },
+            });
+            if (classData && classData.classTeacherId) {
+                // Formatting delay list to not overwhelm the UI
+                const delayList = delays.slice(0, 3).map(d => `${d.studentName} (${d.moduleTitle})`).join(', ');
+                const moreText = delays.length > 3 ? ` and ${delays.length - 3} others` : '';
+                await prisma.notification.create({
+                    data: {
+                        userId: classData.classTeacherId,
+                        title: 'Students Falling Behind',
+                        message: `${delays.length} student(s) in ${classData.name} are delayed in their training: ${delayList}${moreText}.`,
+                        type: 'training_alert',
+                        action_url: `/classes/${classId}`
+                    }
+                });
+            }
+        }
+        logger.info(`[Training Cron] Processed ${delayedProgress.length} training delays.`);
+    } catch (error) {
+        logger.error('[Training Cron] Error processing delays:', error.message);
+    }
+};
+
 const initCronJobs = () => {
     // Run session check on startup
     ensureCurrentSession();
     // Run every day at midnight
     cron.schedule('0 0 * * *', async () => {
-        logger.info('Running cron job: Cleaning up trash items older than 30 days');
+        logger.info('Running cron job: Cleaning up trash items & checking training delays');
+        
+        // 1. Check training delays Daily
+        await checkTrainingDelays();
+
         try {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
