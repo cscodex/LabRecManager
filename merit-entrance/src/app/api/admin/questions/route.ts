@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
         const difficulty = searchParams.get('difficulty') || 'all';
         const tagId = searchParams.get('tagId') || '';
         const usageCountParam = searchParams.get('usageCount') || 'all';
+        const sourceFilter = searchParams.get('source') || 'all';
 
         const offset = (page - 1) * limit;
 
@@ -36,6 +37,18 @@ export async function GET(req: NextRequest) {
             dateFilterSql = sql`AND q.created_at >= ${dateFrom}::timestamp`;
         } else if (dateTo) {
             dateFilterSql = sql`AND q.created_at <= ${dateTo}::timestamp + interval '1 day' - interval '1 second'`;
+        }
+
+        // Source filter SQL
+        let sourceFilterSql = sql``;
+        if (sourceFilter === 'ai_rag') {
+            sourceFilterSql = sql`AND q.is_ai_generated = true AND q.citation->>'source' = 'RAG Knowledge Base Generation'`;
+        } else if (sourceFilter === 'ai_gemini') {
+            sourceFilterSql = sql`AND q.is_ai_generated = true AND (q.citation->>'source' = 'Gemini General Knowledge' OR q.citation->>'source' IS NULL)`;
+        } else if (sourceFilter === 'ai') {
+            sourceFilterSql = sql`AND q.is_ai_generated = true`;
+        } else if (sourceFilter === 'manual') {
+            sourceFilterSql = sql`AND (q.is_ai_generated = false OR q.is_ai_generated IS NULL)`;
         }
 
         // Count query
@@ -57,6 +70,7 @@ export async function GET(req: NextRequest) {
                         JOIN exams e2 ON s2.exam_id = e2.id
                         WHERE sq2.question_id = q.id
                     ) = ${usageValue}` : sql``}
+                    ${sourceFilterSql}
             `;
             total = parseInt(totalResult[0].total);
         } else {
@@ -74,6 +88,7 @@ export async function GET(req: NextRequest) {
                         JOIN exams e2 ON s2.exam_id = e2.id
                         WHERE sq2.question_id = q.id
                     ) = ${usageValue}` : sql``}
+                    ${sourceFilterSql}
             `;
             total = parseInt(totalResult[0].total);
         }
@@ -118,6 +133,7 @@ export async function GET(req: NextRequest) {
                         WHERE sq2.question_id = q.id
                     ) = ${usageValue}` : sql``}
                     ${dateFilterSql}
+                    ${sourceFilterSql}
                 ORDER BY q.id DESC 
                 LIMIT ${limit} OFFSET ${offset}
             `;
@@ -158,6 +174,7 @@ export async function GET(req: NextRequest) {
                         WHERE sq2.question_id = q.id
                     ) = ${usageValue}` : sql``}
                     ${dateFilterSql}
+                    ${sourceFilterSql}
                 ORDER BY q.id DESC 
                 LIMIT ${limit} OFFSET ${offset}
             `;

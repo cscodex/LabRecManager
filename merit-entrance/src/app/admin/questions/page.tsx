@@ -47,6 +47,8 @@ interface Question {
     usage_count?: number;
     created_at?: string;
     updated_at?: string;
+    is_ai_generated?: boolean;
+    citation?: any;
 }
 
 const AddToExamModal = ({
@@ -353,6 +355,7 @@ export default function QuestionsBankPage() {
     const [usageFilter, setUsageFilter] = useState('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [sourceFilter, setSourceFilter] = useState('all');
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -416,6 +419,7 @@ export default function QuestionsBankPage() {
                 difficulty: difficultyFilter,
                 tagId: tagFilter,
                 usageCount: usageFilter,
+                source: sourceFilter,
                 dateFrom,
                 dateTo
             });
@@ -438,7 +442,7 @@ export default function QuestionsBankPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, limit, debouncedSearch, typeFilter, difficultyFilter, tagFilter, usageFilter]);
+    }, [page, limit, debouncedSearch, typeFilter, difficultyFilter, tagFilter, usageFilter, sourceFilter]);
 
     useEffect(() => {
         loadTags();
@@ -810,6 +814,18 @@ export default function QuestionsBankPage() {
                         {tags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
 
+                    <select
+                        value={sourceFilter}
+                        onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+                        className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="all">All Sources</option>
+                        <option value="ai_rag">📖 AI — RAG</option>
+                        <option value="ai_gemini">🤖 AI — Gemini</option>
+                        <option value="ai">✨ All AI Generated</option>
+                        <option value="manual">✍️ Manual / Imported</option>
+                    </select>
+
                     {globalStats?.maxUsage > 0 && (
                         <select
                             value={usageFilter}
@@ -961,6 +977,16 @@ export default function QuestionsBankPage() {
                                                 <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100 font-medium">
                                                     {getTypeLabel(question.type)}
                                                 </span>
+                                                {question.is_ai_generated && (
+                                                    <span className={`mt-1 px-2 py-0.5 text-[10px] rounded font-medium ${question.citation?.source === 'RAG Knowledge Base Generation'
+                                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        : 'bg-purple-50 text-purple-700 border border-purple-200'
+                                                        }`}>
+                                                        {question.citation?.source === 'RAG Knowledge Base Generation'
+                                                            ? '📖 RAG'
+                                                            : '🤖 Gemini'}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-1 text-xs rounded border font-medium ${getDifficultyColor(question.difficulty)}`}>
@@ -1220,6 +1246,53 @@ export default function QuestionsBankPage() {
                                     ))}
                                 </div>
                             )}
+
+                            {/* Rich Citation for AI Questions */}
+                            {viewingQuestion.is_ai_generated && (() => {
+                                const cit = typeof viewingQuestion.citation === 'string'
+                                    ? (() => { try { return JSON.parse(viewingQuestion.citation); } catch { return null; } })()
+                                    : viewingQuestion.citation;
+                                if (!cit) return null;
+                                const hasPages = cit.pages && cit.pages.length > 0 && cit.pages.some((p: number) => p > 0);
+                                return (
+                                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-amber-700 uppercase">📖 Source Citation</span>
+                                            <span className={`px-2 py-0.5 text-[10px] rounded font-medium ${cit.source === 'RAG Knowledge Base Generation'
+                                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                                    : 'bg-purple-100 text-purple-800 border border-purple-300'
+                                                }`}>
+                                                {cit.source === 'RAG Knowledge Base Generation' ? 'RAG Knowledge Base' : 'Gemini General Knowledge'}
+                                            </span>
+                                        </div>
+                                        {hasPages && (
+                                            <p className="text-xs text-amber-800 font-medium">
+                                                Pages: {cit.pages.filter((p: number) => p > 0).join(', ')}
+                                            </p>
+                                        )}
+                                        {cit.chunks && cit.chunks.length > 0 && (
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] text-amber-600 uppercase font-semibold">Source Paragraphs</p>
+                                                {cit.chunks.slice(0, 5).map((ch: any, ci: number) => (
+                                                    <div key={ci} className="pl-2 border-l-2 border-amber-300 text-xs text-amber-900">
+                                                        <span className="font-medium">
+                                                            {ch.pageNumber > 0 ? `Page ${ch.pageNumber}, ` : ''}Chunk #{ch.chunkIndex}:
+                                                        </span>
+                                                        <br />
+                                                        "<em>{ch.startText}</em>"
+                                                        {ch.startText !== ch.endText && (
+                                                            <> → "<em>{ch.endText}</em>"</>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {!cit.chunks?.length && cit.text_excerpt && (
+                                            <p className="text-xs text-amber-700 italic">{cit.text_excerpt}</p>
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
                             <div className="flex justify-end pt-4 border-t">
                                 <button onClick={() => { setViewingQuestion(null); handleEdit(viewingQuestion); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">

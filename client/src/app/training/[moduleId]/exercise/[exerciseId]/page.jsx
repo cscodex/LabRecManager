@@ -43,13 +43,23 @@ export default function ExerciseEditorPage() {
     const handleRun = async () => {
         setIsRunning(true);
         setOutput('Running...');
+        
+        // Visual bypass for HTML
+        if (exercise?.unit?.module?.language === 'html') {
+            setOutput(code); // For HTML, the code IS the output
+            setTestResults(null);
+            setSocraticReview(null);
+            setIsRunning(false);
+            return;
+        }
+
         try {
             const res = await trainingAPI.runCode(exerciseId, { code });
             setOutput(res.data.data.output || 'Done (no output)');
             setTestResults(null); 
             setSocraticReview(null);
         } catch (err) {
-            setOutput('Error executing code sandbox');
+            setOutput(`Compilation Error:\n${err.response?.data?.error || err.message || 'Server Sandbox Error'}`);
         } finally {
             setIsRunning(false);
         }
@@ -153,9 +163,20 @@ export default function ExerciseEditorPage() {
                             
                             {/* Manual Run Output */}
                             {output && (
-                                <pre className="font-mono text-sm text-slate-300 bg-black/30 p-4 rounded-lg overflow-x-auto">
-                                    {output}
-                                </pre>
+                                <div className="font-mono text-sm text-slate-300 bg-black/30 rounded-lg overflow-hidden">
+                                    {exercise?.unit?.module?.language === 'html' ? (
+                                        <iframe 
+                                            srcDoc={output}
+                                            sandbox="allow-scripts"
+                                            className="w-full h-64 bg-white"
+                                            title="HTML Output"
+                                        />
+                                    ) : (
+                                        <pre className="p-4 overflow-x-auto whitespace-pre-wrap text-emerald-300">
+                                            {output}
+                                        </pre>
+                                    )}
+                                </div>
                             )}
 
                             {/* Submission Test Cases */}
@@ -199,7 +220,7 @@ export default function ExerciseEditorPage() {
                 <div className="w-2/3 h-full pt-4">
                     <Editor
                         height="100%"
-                        language="python"
+                        language={exercise?.unit?.module?.language || 'python'}
                         theme="vs-dark"
                         value={code}
                         onChange={(val) => setCode(val || '')}

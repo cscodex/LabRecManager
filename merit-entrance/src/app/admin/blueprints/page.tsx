@@ -112,7 +112,7 @@ export default function AdminBlueprintsPage() {
 
             if (bpData.success) setBlueprints(bpData.data);
             if (tagsData.success) setTags(tagsData.tags);
-            if (matData.success) setReferenceMaterials(matData.data || []);
+            if (matData.success) setReferenceMaterials(matData.materials || []);
             if (refDataRes.success) setRefData(refDataRes.data);
         } catch (error) {
             toast.error('Failed to load data');

@@ -1,0 +1,18 @@
+ERROR: PrismaClientKnownRequestError: 
+Invalid `prisma.user.create()` invocation in
+/Users/charanpreetsingh/LabRecManagemer/server/test3.js:7:40
+
+  4 try {
+  5     const school = await prisma.school.findFirst();
+  6     if(!school) { console.log('No school'); return; }
+→ 7     const user = await prisma.user.create(
+Unique constraint failed on the fields: (`email`)
+    at si.handleRequestError (/Users/charanpreetsingh/LabRecManagemer/server/node_modules/@prisma/client/runtime/library.js:125:6817)
+    at si.handleAndLogRequestError (/Users/charanpreetsingh/LabRecManagemer/server/node_modules/@prisma/client/runtime/library.js:125:6151)
+    at si.request (/Users/charanpreetsingh/LabRecManagemer/server/node_modules/@prisma/client/runtime/library.js:125:5859)
+    at async l (/Users/charanpreetsingh/LabRecManagemer/server/node_modules/@prisma/client/runtime/library.js:130:10025)
+    at async run (/Users/charanpreetsingh/LabRecManagemer/server/test3.js:7:22) {
+  code: 'P2002',
+  clientVersion: '5.7.0',
+  meta: { modelName: 'User', target: [ 'email' ] }
+}

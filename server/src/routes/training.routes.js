@@ -11,17 +11,17 @@ const axios = require('axios');
  */
 async function executePythonCode(code, input = '') {
     try {
-        const response = await axios.post('https://emkc.org/api/v2/piston/execute', {
-            language: 'python',
-            version: '3.10.0', // Standard python version in piston
-            files: [{ content: code }],
-            stdin: input
+        // Use Wandbox API as fallback since EMKC Piston requires whitelist
+        const response = await axios.post('https://wandbox.org/api/compile.json', {
+            compiler: 'cpython-3.11.10',
+            code: code,
+            stdin: input || ''
         });
         
         return {
-            stdout: response.data.run.stdout,
-            stderr: response.data.run.stderr,
-            code: response.data.run.code // exit code
+            stdout: response.data.program_output || '',
+            stderr: response.data.program_error || '',
+            code: parseInt(response.data.status || 0, 10)
         };
     } catch (err) {
         console.error('Code execution error:', err.message);
@@ -117,6 +117,120 @@ router.get('/modules/:id', authenticate, asyncHandler(async (req, res) => {
     });
 }));
 
+// ==========================================
+// BUILDER APIs (Admin/Instructor Only)
+// ==========================================
+
+/**
+ * @route   POST /api/training/modules
+ * @desc    Create a new training module
+ * @access  Private (Admin/Instructor)
+ */
+router.post('/modules', authenticate, authorize('admin', 'principal', 'instructor'), [
+    body('title').notEmpty().withMessage('Title is required'),
+    body('language').notEmpty().withMessage('Language is required'),
+], asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { title, titleHindi, description, language, boardAligned, classLevel } = req.body;
+
+    const newModule = await prisma.trainingModule.create({
+        data: {
+            schoolId: req.user.schoolId,
+            title,
+            titleHindi,
+            description,
+            language,
+            boardAligned,
+            classLevel: classLevel ? parseInt(classLevel) : null,
+            isPublished: false // By default unpublished
+        }
+    });
+
+    res.status(201).json({ success: true, data: { module: newModule } });
+}));
+
+/**
+ * @route   POST /api/training/modules/:id/units
+ * @desc    Create a new unit for a module
+ * @access  Private
+ */
+router.post('/modules/:id/units', authenticate, authorize('admin', 'principal', 'instructor'), [
+    body('title').notEmpty().withMessage('Title is required'),
+    body('unitNumber').isNumeric().withMessage('Unit number is required'),
+    body('unlockThreshold').isNumeric().withMessage('Unlock threshold is required')
+], asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { title, description, unitNumber, expectedHours, unlockThreshold, sequenceOrder } = req.body;
+
+    const unit = await prisma.trainingUnit.create({
+        data: {
+            moduleId: id,
+            title,
+            description,
+            unitNumber: parseInt(unitNumber),
+            expectedHours: expectedHours ? parseInt(expectedHours) : null,
+            unlockThreshold: parseInt(unlockThreshold),
+            sequenceOrder: sequenceOrder ? parseInt(sequenceOrder) : parseInt(unitNumber)
+        }
+    });
+
+    // Update totalUnits count
+    await prisma.trainingModule.update({
+        where: { id },
+        data: { totalUnits: { increment: 1 } }
+    });
+
+    res.status(201).json({ success: true, data: { unit } });
+}));
+
+/**
+ * @route   POST /api/training/units/:id/exercises
+ * @desc    Create a new exercise
+ * @access  Private
+ */
+router.post('/units/:id/exercises', authenticate, authorize('admin', 'principal', 'instructor'), [
+    body('title').notEmpty().withMessage('Title is required'),
+    body('scaffoldLevel').notEmpty().withMessage('Scaffold level is required')
+], asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    
+    // Find module to update total exercises count
+    const unit = await prisma.trainingUnit.findUnique({
+        where: { id }, select: { moduleId: true }
+    });
+    if (!unit) return res.status(404).json({ success: false, message: 'Unit not found' });
+
+    const exercise = await prisma.trainingExercise.create({
+        data: {
+            unitId: id,
+            title: req.body.title,
+            description: req.body.description || '',
+            difficulty: req.body.difficulty || 'beginner',
+            scaffoldLevel: req.body.scaffoldLevel,
+            isReviewExercise: req.body.isReviewExercise || false,
+            reviewsTopicId: req.body.reviewsTopicId || null,
+            starterCode: req.body.starterCode || '',
+            solutionCode: req.body.solutionCode || '',
+            testCases: req.body.testCases ? (typeof req.body.testCases === 'string' ? JSON.parse(req.body.testCases) : req.body.testCases) : [],
+            hints: req.body.hints ? (typeof req.body.hints === 'string' ? JSON.parse(req.body.hints) : req.body.hints) : [],
+            timeLimit: parseInt(req.body.timeLimit) || 5,
+            sequenceOrder: parseInt(req.body.sequenceOrder) || 1,
+            xpReward: parseInt(req.body.xpReward) || 10
+        }
+    });
+
+    await prisma.trainingModule.update({
+        where: { id: unit.moduleId },
+        data: { totalExercises: { increment: 1 } }
+    });
+
+    res.status(201).json({ success: true, data: { exercise } });
+}));
+
 /**
  * @route   GET /api/training/exercises/:id
  * @desc    Get specific exercise data for the editor
@@ -126,7 +240,13 @@ router.get('/exercises/:id', authenticate, asyncHandler(async (req, res) => {
     const exercise = await prisma.trainingExercise.findUnique({
         where: { id: req.params.id },
         include: {
-            unit: { select: { moduleId: true, unlockThreshold: true } }
+            unit: { 
+                select: { 
+                    moduleId: true, 
+                    unlockThreshold: true,
+                    module: { select: { language: true } }
+                } 
+            }
         }
     });
 
@@ -156,10 +276,26 @@ router.get('/exercises/:id', authenticate, asyncHandler(async (req, res) => {
 router.post('/exercises/:id/run', authenticate, [
     body('code').notEmpty()
 ], asyncHandler(async (req, res) => {
-    const { code, customInput } = req.body;
+    const { id } = req.params;
     
-    // Execute
-    const execution = await executePythonCode(code, customInput || '');
+    // Check language
+    const exercise = await prisma.trainingExercise.findUnique({
+        where: { id },
+        include: { unit: { include: { module: true } } }
+    });
+    
+    if (!exercise) return res.status(404).json({ success: false, message: 'Exercise not found' });
+    
+    const language = exercise.unit?.module?.language?.toLowerCase() || 'python';
+    
+    let execution;
+    if (language === 'html') {
+        // For HTML, there is no execution Sandbox. The literal code is the output.
+        execution = { stdout: code, stderr: '', code: 0 };
+    } else {
+        // Python Execute
+        execution = await executePythonCode(code, customInput || '');
+    }
 
     res.json({
         success: true,
@@ -185,11 +321,12 @@ router.post('/exercises/:id/submit', authenticate, [
     // Fetch exercise with true test cases
     const exercise = await prisma.trainingExercise.findUnique({
         where: { id: exerciseId },
-        include: { unit: true }
+        include: { unit: { include: { module: true } } }
     });
 
     if (!exercise) return res.status(404).json({ success: false, message: 'Exercise not found' });
 
+    const language = exercise.unit?.module?.language?.toLowerCase() || 'python';
     const testCases = Array.isArray(exercise.testCases) ? exercise.testCases : [];
     let passedAll = true;
     let results = [];
@@ -198,7 +335,13 @@ router.post('/exercises/:id/submit', authenticate, [
     // Evaluate each test case
     for (const tc of testCases) {
         try {
-            const exe = await executePythonCode(code, tc.input);
+            let exe;
+            if (language === 'html') {
+                exe = { stdout: code, stderr: '', code: 0 };
+            } else {
+                exe = await executePythonCode(code, tc.input);
+            }
+            
             const actualOutput = exe.stdout ? exe.stdout.replace(/\r\n/g, '\n') : '';
             const expectedOutput = tc.expected ? tc.expected.replace(/\r\n/g, '\n') : '';
             

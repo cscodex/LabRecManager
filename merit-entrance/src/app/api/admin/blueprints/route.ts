@@ -78,11 +78,17 @@ export async function POST(request: Request) {
                     board: board || 'PSEB',
                     classLevel: classLevel || '12th',
                     subject: subject || null,
-                    materials: materialIds && materialIds.length > 0 ? {
-                        connect: materialIds.map((id: string) => ({ id }))
-                    } : undefined
                 }
             });
+
+            // Link materials via raw SQL to avoid implicit transaction from nested connect
+            if (materialIds && Array.isArray(materialIds) && materialIds.length > 0) {
+                for (const matId of materialIds) {
+                    await prisma.$executeRawUnsafe(
+                        `INSERT INTO "_BlueprintToMaterial" ("A", "B") VALUES ('${bp.id}', '${matId}') ON CONFLICT DO NOTHING`
+                    );
+                }
+            }
 
             for (let idx = 0; idx < sections.length; idx++) {
                 const sec = sections[idx];

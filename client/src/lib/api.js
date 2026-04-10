@@ -611,10 +611,16 @@ export const teachingAPI = {
 export const trainingAPI = {
     getModules: () => api.get('/training/modules'),
     getModuleDetails: (id) => api.get(`/training/modules/${id}`),
+    createModule: (data) => api.post('/training/modules', data),
+    
     getExercise: (id) => api.get(`/training/exercises/${id}`),
     runCode: (id, data) => api.post(`/training/exercises/${id}/run`, data),
     submitCode: (id, data) => api.post(`/training/exercises/${id}/submit`, data),
-    getClassAnalytics: (classId) => api.get(`/training/class/${classId}/analytics`)
+    getClassAnalytics: (classId) => api.get(`/training/class/${classId}/analytics`),
+    
+    // Builder APIs
+    createUnit: (moduleId, data) => api.post(`/training/modules/${moduleId}/units`, data),
+    createExercise: (unitId, data) => api.post(`/training/units/${unitId}/exercises`, data),
 };
 
 export default api;

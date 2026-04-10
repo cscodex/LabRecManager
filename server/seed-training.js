@@ -45,34 +45,26 @@ async function seedTrainingModules() {
                             exercises: {
                                 create: [
                                     {
-                                        exerciseNumber: 1,
+                                        sequenceOrder: 1,
                                         title: 'Hello World',
-                                        description: 'Write your first Python program to output text to the screen.',
-                                        type: 'coding',
-                                        instructions: 'Use the `print()` function to output the phrase "Hello World!" exactly as shown.',
-                                        difficulty: 'Beginner',
-                                        totalPoints: 10,
-                                        language: 'python',
-                                        testCases: {
-                                            create: [
-                                                { input: '', expectedOutput: 'Hello World!\n', isHidden: false, points: 10 }
-                                            ]
-                                        }
+                                        description: 'Write your first Python program to output text to the screen. Use the `print()` function to output the phrase "Hello World!" exactly as shown.',
+                                        difficulty: 'beginner',
+                                        scaffoldLevel: 'high',
+                                        xpReward: 10,
+                                        testCases: [
+                                            { input: '', expectedOutput: 'Hello World!\n', isHidden: false, points: 10 }
+                                        ]
                                     },
                                     {
-                                        exerciseNumber: 2,
+                                        sequenceOrder: 2,
                                         title: 'Variable Math',
-                                        description: 'Add two numbers together.',
-                                        type: 'coding',
-                                        instructions: 'Create a variable `a=5` and `b=10`. Print their sum.',
-                                        difficulty: 'Beginner',
-                                        totalPoints: 20,
-                                        language: 'python',
-                                        testCases: {
-                                            create: [
-                                                { input: '', expectedOutput: '15\n', isHidden: false, points: 20 }
-                                            ]
-                                        }
+                                        description: 'Add two numbers together. Create a variable `a=5` and `b=10`. Print their sum.',
+                                        difficulty: 'beginner',
+                                        scaffoldLevel: 'high',
+                                        xpReward: 20,
+                                        testCases: [
+                                            { input: '', expectedOutput: '15\n', isHidden: false, points: 20 }
+                                        ]
                                     }
                                 ]
                             }
@@ -85,20 +77,16 @@ async function seedTrainingModules() {
                             exercises: {
                                 create: [
                                     {
-                                        exerciseNumber: 1,
+                                        sequenceOrder: 1,
                                         title: 'Even or Odd',
-                                        description: 'Check if a number is even or odd.',
-                                        type: 'coding',
-                                        instructions: 'Take an integer input from user, print "Even" if even, "Odd" if odd.',
-                                        difficulty: 'Intermediate',
-                                        totalPoints: 30,
-                                        language: 'python',
-                                        testCases: {
-                                            create: [
-                                                { input: '4', expectedOutput: 'Even\n', isHidden: false, points: 15 },
-                                                { input: '7', expectedOutput: 'Odd\n', isHidden: false, points: 15 }
-                                            ]
-                                        }
+                                        description: 'Check if a number is even or odd. Take an integer input from user, print "Even" if even, "Odd" if odd.',
+                                        difficulty: 'intermediate',
+                                        scaffoldLevel: 'medium',
+                                        xpReward: 30,
+                                        testCases: [
+                                            { input: '4', expectedOutput: 'Even\n', isHidden: false, points: 15 },
+                                            { input: '7', expectedOutput: 'Odd\n', isHidden: false, points: 15 }
+                                        ]
                                     }
                                 ]
                             }
@@ -132,19 +120,15 @@ async function seedTrainingModules() {
                             exercises: {
                                 create: [
                                     {
-                                        exerciseNumber: 1,
+                                        sequenceOrder: 1,
                                         title: 'My First Webpage',
-                                        description: 'Use h1 and p tags.',
-                                        type: 'coding',
-                                        instructions: 'Create an h1 tag with "Welcome" and a p tag with "Learning HTML".',
-                                        difficulty: 'Beginner',
-                                        totalPoints: 10,
-                                        language: 'html',
-                                        testCases: {
-                                            create: [
-                                                { input: '', expectedOutput: '<h1>Welcome</h1>\n<p>Learning HTML</p>', isHidden: false, points: 10 }
-                                            ]
-                                        }
+                                        description: 'Use h1 and p tags. Create an h1 tag with "Welcome" and a p tag with "Learning HTML".',
+                                        difficulty: 'beginner',
+                                        scaffoldLevel: 'high',
+                                        xpReward: 10,
+                                        testCases: [
+                                            { input: '', expectedOutput: '<h1>Welcome</h1>\n<p>Learning HTML</p>', isHidden: false, points: 10 }
+                                        ]
                                     }
                                 ]
                             }

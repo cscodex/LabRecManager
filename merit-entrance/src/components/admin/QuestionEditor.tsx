@@ -929,7 +929,7 @@ export default function QuestionEditor({
                                                 }}
                                                 rows={2}
                                                 className="w-full px-2 py-1 border rounded text-sm"
-                                                placeholder={`Option ${opt.id.toUpperCase()}`}
+                                                placeholder={`Option ${(opt.id || String.fromCharCode(97 + idx)).toUpperCase()}`}
                                             />
                                             {opt.textEn && (
                                                 <div className="mt-1 p-2 bg-white rounded border text-sm">

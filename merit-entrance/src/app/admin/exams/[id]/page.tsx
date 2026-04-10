@@ -56,7 +56,12 @@ interface Question {
     createdAt?: string;
     updatedAt?: string;
     isAiGenerated?: boolean;
-    citation?: string;
+    citation?: {
+        source?: string;
+        pages?: number[];
+        chunks?: { pageNumber: number; chunkIndex: number; startText: string; endText: string }[];
+        text_excerpt?: string;
+    } | string;
 }
 
 interface Exam {
@@ -2372,9 +2377,31 @@ export default function EditExamPage() {
                                                                                 {q.updatedAt && q.updatedAt !== q.createdAt && (
                                                                                     <span title="Updated">Updated: {new Date(q.updatedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                                                                                 )}
-                                                                                {q.isAiGenerated && (
-                                                                                    <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium" title={q.citation || 'AI Generated'}>AI{q.citation ? (' - ' + q.citation) : ''}</span>
-                                                                                )}
+                                                                                {q.isAiGenerated && (() => {
+                                                                                    const cit = typeof q.citation === 'string' ? (() => { try { return JSON.parse(q.citation); } catch { return null; } })() : q.citation;
+                                                                                    const hasRichCitation = cit && cit.pages && cit.pages.length > 0;
+                                                                                    return (
+                                                                                        <div className="mt-1">
+                                                                                            <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                                                                                AI — {cit?.source || 'Generated'}
+                                                                                            </span>
+                                                                                            {hasRichCitation && (
+                                                                                                <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 space-y-1">
+                                                                                                    <div className="font-semibold">📖 Source: Pages {cit.pages.join(', ')}</div>
+                                                                                                    {cit.chunks?.slice(0, 3).map((ch: any, ci: number) => (
+                                                                                                        <div key={ci} className="pl-2 border-l-2 border-amber-300">
+                                                                                                            <span className="font-medium">Page {ch.pageNumber}, Chunk #{ch.chunkIndex}:</span>
+                                                                                                            <br />"<em>{ch.startText}</em>" → "<em>{ch.endText}</em>"
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {!hasRichCitation && cit?.text_excerpt && (
+                                                                                                <div className="mt-1 text-[10px] text-gray-400 italic">{cit.text_excerpt}</div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })()}
                                                                             </div>
                                                                         </div>
                                                                     </div>
