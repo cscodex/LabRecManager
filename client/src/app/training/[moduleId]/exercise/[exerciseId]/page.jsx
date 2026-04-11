@@ -128,12 +128,33 @@ export default function ExerciseEditorPage() {
                 {/* Left Panel: Problem Statement & Results */}
                 <div className="w-1/3 bg-slate-800 border-r border-slate-700 flex flex-col overflow-y-auto">
                     
-                    {/* Problem Description */}
+                    {/* Problem Description with Learning Content */}
                     <div className="p-6 text-slate-200">
-                        <h2 className="text-xl font-bold text-white mb-4">Problem Statement</h2>
-                        <div className="prose prose-invert prose-sm leading-relaxed whitespace-pre-wrap">
-                            {exercise.description}
-                        </div>
+                        {exercise.description.includes('## 📖 Learning Content') ? (
+                            <>
+                                {/* Learning Content Section */}
+                                <h2 className="text-lg font-bold text-emerald-400 mb-3 flex items-center gap-2">
+                                    📖 Learning Content
+                                </h2>
+                                <div className="prose prose-invert prose-sm leading-relaxed whitespace-pre-wrap bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 mb-6">
+                                    {exercise.description.split('---')[0].replace('## 📖 Learning Content', '').trim()}
+                                </div>
+                                {/* Problem Statement Section */}
+                                <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                                    🎯 Problem Statement
+                                </h2>
+                                <div className="prose prose-invert prose-sm leading-relaxed whitespace-pre-wrap">
+                                    {exercise.description.split('## 🎯 Problem Statement')[1]?.trim() || ''}
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h2 className="text-xl font-bold text-white mb-4">Problem Statement</h2>
+                                <div className="prose prose-invert prose-sm leading-relaxed whitespace-pre-wrap">
+                                    {exercise.description}
+                                </div>
+                            </>
+                        )}
 
                         {/* Hints system (AI Augmented) */}
                         {exercise.hints && exercise.hints.length > 0 && (

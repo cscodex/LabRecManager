@@ -621,6 +621,12 @@ export const trainingAPI = {
     // Builder APIs
     createUnit: (moduleId, data) => api.post(`/training/modules/${moduleId}/units`, data),
     createExercise: (unitId, data) => api.post(`/training/units/${unitId}/exercises`, data),
+
+    // Publish / Assign
+    togglePublish: (moduleId) => api.put(`/training/modules/${moduleId}/publish`),
+    assignModule: (moduleId, data) => api.post(`/training/modules/${moduleId}/assign`, data),
+    getModuleAssignments: (moduleId) => api.get(`/training/modules/${moduleId}/assignments`),
+    getModuleProgress: (moduleId) => api.get(`/training/modules/${moduleId}/progress`),
 };
 
 export default api;

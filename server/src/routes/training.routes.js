@@ -35,7 +35,12 @@ async function executePythonCode(code, input = '') {
  * @access  Private
  */
 router.get('/modules', authenticate, asyncHandler(async (req, res) => {
-    let where = { schoolId: req.user.schoolId, isPublished: true };
+    const isAdmin = ['admin', 'principal', 'instructor'].includes(req.user.role);
+    let where = { schoolId: req.user.schoolId };
+    // Students only see published modules; admins see all (draft + published)
+    if (!isAdmin) {
+        where.isPublished = true;
+    }
 
     const modules = await prisma.trainingModule.findMany({
         where,
@@ -59,6 +64,21 @@ router.get('/modules', authenticate, asyncHandler(async (req, res) => {
 router.get('/modules/:id', authenticate, asyncHandler(async (req, res) => {
     const moduleId = req.params.id;
 
+    const isAdmin = ['admin', 'principal', 'instructor'].includes(req.user.role);
+
+    // Admin/instructor sees full exercise data for the builder; students see summary
+    const exerciseSelect = isAdmin
+        ? {
+            id: true, title: true, description: true, difficulty: true,
+            scaffoldLevel: true, isReviewExercise: true, xpReward: true,
+            starterCode: true, solutionCode: true, testCases: true, hints: true,
+            timeLimit: true, sequenceOrder: true
+          }
+        : {
+            id: true, title: true, difficulty: true,
+            scaffoldLevel: true, isReviewExercise: true, xpReward: true
+          };
+
     const moduleDetails = await prisma.trainingModule.findUnique({
         where: { id: moduleId },
         include: {
@@ -67,14 +87,7 @@ router.get('/modules/:id', authenticate, asyncHandler(async (req, res) => {
                 include: {
                     exercises: {
                         orderBy: { sequenceOrder: 'asc' },
-                        select: {
-                            id: true,
-                            title: true,
-                            difficulty: true,
-                            scaffoldLevel: true,
-                            isReviewExercise: true,
-                            xpReward: true
-                        }
+                        select: exerciseSelect
                     }
                 }
             }
@@ -277,6 +290,7 @@ router.post('/exercises/:id/run', authenticate, [
     body('code').notEmpty()
 ], asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const { code, customInput } = req.body;
     
     // Check language
     const exercise = await prisma.trainingExercise.findUnique({
@@ -510,6 +524,190 @@ router.get('/class/:classId/analytics', authenticate, authorize('instructor', 'a
             studentCount: enrollments.length,
             students: studentAnalytics
         }
+    });
+}));
+
+// ==========================================
+// PUBLISH / UNPUBLISH MODULE
+// ==========================================
+
+/**
+ * @route   PUT /api/training/modules/:id/publish
+ * @desc    Toggle publish state of a module
+ * @access  Private (Admin/Instructor)
+ */
+router.put('/modules/:id/publish', authenticate, authorize('admin', 'principal', 'instructor'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const existing = await prisma.trainingModule.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Module not found' });
+
+    const updated = await prisma.trainingModule.update({
+        where: { id },
+        data: { isPublished: !existing.isPublished }
+    });
+
+    res.json({
+        success: true,
+        data: { module: updated },
+        message: updated.isPublished ? 'Module published' : 'Module unpublished'
+    });
+}));
+
+// ==========================================
+// TRAINING ASSIGNMENT (Assign modules to classes/groups with deadlines)
+// ==========================================
+
+/**
+ * @route   POST /api/training/modules/:id/assign
+ * @desc    Assign a training module to classes/groups with a deadline
+ * @access  Private (Admin/Instructor)
+ */
+router.post('/modules/:id/assign', authenticate, authorize('admin', 'principal', 'instructor'), [
+    body('deadline').optional().isISO8601().withMessage('Invalid deadline format'),
+], asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { classIds, groupIds, deadline, notes, subjectId } = req.body;
+
+    const mod = await prisma.trainingModule.findUnique({ where: { id } });
+    if (!mod) return res.status(404).json({ success: false, message: 'Module not found' });
+
+    // Publish automatically if still draft
+    if (!mod.isPublished) {
+        await prisma.trainingModule.update({ where: { id }, data: { isPublished: true } });
+    }
+
+    // Need a subjectId for the assignment. If not provided, find the school's first subject.
+    let resolvedSubjectId = subjectId;
+    if (!resolvedSubjectId) {
+        const firstSubject = await prisma.subject.findFirst({
+            where: { schoolId: req.user.schoolId }
+        });
+        if (!firstSubject) {
+            return res.status(400).json({ success: false, message: 'No subjects found. Create a subject first.' });
+        }
+        resolvedSubjectId = firstSubject.id;
+    }
+
+    // Create an assignment record that links the training module to classes
+    const dueDate = deadline ? new Date(deadline) : null;
+    const assignment = await prisma.assignment.create({
+        data: {
+            schoolId: req.user.schoolId,
+            createdById: req.user.id,
+            title: `Training: ${mod.title}`,
+            description: notes || `Complete the training module: ${mod.title}`,
+            assignmentType: 'training_module',
+            trainingModuleId: id,
+            subjectId: resolvedSubjectId,
+            maxMarks: 100,
+            passingMarks: 60,
+            status: 'active',
+            due_date: dueDate,
+        }
+    });
+
+    // Create AssignmentTarget records for each class
+    const targets = [];
+    if (classIds && classIds.length > 0) {
+        for (const classId of classIds) {
+            targets.push(prisma.assignmentTarget.create({
+                data: {
+                    assignmentId: assignment.id,
+                    targetType: 'class',
+                    targetClassId: classId,
+                    assignedById: req.user.id,
+                    dueDate,
+                    specialInstructions: notes || null
+                }
+            }));
+        }
+    }
+
+    // Create AssignmentTarget records for each group
+    if (groupIds && groupIds.length > 0) {
+        for (const groupId of groupIds) {
+            targets.push(prisma.assignmentTarget.create({
+                data: {
+                    assignmentId: assignment.id,
+                    targetType: 'group',
+                    targetGroupId: groupId,
+                    assignedById: req.user.id,
+                    dueDate,
+                    specialInstructions: notes || null
+                }
+            }));
+        }
+    }
+
+    await Promise.all(targets);
+
+    res.status(201).json({
+        success: true,
+        message: 'Module assigned successfully',
+        data: { assignment }
+    });
+}));
+
+/**
+ * @route   GET /api/training/modules/:id/assignments
+ * @desc    Get all assignments (class/group allocations) for a module
+ * @access  Private (Admin/Instructor)
+ */
+router.get('/modules/:id/assignments', authenticate, authorize('admin', 'principal', 'instructor'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const assignments = await prisma.assignment.findMany({
+        where: { trainingModuleId: id },
+        include: {
+            targets: true,
+            createdBy: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    // Enrich targets with class/group names
+    for (const assignment of assignments) {
+        for (const target of assignment.targets) {
+            if (target.targetClassId) {
+                const cls = await prisma.class.findUnique({ where: { id: target.targetClassId }, select: { name: true } });
+                target.className = cls?.name || 'Unknown';
+            }
+            if (target.targetGroupId) {
+                const grp = await prisma.studentGroup.findUnique({ where: { id: target.targetGroupId }, select: { name: true } });
+                target.groupName = grp?.name || 'Unknown';
+            }
+        }
+    }
+
+    res.json({ success: true, data: { assignments } });
+}));
+
+/**
+ * @route   GET /api/training/modules/:id/progress
+ * @desc    Get progress of all students for a specific module
+ * @access  Private (Admin/Instructor)
+ */
+router.get('/modules/:id/progress', authenticate, authorize('admin', 'principal', 'instructor'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const progress = await prisma.studentTrainingProgress.findMany({
+        where: { moduleId: id },
+        include: {
+            student: { select: { id: true, firstName: true, lastName: true, admissionNumber: true } }
+        },
+        orderBy: { totalXP: 'desc' }
+    });
+
+    const unitMasteries = await prisma.studentUnitMastery.findMany({
+        where: { unit: { moduleId: id } },
+        include: {
+            student: { select: { id: true, firstName: true, lastName: true } }
+        }
+    });
+
+    res.json({
+        success: true,
+        data: { progress, unitMasteries }
     });
 }));
 
