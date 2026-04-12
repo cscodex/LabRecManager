@@ -41,6 +41,12 @@ router.get('/modules', authenticate, asyncHandler(async (req, res) => {
     if (!isAdmin) {
         where.isPublished = true;
     }
+    
+    // Filter by academic session if provided via header from client interceptor
+    const sessionId = req.headers['x-academic-session'];
+    if (sessionId) {
+        where.academicYearId = sessionId;
+    }
 
     const modules = await prisma.trainingModule.findMany({
         where,
@@ -150,10 +156,12 @@ router.post('/modules', authenticate, authorize('admin', 'principal', 'instructo
     }
 
     const { title, titleHindi, description, language, boardAligned, classLevel } = req.body;
+    const sessionId = req.headers['x-academic-session'];
 
     const newModule = await prisma.trainingModule.create({
         data: {
             schoolId: req.user.schoolId,
+            academicYearId: sessionId || null,
             title,
             titleHindi,
             description,

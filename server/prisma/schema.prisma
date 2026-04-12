@@ -116,6 +116,7 @@ model AcademicYear {
   timetables     Timetable[]
   schoolCalendar SchoolCalendar[]
   lecturePlans   LecturePlan[]
+  trainingModules TrainingModule[]
 
   @@map("academic_years")
 }
@@ -2182,9 +2183,11 @@ model TrainingModule {
   totalExercises Int      @default(0) @map("total_exercises")
   isPublished    Boolean  @default(false) @map("is_published")
   pedagogyConfig Json?    @default("{}") @map("pedagogy_config")
+  academicYearId String?  @map("academic_year_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  academicYear    AcademicYear? @relation(fields: [academicYearId], references: [id])
   units           TrainingUnit[]
   assignments     Assignment[]
   studentProgress StudentTrainingProgress[]
