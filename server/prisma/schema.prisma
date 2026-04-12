@@ -2181,6 +2181,7 @@ model TrainingModule {
   totalUnits     Int      @default(0) @map("total_units")
   totalExercises Int      @default(0) @map("total_exercises")
   isPublished    Boolean  @default(false) @map("is_published")
+  pedagogyConfig Json?    @default("{}") @map("pedagogy_config")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -2208,21 +2209,23 @@ model TrainingUnit {
 }
 
 model TrainingExercise {
-  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  unitId           String  @map("unit_id") @db.Uuid
-  title            String  @db.VarChar(255)
-  description      String
-  difficulty       String
-  scaffoldLevel    String  @map("scaffold_level")
-  isReviewExercise Boolean @default(false) @map("is_review_exercise")
-  reviewsTopicId   String? @map("reviews_topic_id") @db.Uuid
-  starterCode      String? @map("starter_code")
-  solutionCode     String? @map("solution_code")
-  testCases        Json?   @map("test_cases")
-  hints            Json?
-  timeLimit        Int     @default(5) @map("time_limit")
-  sequenceOrder    Int     @default(0) @map("sequence_order")
-  xpReward         Int     @default(10) @map("xp_reward")
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  unitId            String  @map("unit_id") @db.Uuid
+  title             String  @db.VarChar(255)
+  description       String
+  difficulty        String
+  scaffoldLevel     String  @map("scaffold_level")
+  bloomsLevel       String? @map("blooms_level")
+  learningObjective String? @map("learning_objective")
+  isReviewExercise  Boolean @default(false) @map("is_review_exercise")
+  reviewsTopicId    String? @map("reviews_topic_id") @db.Uuid
+  starterCode       String? @map("starter_code")
+  solutionCode      String? @map("solution_code")
+  testCases         Json?   @map("test_cases")
+  hints             Json?
+  timeLimit         Int     @default(5) @map("time_limit")
+  sequenceOrder     Int     @default(0) @map("sequence_order")
+  xpReward          Int     @default(10) @map("xp_reward")
 
   unit        TrainingUnit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
   submissions CodingSubmission[]

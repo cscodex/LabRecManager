@@ -622,8 +622,9 @@ export const trainingAPI = {
     createUnit: (moduleId, data) => api.post(`/training/modules/${moduleId}/units`, data),
     createExercise: (unitId, data) => api.post(`/training/units/${unitId}/exercises`, data),
 
-    // Publish / Assign
+    // Publish / Assign / Config
     togglePublish: (moduleId) => api.put(`/training/modules/${moduleId}/publish`),
+    updatePedagogyConfig: (moduleId, pedagogyConfig) => api.put(`/training/modules/${moduleId}/config`, { pedagogyConfig }),
     assignModule: (moduleId, data) => api.post(`/training/modules/${moduleId}/assign`, data),
     getModuleAssignments: (moduleId) => api.get(`/training/modules/${moduleId}/assignments`),
     getModuleProgress: (moduleId) => api.get(`/training/modules/${moduleId}/progress`),

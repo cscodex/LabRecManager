@@ -70,7 +70,8 @@ router.get('/modules/:id', authenticate, asyncHandler(async (req, res) => {
     const exerciseSelect = isAdmin
         ? {
             id: true, title: true, description: true, difficulty: true,
-            scaffoldLevel: true, isReviewExercise: true, xpReward: true,
+            scaffoldLevel: true, bloomsLevel: true, learningObjective: true,
+            isReviewExercise: true, xpReward: true,
             starterCode: true, solutionCode: true, testCases: true, hints: true,
             timeLimit: true, sequenceOrder: true
           }
@@ -224,6 +225,8 @@ router.post('/units/:id/exercises', authenticate, authorize('admin', 'principal'
             description: req.body.description || '',
             difficulty: req.body.difficulty || 'beginner',
             scaffoldLevel: req.body.scaffoldLevel,
+            bloomsLevel: req.body.bloomsLevel || null,
+            learningObjective: req.body.learningObjective || null,
             isReviewExercise: req.body.isReviewExercise || false,
             reviewsTopicId: req.body.reviewsTopicId || null,
             starterCode: req.body.starterCode || '',
@@ -550,6 +553,36 @@ router.put('/modules/:id/publish', authenticate, authorize('admin', 'principal',
         success: true,
         data: { module: updated },
         message: updated.isPublished ? 'Module published' : 'Module unpublished'
+    });
+}));
+
+// ==========================================
+// CONFIGURATION (Update pedagogy settings)
+// ==========================================
+
+/**
+ * @route   PUT /api/training/modules/:id/config
+ * @desc    Update pedagogy configuration of a module
+ * @access  Private (Admin/Instructor)
+ */
+router.put('/modules/:id/config', authenticate, authorize('admin', 'principal', 'instructor'), [
+    body('pedagogyConfig').isObject().withMessage('Config must be an object'),
+], asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { pedagogyConfig } = req.body;
+
+    const existing = await prisma.trainingModule.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Module not found' });
+
+    const updated = await prisma.trainingModule.update({
+        where: { id },
+        data: { pedagogyConfig }
+    });
+
+    res.json({
+        success: true,
+        data: { module: updated },
+        message: 'Pedagogy configuration updated'
     });
 }));
 

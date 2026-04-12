@@ -7,7 +7,7 @@ import {
     BookOpen, Layers, Target, Unlock, ShieldAlert, Award,
     Lightbulb, Trash2, Edit3, Lock, Trophy, CheckCircle,
     AlertTriangle, XCircle, Sparkles, FlaskConical, Eye,
-    GripVertical, Send, Users, Calendar, Globe
+    GripVertical, Send, Users, Calendar, Globe, Settings, Clock
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { trainingAPI, classesAPI } from '@/lib/api';
@@ -163,9 +163,14 @@ export default function PedagogyBuilderPage() {
     const [showExerciseModal, setShowExerciseModal] = useState(false);
     const [exerciseForm, setExerciseForm] = useState({
         title: '', description: '', theory: '', difficulty: 'beginner', scaffoldLevel: 'guided',
+        bloomsLevel: 'understand', learningObjective: '',
         isReviewExercise: false, timeLimit: 5, xpReward: 10, starterCode: '', solutionCode: '',
         testCases: [], hints: []
     });
+
+    // Config Modal
+    const [showConfigModal, setShowConfigModal] = useState(false);
+    const [configForm, setConfigForm] = useState({ useBlooms: false, useObjectives: false, useTimeLimit: false });
 
     // Assign modal
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -190,6 +195,7 @@ export default function PedagogyBuilderPage() {
             ]);
             const mod = modRes.data.data.module;
             setModuleData(mod);
+            setConfigForm(mod.pedagogyConfig || { useBlooms: false, useObjectives: false, useTimeLimit: false });
             setClasses(classesRes.data?.data?.classes || []);
             setUnitForm(f => ({ ...f, unitNumber: (mod.units?.length || 0) + 1 }));
             if (!activeUnitId && mod.units?.length > 0) {
@@ -244,6 +250,7 @@ export default function PedagogyBuilderPage() {
             setShowExerciseModal(false);
             setExerciseForm({
                 title: '', description: '', theory: '', difficulty: 'beginner', scaffoldLevel: 'guided',
+                bloomsLevel: 'understand', learningObjective: '',
                 isReviewExercise: false, timeLimit: 5, xpReward: 10, starterCode: '', solutionCode: '',
                 testCases: [], hints: []
             });
@@ -315,6 +322,9 @@ export default function PedagogyBuilderPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            <button onClick={() => setShowConfigModal(true)} className="btn btn-secondary text-sm">
+                                <Settings className="w-4 h-4" /> Configure UI
+                            </button>
                             <button
                                 onClick={async () => {
                                     try {
@@ -670,6 +680,40 @@ export default function PedagogyBuilderPage() {
                                 </div>
                             </div>
 
+                            {/* Dynamic Pedagogy Fields based on Config */}
+                            {(configForm.useBlooms || configForm.useObjectives || configForm.useTimeLimit) && (
+                                <div className="bg-white/50 dark:bg-slate-900/50 border border-primary-100 dark:border-primary-800 rounded-xl p-4 space-y-4">
+                                    <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Advanced Active Strategies</h5>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {configForm.useBlooms && (
+                                            <div>
+                                                <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1 block">Bloom's Taxonomy</label>
+                                                <select className="input border-white dark:border-slate-700 text-sm py-1.5" value={exerciseForm.bloomsLevel} onChange={e => setExerciseForm(f => ({ ...f, bloomsLevel: e.target.value }))}>
+                                                    <option value="remember">🧠 Remember</option>
+                                                    <option value="understand">💡 Understand</option>
+                                                    <option value="apply">🛠 Apply</option>
+                                                    <option value="analyze">🔬 Analyze</option>
+                                                    <option value="evaluate">⚖️ Evaluate</option>
+                                                    <option value="create">✨ Create</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                        {configForm.useTimeLimit && (
+                                            <div>
+                                                <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Time-Box (Mins)</label>
+                                                <input type="number" className="input border-white dark:border-slate-700 text-sm py-1.5" value={exerciseForm.timeLimit} onChange={e => setExerciseForm(f => ({ ...f, timeLimit: parseInt(e.target.value) || 5 }))} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    {configForm.useObjectives && (
+                                        <div>
+                                            <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1 block">Specific Learning Objective</label>
+                                            <input type="text" className="input border-white dark:border-slate-700 text-sm py-1.5" placeholder="e.g. SWBAT implement inheritance..." value={exerciseForm.learningObjective} onChange={e => setExerciseForm(f => ({ ...f, learningObjective: e.target.value }))} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Section 3: Code Editors */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -906,6 +950,66 @@ export default function PedagogyBuilderPage() {
                                 className="btn btn-primary flex-1"
                             >
                                 <Send className="w-4 h-4" /> Assign Module
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ====== CONFIG MODAL ====== */}
+            {showConfigModal && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col">
+                        <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <Settings className="w-5 h-5 text-slate-500" /> Module Pedagogy Configuration
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">Select which pedagogical techniques to enforce in this module's builder.</p>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                                <input type="checkbox" className="rounded text-primary-500 focus:ring-primary-500 shadow-sm w-4 h-4" 
+                                    checked={configForm.useBlooms} onChange={e => setConfigForm(f => ({ ...f, useBlooms: e.target.checked }))} />
+                                <div>
+                                    <div className="font-semibold text-sm text-slate-900 dark:text-white">Bloom's Taxonomy Levels</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">Tag exercises with cognitive complexity.</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                                <input type="checkbox" className="rounded text-primary-500 focus:ring-primary-500 shadow-sm w-4 h-4" 
+                                    checked={configForm.useObjectives} onChange={e => setConfigForm(f => ({ ...f, useObjectives: e.target.checked }))} />
+                                <div>
+                                    <div className="font-semibold text-sm text-slate-900 dark:text-white">Specific Learning Objectives</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">Force designers to declare explicit outcome goals.</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                                <input type="checkbox" className="rounded text-primary-500 focus:ring-primary-500 shadow-sm w-4 h-4" 
+                                    checked={configForm.useTimeLimit} onChange={e => setConfigForm(f => ({ ...f, useTimeLimit: e.target.checked }))} />
+                                <div>
+                                    <div className="font-semibold text-sm text-slate-900 dark:text-white">Time-Boxed Practice</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">Add hard or soft time limits to practice exercises.</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex gap-3 rounded-b-2xl">
+                            <button onClick={() => setShowConfigModal(false)} className="btn btn-secondary flex-1">Cancel</button>
+                            <button 
+                                onClick={async () => {
+                                    try {
+                                        await trainingAPI.updatePedagogyConfig(id, configForm);
+                                        setModuleData(prev => ({ ...prev, pedagogyConfig: configForm }));
+                                        toast.success('Pedagogy configuration saved');
+                                        setShowConfigModal(false);
+                                    } catch {
+                                        toast.error('Failed to save configuration');
+                                    }
+                                }} 
+                                className="btn btn-primary flex-1"
+                            >
+                                <Save className="w-4 h-4" /> Save Configuration
                             </button>
                         </div>
                     </div>
