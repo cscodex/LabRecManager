@@ -16,6 +16,7 @@ export default function ExerciseEditorPage() {
     const [exercise, setExercise] = useState(null);
     const [code, setCode] = useState('');
     const [output, setOutput] = useState('');
+    const [customInput, setCustomInput] = useState('');
     const [isRunning, setIsRunning] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [testResults, setTestResults] = useState(null);
@@ -54,7 +55,7 @@ export default function ExerciseEditorPage() {
         }
 
         try {
-            const res = await trainingAPI.runCode(exerciseId, { code });
+            const res = await trainingAPI.runCode(exerciseId, { code, customInput });
             setOutput(res.data.data.output || 'Done (no output)');
             setTestResults(null); 
             setSocraticReview(null);
@@ -182,6 +183,19 @@ export default function ExerciseEditorPage() {
                                 <Beaker className="w-4 h-4"/> Console Output
                             </h3>
                             
+                            {/* STDIN Input Area */}
+                            {exercise?.unit?.module?.language !== 'html' && (
+                                <div className="mb-4">
+                                    <label className="text-xs font-semibold text-slate-400 uppercase mb-2 block">STDIN (Custom Input)</label>
+                                    <textarea 
+                                        value={customInput}
+                                        onChange={(e) => setCustomInput(e.target.value)}
+                                        placeholder="Enter manual input values here... (e.g. 5\n10)"
+                                        className="w-full bg-slate-800/50 border border-slate-700 rounded-md p-3 text-sm text-slate-300 font-mono focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all resize-y min-h-[80px]"
+                                    />
+                                </div>
+                            )}
+
                             {/* Manual Run Output */}
                             {output && (
                                 <div className="font-mono text-sm text-slate-300 bg-black/30 rounded-lg overflow-hidden">
@@ -209,6 +223,7 @@ export default function ExerciseEditorPage() {
                                                 {tr.passed ? <CheckCircle2 className="w-5 h-5 text-emerald-400"/> : <XCircle className="w-5 h-5 text-red-400"/>}
                                                 <span className="font-bold text-white">Test Case {i + 1}</span>
                                                 {tr.input === 'Hidden' && <span className="ml-auto text-xs text-slate-500 uppercase bg-slate-800 px-2 rounded">Hidden Test</span>}
+                                                {tr.isAiGenerated && <span className="ml-auto flex items-center gap-1 text-xs text-indigo-300 uppercase bg-indigo-900/40 border border-indigo-500/20 px-2 rounded"><Lightbulb className="w-3 h-3"/> AI Edge Case</span>}
                                             </div>
                                             {!tr.passed && tr.input !== 'Hidden' && (
                                                 <div className="mt-3 text-xs font-mono space-y-2">

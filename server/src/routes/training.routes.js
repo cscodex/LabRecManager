@@ -5,6 +5,55 @@ const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { uploadToCloudinary } = require('../utils/cloudinary');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+/**
+ * AI Socratic Review Function
+ */
+async function evaluateStudentCodeWithAI(code, problemStatement, failedCases) {
+    if (!process.env.GEMINI_API_KEY) return "AI Assessor is not configured (Missing API Key).";
+    
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const prompt = `
+        You are an expert AI Computer Science tutor. The student submitted the following code:
+        \`\`\`
+        ${code}
+        \`\`\`
+        
+        The Problem Statement was:
+        ${problemStatement}
+        
+        The following test cases failed:
+        ${JSON.stringify(failedCases, null, 2)}
+        
+        Analyze the student's code and evaluate if their approach is logically close (partially correct) but failed on an edge case, or if it is completely wrong. 
+        Provide a JSON response with the following schema:
+        {
+          "isPartiallyCorrect": true|false,
+          "socraticFeedback": "String: Write a hint as a question to push the student to realize their mistake without directly giving them the answer.",
+          "suggestedEdgeCases": [{"input": "...", "expectedOutput": "..."}] 
+        }
+        Do not wrap the JSON in markdown formatting backticks if possible, ensure it parses validly.
+        `;
+
+        const result = await model.generateContent(prompt);
+        let out = result.response.text();
+        // clean formatting
+        out = out.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        return JSON.parse(out);
+    } catch (e) {
+        console.error("AI Evaluation error:", e);
+        return null;
+    }
+}
 
 /**
  * Helper to run Python code via Piston API
@@ -368,7 +417,7 @@ router.post('/exercises/:id/submit', authenticate, [
             }
             
             const actualOutput = exe.stdout ? exe.stdout.replace(/\r\n/g, '\n') : '';
-            const expectedOutput = tc.expected ? tc.expected.replace(/\r\n/g, '\n') : '';
+            const expectedOutput = tc.expectedOutput ? tc.expectedOutput.replace(/\r\n/g, '\n') : '';
             
             const passed = (exe.code === 0) && (actualOutput === expectedOutput);
             if (!passed) passedAll = false;
@@ -379,7 +428,7 @@ router.post('/exercises/:id/submit', authenticate, [
 
             results.push({
                 input: tc.isHidden ? 'Hidden' : tc.input,
-                expected: tc.isHidden ? 'Hidden' : tc.expected,
+                expected: tc.isHidden ? 'Hidden' : tc.expectedOutput,
                 actual: exe.stderr ? 'Error' : actualOutput,
                 passed
             });
@@ -391,11 +440,81 @@ router.post('/exercises/:id/submit', authenticate, [
 
     const testStatus = passedAll ? 'passed' : 'failed';
 
-    // Build the AI Review Context if failed
-    // (In full production, we'd trigger Gemini here. For now we will mock the socratic review creation).
+    // Evaluate with AI 
     let socraticReview = null;
-    if (!passedAll) {
-        socraticReview = "Consider tracing your program with the first failing input. What does your logic currently return vs what is expected?";
+    let isPartiallyCorrect = false;
+
+    // We fetch a hypothetical config, for now hardcoded to checking AI if failed or async logic.
+    // Assuming synchronous AI check if it failed test cases:
+    if (results.some(r => !r.passed) || results.length === 0) {
+        const failedCases = results.filter(r => !r.passed).map(r => ({ input: r.input, expected: r.expected, actual: r.actual }));
+        const aiEvaluation = await evaluateStudentCodeWithAI(code, exercise.description, failedCases);
+        
+        if (aiEvaluation) {
+            socraticReview = aiEvaluation.socraticFeedback;
+            isPartiallyCorrect = aiEvaluation.isPartiallyCorrect;
+            
+            // Inject dynamic edge cases into results for the UI to portray
+            if (Array.isArray(aiEvaluation.suggestedEdgeCases)) {
+                aiEvaluation.suggestedEdgeCases.forEach(tc => {
+                    results.push({
+                        input: tc.input,
+                        expected: tc.expectedOutput,
+                        actual: 'Not Evaluated (Dynamic AI Case)',
+                        passed: false,
+                        isAiGenerated: true
+                    });
+                });
+            }
+        } else {
+            socraticReview = "Consider tracing your program with the first failing input. What does your logic currently return vs what is expected?";
+        }
+    }
+
+    // Save code to Student Document Folder System structure automatically
+    try {
+        const dateStr = new Date().toISOString().split('T')[0];
+        const folderName = `Training Records - ${dateStr}`;
+
+        // Find or create the master document folder for the date
+        let folder = await prisma.documentFolder.findFirst({
+            where: { schoolId: req.user.schoolId, createdById: req.user.id, name: folderName }
+        });
+
+        if (!folder) {
+            folder = await prisma.documentFolder.create({
+                data: {
+                    schoolId: req.user.schoolId,
+                    createdById: req.user.id,
+                    name: folderName
+                }
+            });
+        }
+
+        // Store file locally first to upload to Cloudinary (as raw TXT block since it's code)
+        const fileExt = language === 'html' ? '.html' : '.py';
+        const fileName = `Exercise_${exerciseId}_${Date.now()}${fileExt}`;
+        const tempPath = path.join(os.tmpdir(), fileName);
+        fs.writeFileSync(tempPath, code);
+
+        const uploadResult = await uploadToCloudinary(tempPath, { folder: 'student/codes', resourceType: 'raw' });
+
+        await prisma.document.create({
+            data: {
+                schoolId: req.user.schoolId,
+                uploadedById: req.user.id,
+                folderId: folder.id,
+                name: \`Solution - \${exercise.title}\`,
+                fileName: fileName,
+                fileType: fileExt,
+                mimeType: language === 'html' ? 'text/html' : 'text/x-python',
+                fileSize: Buffer.byteLength(code, 'utf8'),
+                cloudinaryId: uploadResult.public_id,
+                url: uploadResult.secure_url
+            }
+        });
+    } catch (fsErr) {
+        console.error("Failed to store document in filesystem structure:", fsErr);
     }
 
     // Save Submission
