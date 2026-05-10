@@ -174,16 +174,15 @@ DATABASE SCHEMA:
 ${schema}
 
 RESPONSE FORMAT RULES:
-1. When the user asks for data, generate a SQL query wrapped in \`\`\`sql ... \`\`\` blocks.
+1. When the user asks for data, generate ONLY the SQL query in a \`\`\`sql block. Do NOT explain or describe the query. No "this query does X" or "here's what this means" — just the SQL.
 2. Add <!--EXEC_SQL:your_query_here:END_SQL--> at the end for auto-execution (SELECT/WITH only).
-3. For destructive operations, ALWAYS warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
-4. **CHART DATA**: When results would benefit from visualization (trends, distributions, comparisons, top-N), include a JSON chart block:
+3. After the query executes, give ONLY a brief 1-line summary of the result (e.g. "Total: 142 students" or "Top class: 10A with 38 submissions"). Do NOT repeat the SQL or explain how it works.
+4. For destructive operations, warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
+5. **CHART DATA**: When results benefit from visualization, include a chart block:
    \`\`\`chart
-   {"type":"bar|line|pie|doughnut|area","title":"Chart Title","xKey":"column_name","yKey":"value_column","data":[{"label":"A","value":10},{"label":"B","value":20}],"colors":["#6366f1","#8b5cf6","#a855f7","#d946ef","#ec4899","#f43f5e"]}
+   {"type":"bar|line|pie|doughnut|area","title":"Chart Title","data":[{"label":"A","value":10},{"label":"B","value":20}],"colors":["#6366f1","#8b5cf6","#a855f7","#d946ef","#ec4899","#f43f5e"]}
    \`\`\`
-   The chart JSON must have: type, title, data (array of objects). For bar/line/area: use label+value or xKey+yKey. For pie/doughnut: use label+value.
-5. Be concise, professional, helpful. Use markdown.
-6. When showing numbers, format nicely.
+6. Be extremely concise. No unnecessary explanations. Results speak for themselves.
 ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
     }
 
