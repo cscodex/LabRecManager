@@ -150,7 +150,15 @@ class ChatbotService {
     // ═══ SQL EXECUTION (via Prisma — no separate pg dependency needed) ═══
     async executeSQL(sql) {
         try {
-            const rows = await prisma.$queryRawUnsafe(sql);
+            const rawRows = await prisma.$queryRawUnsafe(sql);
+            // Convert BigInt values (from COUNT/SUM) to Number for JSON serialization
+            const rows = rawRows.map(row => {
+                const fixed = {};
+                for (const [key, val] of Object.entries(row)) {
+                    fixed[key] = typeof val === 'bigint' ? Number(val) : val;
+                }
+                return fixed;
+            });
             const fields = rows.length > 0
                 ? Object.keys(rows[0]).map(name => ({ name }))
                 : [];
