@@ -1,130 +1,102 @@
 /**
  * Admin AI Chatbot Service
- * - Full database schema awareness (auto-introspected from Prisma)
+ * - Multi-provider: Gemini → Groq (llama) fallback
+ * - Full database schema awareness (auto-introspected)
  * - SQL generation, execution, and explanation
- * - Document reading support (text extraction from uploaded files)
- * - Schema change detection and auto-refresh
+ * - Chart/infographic data generation
+ * - Document reading support
  */
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 const prisma = require('../config/database');
-
-// Model fallback chain — tries each in order on 429 errors
-const MODEL_CHAIN = [
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-];
 
 class ChatbotService {
     constructor() {
-        this.genAI = null;
-        this.models = [];          // array of model instances
-        this.currentModelIdx = 0;  // which model we're currently using
+        this.geminiModels = [];
+        this.groqClient = null;
+        this.currentProvider = 'gemini'; // 'gemini' or 'groq'
+        this.currentGeminiIdx = 0;
         this.cachedSchema = null;
         this.schemaCachedAt = null;
-        this.SCHEMA_TTL_MS = 30 * 60 * 1000; // 30 min cache
+        this.SCHEMA_TTL_MS = 30 * 60 * 1000;
         this.initialize();
     }
 
     initialize() {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            console.warn('[ChatBot] GEMINI_API_KEY not set. AI chatbot will not work.');
-            return;
+        // Initialize Gemini
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (geminiKey) {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const geminiModelNames = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+            this.geminiModels = geminiModelNames.map(name => ({
+                name, instance: genAI.getGenerativeModel({ model: name })
+            }));
+            console.log(`[ChatBot] Gemini initialized: ${geminiModelNames.join(' → ')}`);
+        } else {
+            console.warn('[ChatBot] GEMINI_API_KEY not set.');
         }
-        this.genAI = new GoogleGenerativeAI(apiKey);
-        this.models = MODEL_CHAIN.map(name => ({
-            name,
-            instance: this.genAI.getGenerativeModel({ model: name })
-        }));
-        this.currentModelIdx = 0;
-        console.log(`[ChatBot] Gemini AI initialized with ${MODEL_CHAIN.length} model fallbacks: ${MODEL_CHAIN.join(' → ')}`);
+
+        // Initialize Groq
+        const groqKey = process.env.GROQ_API_KEY;
+        if (groqKey) {
+            this.groqClient = new Groq({ apiKey: groqKey });
+            console.log('[ChatBot] Groq initialized (llama-3.3-70b / llama-3.1-8b)');
+        } else {
+            console.warn('[ChatBot] GROQ_API_KEY not set.');
+        }
+
+        if (!geminiKey && !groqKey) {
+            console.error('[ChatBot] No AI provider configured!');
+        }
     }
 
-    /** Get the current active model (with fallback info) */
-    get activeModel() {
-        return this.models[this.currentModelIdx] || this.models[0];
-    }
-
-    /**
-     * Introspect the live database to build a fresh schema context string
-     */
+    // ═══ SCHEMA INTROSPECTION ═══
     async introspectSchema() {
         try {
-            // Get all tables and columns from information_schema
             const tables = await prisma.$queryRawUnsafe(`
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                  AND table_type = 'BASE TABLE'
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                 ORDER BY table_name
             `);
-
             let schemaText = '';
-
             for (const { table_name } of tables) {
                 const columns = await prisma.$queryRawUnsafe(`
-                    SELECT column_name, data_type, is_nullable, column_default,
-                           character_maximum_length
+                    SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
                     FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = $1
+                    WHERE table_schema = 'public' AND table_name = $1
                     ORDER BY ordinal_position
                 `, table_name);
-
                 const colDefs = columns.map(c => {
                     let def = `  ${c.column_name} ${c.data_type}`;
                     if (c.character_maximum_length) def += `(${c.character_maximum_length})`;
                     if (c.is_nullable === 'NO') def += ' NOT NULL';
-                    if (c.column_default) def += ` DEFAULT ${c.column_default.substring(0, 50)}`;
                     return def;
                 }).join('\n');
-
                 schemaText += `\nTABLE ${table_name}:\n${colDefs}\n`;
             }
-
-            // Get foreign keys
             const fks = await prisma.$queryRawUnsafe(`
-                SELECT
-                    tc.table_name AS source_table,
-                    kcu.column_name AS source_column,
-                    ccu.table_name AS target_table,
-                    ccu.column_name AS target_column
+                SELECT tc.table_name AS source_table, kcu.column_name AS source_column,
+                       ccu.table_name AS target_table, ccu.column_name AS target_column
                 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                JOIN information_schema.constraint_column_usage ccu
-                  ON tc.constraint_name = ccu.constraint_name
-                WHERE tc.constraint_type = 'FOREIGN KEY'
-                  AND tc.table_schema = 'public'
+                JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+                JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+                WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
                 ORDER BY tc.table_name
             `);
-
             if (fks.length > 0) {
                 schemaText += '\nFOREIGN KEYS:\n';
-                fks.forEach(fk => {
-                    schemaText += `  ${fk.source_table}.${fk.source_column} → ${fk.target_table}.${fk.target_column}\n`;
-                });
+                fks.forEach(fk => { schemaText += `  ${fk.source_table}.${fk.source_column} → ${fk.target_table}.${fk.target_column}\n`; });
             }
-
-            // Get enum types
             const enums = await prisma.$queryRawUnsafe(`
-                SELECT t.typname AS enum_name,
-                       array_agg(e.enumlabel ORDER BY e.enumsortorder) AS values
-                FROM pg_type t
-                JOIN pg_enum e ON t.oid = e.enumtypid
-                GROUP BY t.typname
-                ORDER BY t.typname
+                SELECT t.typname AS enum_name, array_agg(e.enumlabel ORDER BY e.enumsortorder) AS values
+                FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid
+                GROUP BY t.typname ORDER BY t.typname
             `);
-
             if (enums.length > 0) {
                 schemaText += '\nENUM TYPES:\n';
-                enums.forEach(en => {
-                    schemaText += `  ${en.enum_name}: [${en.values.join(', ')}]\n`;
-                });
+                enums.forEach(en => { schemaText += `  ${en.enum_name}: [${en.values.join(', ')}]\n`; });
             }
-
             return schemaText;
         } catch (error) {
             console.error('[ChatBot] Schema introspection failed:', error.message);
@@ -132,235 +104,239 @@ class ChatbotService {
         }
     }
 
-    /**
-     * Get schema (cached with TTL)
-     */
     async getSchema() {
         const now = Date.now();
-        if (this.cachedSchema && this.schemaCachedAt && (now - this.schemaCachedAt) < this.SCHEMA_TTL_MS) {
-            return this.cachedSchema;
-        }
+        if (this.cachedSchema && this.schemaCachedAt && (now - this.schemaCachedAt) < this.SCHEMA_TTL_MS) return this.cachedSchema;
         console.log('[ChatBot] Refreshing schema cache...');
         this.cachedSchema = await this.introspectSchema();
         this.schemaCachedAt = now;
         return this.cachedSchema;
     }
 
-    /**
-     * Force refresh the cached schema (e.g. after a migration)
-     */
-    async refreshSchema() {
-        this.cachedSchema = null;
-        this.schemaCachedAt = null;
-        return await this.getSchema();
-    }
+    async refreshSchema() { this.cachedSchema = null; this.schemaCachedAt = null; return await this.getSchema(); }
 
-    /**
-     * Fallback schema if introspection fails
-     */
     getFallbackSchema() {
-        return `
-CORE TABLES:
-  users (id uuid PK, school_id, email, first_name, last_name, role[admin/principal/instructor/student/lab_assistant], student_id, admission_number, employee_id, phone, is_active, created_at)
-  schools (id uuid PK, name, code, address, state, district, logo_url, email, phone1)
-  academic_years (id uuid PK, school_id, year_label, start_date, end_date, is_current)
-  classes (id uuid PK, school_id, academic_year_id, name, grade_level, section, stream, class_teacher_id, max_students)
-  class_enrollments (id uuid PK, student_id, class_id, roll_number, status[active/transferred/dropped/graduated])
-  subjects (id uuid PK, school_id, code, name, has_lab, lab_hours_per_week, theory_hours_per_week)
-  class_subjects (id uuid PK, class_id, subject_id, instructor_id, lab_instructor_id)
-  assignments (id uuid PK, school_id, subject_id, title, description, assignment_type, max_marks, status[draft/published/archived], due_date, academic_year_id, created_by)
-  submissions (id uuid PK, assignment_id, student_id, code_content, output_content, status[submitted/under_review/graded], submitted_at, is_late)
-  grades (id uuid PK, submission_id, practical_marks, output_marks, viva_marks, total_marks, percentage, grade_letter, is_published, graded_by)
-  labs (id uuid PK, school_id, name, room_number, capacity, subject_id, incharge_id, status)
-  lab_items (id uuid PK, lab_id, school_id, item_type, item_number, brand, model_no, serial_no, status, quantity)
-  documents (id uuid PK, school_id, name, file_name, file_type, file_size, url, uploaded_by, created_at)
-  activity_logs (id uuid PK, user_id, action_type, description, entity_type, entity_id, created_at)
-  tickets (id uuid PK, ticket_number, title, description, category, priority, status, created_by_id, assigned_to_id)
-  procurement_requests (id uuid PK, title, status, estimated_total, school_id, created_by_id)
-  notifications (id uuid PK, user_id, title, message, type, is_read, created_at)
-  timetables (id uuid PK, school_id, class_id, academic_year_id, name, is_active)
-  training_modules (id uuid PK, title, language, is_published)
-        `;
+        return `CORE TABLES: users, schools, academic_years, classes, class_enrollments, subjects, assignments, submissions, grades, labs, lab_items, documents, activity_logs, tickets, procurement_requests, notifications, timetables, training_modules`;
     }
 
-    /**
-     * Execute a SQL query safely (read-only for safety, unless explicitly allowed)
-     */
+    // ═══ SQL EXECUTION ═══
     async executeSQL(sql) {
         const { Client } = require('pg');
         const client = new Client({
             connectionString: process.env.DATABASE_URL,
             ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false
         });
-
         await client.connect();
         try {
             const result = await client.query(sql);
-            return {
-                success: true,
-                rows: result.rows || [],
-                rowCount: result.rowCount,
-                fields: result.fields?.map(f => ({ name: f.name, dataTypeID: f.dataTypeID })) || [],
-                command: result.command
-            };
+            return { success: true, rows: result.rows || [], rowCount: result.rowCount,
+                fields: result.fields?.map(f => ({ name: f.name, dataTypeID: f.dataTypeID })) || [], command: result.command };
         } catch (error) {
-            return {
-                success: false,
-                error: error.message,
-                detail: error.detail,
-                hint: error.hint
-            };
-        } finally {
-            await client.end();
-        }
+            return { success: false, error: error.message, detail: error.detail, hint: error.hint };
+        } finally { await client.end(); }
     }
 
-    /**
-     * Process a chat message from the admin
-     */
-    async chat(message, options = {}) {
-        if (!this.models.length) {
-            throw new Error('Gemini API not configured. Please set GEMINI_API_KEY.');
-        }
-
-        const { conversationHistory = [], documentContext = '', userId } = options;
-        const schema = await this.getSchema();
-
-        const systemPrompt = `You are an intelligent AI assistant for the "Lab Record Management System" — a school management platform. You help administrators query data, understand the system, and manage operations.
+    // ═══ SYSTEM PROMPT ═══
+    buildSystemPrompt(schema, documentContext) {
+        return `You are an intelligent AI assistant for the "Lab Record Management System" — a school management platform.
 
 YOUR CAPABILITIES:
-1. **Database Queries**: You can generate and execute SQL queries on the PostgreSQL database. When a user asks for data, generate SQL, execute it, and present the results clearly.
-2. **Document Reading**: When documents are uploaded, you can read their content and answer questions about them.
-3. **Schema Knowledge**: You have full awareness of the database schema (shown below). Use it to write accurate queries.
-4. **Data Analysis**: You can analyze trends, generate summaries, counts, and statistics from the data.
-5. **System Help**: You can explain how the system works, what tables store what data, and guide admins.
+1. **Database Queries**: Generate and execute SQL on PostgreSQL. When a user asks for data, generate SQL.
+2. **Charts & Infographics**: When data is visual (trends, distributions, comparisons), generate chart data.
+3. **Document Reading**: Read uploaded document content and answer questions.
+4. **Schema Knowledge**: Full database schema awareness.
 
 DATABASE SCHEMA:
 ${schema}
 
 RESPONSE FORMAT RULES:
-1. When the user asks for data, ALWAYS generate a SQL query to fetch it.
-2. Wrap SQL queries in \`\`\`sql ... \`\`\` blocks.
-3. If you generate a SQL query, add a special marker: <!--EXEC_SQL:your_query_here:END_SQL--> at the end. The server will execute it automatically.
-4. Present results in clear, readable format with tables if appropriate.
-5. If the query returns many rows, summarize the key findings.
-6. For destructive operations (INSERT/UPDATE/DELETE), ALWAYS warn the user and ask for confirmation first. Do NOT auto-execute destructive queries — only include <!--EXEC_SQL--> for SELECT/WITH queries.
-7. Be concise, professional, and helpful. Use markdown formatting.
-8. If you're unsure about a table or column, say so rather than guessing.
-9. When showing numbers, format them nicely (e.g., commas for thousands).
-
+1. When the user asks for data, generate a SQL query wrapped in \`\`\`sql ... \`\`\` blocks.
+2. Add <!--EXEC_SQL:your_query_here:END_SQL--> at the end for auto-execution (SELECT/WITH only).
+3. For destructive operations, ALWAYS warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
+4. **CHART DATA**: When results would benefit from visualization (trends, distributions, comparisons, top-N), include a JSON chart block:
+   \`\`\`chart
+   {"type":"bar|line|pie|doughnut|area","title":"Chart Title","xKey":"column_name","yKey":"value_column","data":[{"label":"A","value":10},{"label":"B","value":20}],"colors":["#6366f1","#8b5cf6","#a855f7","#d946ef","#ec4899","#f43f5e"]}
+   \`\`\`
+   The chart JSON must have: type, title, data (array of objects). For bar/line/area: use label+value or xKey+yKey. For pie/doughnut: use label+value.
+5. Be concise, professional, helpful. Use markdown.
+6. When showing numbers, format nicely.
 ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
+    }
 
-        // Build the conversation for Gemini
-        const contents = [];
-        contents.push({
-            role: 'user',
-            parts: [{ text: systemPrompt + '\n\nPlease acknowledge that you understand your role. Just say "Ready" briefly.' }]
-        });
-        contents.push({
-            role: 'model',
-            parts: [{ text: 'Ready. I have access to the full database schema and can help you query data, analyze trends, and manage the system. What would you like to know?' }]
-        });
-        for (const msg of conversationHistory) {
-            contents.push({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] });
-        }
-        contents.push({ role: 'user', parts: [{ text: message }] });
-
-        // Try each model in the fallback chain
+    // ═══ GEMINI CALL ═══
+    async callGemini(contents) {
         let lastError = null;
-        const startIdx = this.currentModelIdx;
-
-        for (let attempt = 0; attempt < this.models.length; attempt++) {
-            const idx = (startIdx + attempt) % this.models.length;
-            const { name, instance } = this.models[idx];
-
+        const start = this.currentGeminiIdx;
+        for (let i = 0; i < this.geminiModels.length; i++) {
+            const idx = (start + i) % this.geminiModels.length;
+            const { name, instance } = this.geminiModels[idx];
             try {
-                console.log(`[ChatBot] Trying model: ${name}`);
+                console.log(`[ChatBot] Gemini → ${name}`);
                 const result = await instance.generateContent({ contents });
-                const response = await result.response;
-                let aiText = response.text();
-
-                // On success, remember this model for next request
-                this.currentModelIdx = idx;
-
-                // Check for auto-executable SQL
-                const sqlMatch = aiText.match(/<!--EXEC_SQL:([\s\S]*?):END_SQL-->/);
-                let queryResult = null;
-                let executedSQL = null;
-
-                if (sqlMatch) {
-                    executedSQL = sqlMatch[1].trim();
-                    const normalizedSQL = executedSQL.toLowerCase().trim();
-                    if (normalizedSQL.startsWith('select') || normalizedSQL.startsWith('with')) {
-                        try { queryResult = await this.executeSQL(executedSQL); }
-                        catch (err) { queryResult = { success: false, error: err.message }; }
-                    }
-                    aiText = aiText.replace(/<!--EXEC_SQL:[\s\S]*?:END_SQL-->/g, '').trim();
-                }
-
-                return {
-                    message: aiText,
-                    sql: executedSQL,
-                    queryResult,
-                    model: name,
-                    timestamp: new Date().toISOString()
-                };
-
-            } catch (error) {
-                lastError = error;
-                const is429 = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('rate');
-                console.warn(`[ChatBot] Model ${name} failed: ${error.message.substring(0, 100)}`);
-
-                if (is429 && attempt < this.models.length - 1) {
-                    // Wait briefly before trying next model
-                    const waitMs = 1000 * (attempt + 1);
-                    console.log(`[ChatBot] Rate limited on ${name}, waiting ${waitMs}ms then trying next model...`);
-                    await new Promise(r => setTimeout(r, waitMs));
+                const text = (await result.response).text();
+                this.currentGeminiIdx = idx;
+                return { text, model: name, provider: 'gemini' };
+            } catch (err) {
+                lastError = err;
+                const is429 = err.message?.includes('429') || err.message?.includes('quota');
+                console.warn(`[ChatBot] Gemini ${name} failed: ${err.message.substring(0, 80)}`);
+                if (is429 && i < this.geminiModels.length - 1) {
+                    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
                     continue;
                 }
-
-                // Non-429 error or last model — break out
                 if (!is429) break;
             }
         }
-
-        // All models exhausted
-        const is429 = lastError?.message?.includes('429') || lastError?.message?.includes('quota');
-        if (is429) {
-            throw new Error('All AI models are currently rate-limited. Please wait a minute and try again. The free-tier quota resets every minute.');
-        }
-        throw new Error(`AI processing failed: ${lastError?.message || 'Unknown error'}`);
+        throw lastError || new Error('All Gemini models failed');
     }
 
-    /**
-     * Extract text from uploaded documents (PDF, CSV, TXT, etc.)
-     */
+    // ═══ GROQ CALL ═══
+    async callGroq(messages) {
+        if (!this.groqClient) throw new Error('Groq not configured');
+        const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+        let lastError = null;
+        for (const model of groqModels) {
+            try {
+                console.log(`[ChatBot] Groq → ${model}`);
+                const completion = await this.groqClient.chat.completions.create({
+                    messages, model, temperature: 0.3, max_tokens: 4096,
+                });
+                return {
+                    text: completion.choices[0]?.message?.content || '',
+                    model, provider: 'groq'
+                };
+            } catch (err) {
+                lastError = err;
+                console.warn(`[ChatBot] Groq ${model} failed: ${err.message?.substring(0, 80)}`);
+                if (err.status === 429) { await new Promise(r => setTimeout(r, 1500)); continue; }
+                break;
+            }
+        }
+        throw lastError || new Error('All Groq models failed');
+    }
+
+    // ═══ MAIN CHAT ═══
+    async chat(message, options = {}) {
+        if (!this.geminiModels.length && !this.groqClient) {
+            throw new Error('No AI provider configured. Set GEMINI_API_KEY or GROQ_API_KEY.');
+        }
+
+        const { conversationHistory = [], documentContext = '', userId } = options;
+        const schema = await this.getSchema();
+        const systemPrompt = this.buildSystemPrompt(schema, documentContext);
+
+        // Build Gemini-format contents
+        const geminiContents = [
+            { role: 'user', parts: [{ text: systemPrompt + '\n\nAcknowledge briefly.' }] },
+            { role: 'model', parts: [{ text: 'Ready. I can query the database, generate charts, and analyze data.' }] },
+        ];
+        for (const msg of conversationHistory) {
+            geminiContents.push({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] });
+        }
+        geminiContents.push({ role: 'user', parts: [{ text: message }] });
+
+        // Build Groq-format messages
+        const groqMessages = [
+            { role: 'system', content: systemPrompt },
+            ...conversationHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
+            { role: 'user', content: message }
+        ];
+
+        // Try providers in order
+        let aiResult = null;
+        const providers = this.geminiModels.length
+            ? [() => this.callGemini(geminiContents), () => this.callGroq(groqMessages)]
+            : [() => this.callGroq(groqMessages)];
+
+        let lastError = null;
+        for (const tryProvider of providers) {
+            try {
+                aiResult = await tryProvider();
+                break;
+            } catch (err) {
+                lastError = err;
+                console.warn(`[ChatBot] Provider failed, trying next: ${err.message?.substring(0, 60)}`);
+            }
+        }
+
+        if (!aiResult) {
+            const is429 = lastError?.message?.includes('429') || lastError?.message?.includes('quota');
+            throw new Error(is429
+                ? 'All AI models are rate-limited. Please wait a minute and try again.'
+                : `AI failed: ${lastError?.message || 'Unknown error'}`);
+        }
+
+        let aiText = aiResult.text;
+
+        // Extract auto-exec SQL
+        const sqlMatch = aiText.match(/<!--EXEC_SQL:([\s\S]*?):END_SQL-->/);
+        let queryResult = null, executedSQL = null;
+        if (sqlMatch) {
+            executedSQL = sqlMatch[1].trim();
+            const norm = executedSQL.toLowerCase().trim();
+            if (norm.startsWith('select') || norm.startsWith('with')) {
+                try { queryResult = await this.executeSQL(executedSQL); } catch (e) { queryResult = { success: false, error: e.message }; }
+            }
+            aiText = aiText.replace(/<!--EXEC_SQL:[\s\S]*?:END_SQL-->/g, '').trim();
+        }
+
+        // Extract chart data
+        let chartData = null;
+        const chartMatch = aiText.match(/```chart\n?([\s\S]*?)```/);
+        if (chartMatch) {
+            try { chartData = JSON.parse(chartMatch[1].trim()); } catch (e) { console.warn('[ChatBot] Chart parse failed:', e.message); }
+            aiText = aiText.replace(/```chart\n?[\s\S]*?```/g, '').trim();
+        }
+
+        // If we have query results and no chart yet, auto-generate chart for visualizable data
+        if (queryResult?.success && queryResult.rows?.length >= 2 && !chartData) {
+            chartData = this.autoGenerateChart(queryResult);
+        }
+
+        return {
+            message: aiText, sql: executedSQL, queryResult, chartData,
+            model: aiResult.model, provider: aiResult.provider,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    // ═══ AUTO CHART GENERATION ═══
+    autoGenerateChart(result) {
+        if (!result.rows || result.rows.length < 2) return null;
+        const fields = result.fields?.map(f => f.name) || Object.keys(result.rows[0]);
+        if (fields.length < 2) return null;
+
+        // Find a text/label column and a numeric column
+        const labelCol = fields.find(f => typeof result.rows[0][f] === 'string') || fields[0];
+        const valueCol = fields.find(f => {
+            const v = result.rows[0][f];
+            return typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)));
+        });
+        if (!valueCol || labelCol === valueCol) return null;
+
+        const data = result.rows.slice(0, 15).map(row => ({
+            label: String(row[labelCol] || '').substring(0, 30),
+            value: Number(row[valueCol]) || 0
+        }));
+
+        const type = data.length <= 6 ? 'doughnut' : 'bar';
+        return {
+            type, title: `${valueCol} by ${labelCol}`, data,
+            colors: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4']
+        };
+    }
+
+    // ═══ DOCUMENT EXTRACTION ═══
     extractDocumentText(buffer, mimeType, fileName) {
         try {
-            if (mimeType === 'text/plain' || mimeType === 'text/csv') {
-                return buffer.toString('utf-8');
-            }
-            if (mimeType === 'application/json') {
-                const json = JSON.parse(buffer.toString('utf-8'));
-                return JSON.stringify(json, null, 2);
-            }
-            // For PDFs and other binary formats, return basic info
+            if (mimeType === 'text/plain' || mimeType === 'text/csv') return buffer.toString('utf-8');
+            if (mimeType === 'application/json') return JSON.stringify(JSON.parse(buffer.toString('utf-8')), null, 2);
             if (mimeType === 'application/pdf') {
-                // Basic text extraction from PDF (line-by-line)
-                const text = buffer.toString('utf-8');
-                // Extract readable ASCII portions
-                const readable = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-                    .replace(/\s{3,}/g, ' ')
-                    .trim();
-                if (readable.length > 100) {
-                    return readable.substring(0, 10000); // Limit to 10k chars
-                }
-                return `[PDF file: ${fileName}, ${buffer.length} bytes - Could not extract text. The file may be scanned/image-based.]`;
+                const readable = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s{3,}/g, ' ').trim();
+                return readable.length > 100 ? readable.substring(0, 10000) : `[PDF: ${fileName}, ${buffer.length}B - text extraction limited]`;
             }
-            return `[Binary file: ${fileName}, ${buffer.length} bytes, type: ${mimeType}]`;
-        } catch (err) {
-            return `[Failed to extract text from ${fileName}: ${err.message}]`;
-        }
+            return `[Binary file: ${fileName}, ${buffer.length}B, ${mimeType}]`;
+        } catch (err) { return `[Failed: ${fileName}: ${err.message}]`; }
     }
 }
 

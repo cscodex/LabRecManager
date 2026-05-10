@@ -4,8 +4,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Bot, Send, Upload, Database, ChevronDown, ChevronRight, Trash2,
     Sparkles, FileText, AlertTriangle, Copy, Check, RefreshCw, X,
-    Loader2, Minimize2, Maximize2, GripVertical
+    Loader2, Minimize2, Maximize2, Download, Image as ImageIcon
 } from 'lucide-react';
+import {
+    BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -129,6 +133,130 @@ function SQLResult({ sql, result, onRerun }) {
     );
 }
 
+/* ─── Chart component with copy/download ─── */
+const DEFAULT_COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
+
+function ChatChart({ chartData }) {
+    const chartRef = useRef(null);
+    if (!chartData || !chartData.data?.length) return null;
+
+    const { type, title, data, colors = DEFAULT_COLORS } = chartData;
+
+    const downloadChart = () => {
+        const svg = chartRef.current?.querySelector('svg');
+        if (!svg) { toast.error('No chart to export'); return; }
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new window.Image();
+        img.onload = () => {
+            canvas.width = img.width * 2; canvas.height = img.height * 2;
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+            const a = document.createElement('a');
+            a.download = `${(title || 'chart').replace(/\s+/g, '_')}.png`;
+            a.href = canvas.toDataURL('image/png');
+            a.click();
+            toast.success('Chart downloaded');
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    };
+
+    const copyChart = async () => {
+        const svg = chartRef.current?.querySelector('svg');
+        if (!svg) return;
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new window.Image();
+        img.onload = async () => {
+            canvas.width = img.width * 2; canvas.height = img.height * 2;
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+            try {
+                const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                toast.success('Chart copied to clipboard');
+            } catch { toast.error('Copy not supported in this browser'); }
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    };
+
+    const renderChart = () => {
+        const h = 220;
+        switch (type) {
+            case 'pie': case 'doughnut':
+                return (
+                    <ResponsiveContainer width="100%" height={h}>
+                        <PieChart>
+                            <Pie data={data} dataKey="value" nameKey="label" cx="50%" cy="50%"
+                                outerRadius={70} innerRadius={type === 'doughnut' ? 40 : 0} label={({ label, percent }) => `${label} ${(percent * 100).toFixed(0)}%`}
+                                labelLine={false} fontSize={10}>
+                                {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(v) => v.toLocaleString()} />
+                        </PieChart>
+                    </ResponsiveContainer>
+                );
+            case 'line':
+                return (
+                    <ResponsiveContainer width="100%" height={h}>
+                        <LineChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="value" stroke={colors[0]} strokeWidth={2} dot={{ r: 3 }} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                );
+            case 'area':
+                return (
+                    <ResponsiveContainer width="100%" height={h}>
+                        <AreaChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip />
+                            <Area type="monotone" dataKey="value" stroke={colors[0]} fill={colors[0]} fillOpacity={0.2} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                );
+            default: // bar
+                return (
+                    <ResponsiveContainer width="100%" height={h}>
+                        <BarChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                );
+        }
+    };
+
+    return (
+        <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden bg-white">
+            <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-slate-200">
+                <span className="text-[11px] font-semibold text-indigo-700">{title || 'Chart'}</span>
+                <div className="flex items-center gap-1">
+                    <button onClick={copyChart} className="p-1 hover:bg-indigo-100 rounded transition" title="Copy as image">
+                        <ImageIcon className="w-3 h-3 text-indigo-500" />
+                    </button>
+                    <button onClick={downloadChart} className="p-1 hover:bg-indigo-100 rounded transition" title="Download PNG">
+                        <Download className="w-3 h-3 text-indigo-500" />
+                    </button>
+                </div>
+            </div>
+            <div ref={chartRef} className="p-2 bg-white">{renderChart()}</div>
+        </div>
+    );
+}
+
 /* ─── Document badge ─── */
 function DocBadge({ doc, onRemove }) {
     return (
@@ -194,7 +322,7 @@ export default function FloatingChatbot() {
             const res = await api.post('/admin/chatbot/chat', { message: msg, conversationHistory: history, documentContext: docCtx });
             if (res.data.success) {
                 const d = res.data.data;
-                setMessages(prev => [...prev, { role: 'assistant', content: d.message, sql: d.sql, queryResult: d.queryResult, timestamp: d.timestamp }]);
+                setMessages(prev => [...prev, { role: 'assistant', content: d.message, sql: d.sql, queryResult: d.queryResult, chartData: d.chartData, model: d.model, provider: d.provider, timestamp: d.timestamp }]);
                 if (!isOpen) setUnread(u => u + 1);
             }
         } catch (err) {
@@ -340,6 +468,8 @@ export default function FloatingChatbot() {
                                         : <RenderMessage content={msg.content} />
                                     }
                                     {msg.queryResult && <SQLResult sql={msg.sql} result={msg.queryResult} onRerun={() => handleRerunSQL(msg.sql)} />}
+                                    {msg.chartData && <ChatChart chartData={msg.chartData} />}
+                                    {msg.provider && <div className="mt-1 text-[9px] text-slate-400 text-right">{msg.provider}/{msg.model}</div>}
                                 </div>
                             </div>
                         ))}
