@@ -15,9 +15,10 @@ class ChatbotService {
     constructor() {
         this.geminiModels = [];
         this.groqClient = null;
-        this.currentProvider = 'gemini'; // 'gemini' or 'groq'
+        this.currentProvider = 'gemini';
         this.currentGeminiIdx = 0;
         this.cachedSchema = null;
+        this.cachedCompactSchema = null;
         this.schemaCachedAt = null;
         this.SCHEMA_TTL_MS = 30 * 60 * 1000;
         this.initialize();
@@ -49,6 +50,12 @@ class ChatbotService {
         if (!geminiKey && !groqKey) {
             console.error('[ChatBot] No AI provider configured!');
         }
+
+        // Pre-warm schema cache on startup (non-blocking)
+        setTimeout(() => {
+            this.getSchema().then(() => console.log('[ChatBot] Schema cache pre-warmed'))
+                .catch(e => console.warn('[ChatBot] Schema pre-warm failed:', e.message));
+        }, 5000);
     }
 
     // ═══ SCHEMA INTROSPECTION ═══
@@ -113,7 +120,28 @@ class ChatbotService {
         return this.cachedSchema;
     }
 
-    async refreshSchema() { this.cachedSchema = null; this.schemaCachedAt = null; return await this.getSchema(); }
+    async refreshSchema() { this.cachedSchema = null; this.cachedCompactSchema = null; this.schemaCachedAt = null; return await this.getSchema(); }
+
+    /**
+     * Compact schema for Groq — derived from cached full schema (no extra DB calls)
+     */
+    async getCompactSchema() {
+        if (this.cachedCompactSchema) return this.cachedCompactSchema;
+        const full = await this.getSchema();
+        // Parse "TABLE name:\n  col1 type\n  col2 type" blocks into "name(col1,col2)"
+        const lines = [];
+        const tableBlocks = full.split(/\nTABLE /).filter(Boolean);
+        for (const block of tableBlocks) {
+            const match = block.match(/^(\S+):\n([\s\S]*?)(?=\n(?:TABLE |FOREIGN|ENUM)|$)/);
+            if (match) {
+                const table = match[1];
+                const cols = match[2].trim().split('\n').map(l => l.trim().split(/\s+/)[0]).filter(Boolean);
+                lines.push(`${table}(${cols.join(',')})`);
+            }
+        }
+        this.cachedCompactSchema = lines.join('\n') || this.getFallbackSchema();
+        return this.cachedCompactSchema;
+    }
 
     getFallbackSchema() {
         return `CORE TABLES: users, schools, academic_years, classes, class_enrollments, subjects, assignments, submissions, grades, labs, lab_items, documents, activity_logs, tickets, procurement_requests, notifications, timetables, training_modules`;
@@ -199,7 +227,7 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
             try {
                 console.log(`[ChatBot] Groq → ${model}`);
                 const completion = await this.groqClient.chat.completions.create({
-                    messages, model, temperature: 0.3, max_tokens: 4096,
+                    messages, model, temperature: 0.3, max_tokens: 2048,
                 });
                 return {
                     text: completion.choices[0]?.message?.content || '',
@@ -207,8 +235,13 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
                 };
             } catch (err) {
                 lastError = err;
-                console.warn(`[ChatBot] Groq ${model} failed: ${err.message?.substring(0, 80)}`);
-                if (err.status === 429) { await new Promise(r => setTimeout(r, 1500)); continue; }
+                const isRateLimit = err.status === 429 || err.status === 413;
+                console.warn(`[ChatBot] Groq ${model} failed (${err.status}): ${err.message?.substring(0, 80)}`);
+                if (isRateLimit && model === groqModels[0]) {
+                    // Try smaller model on rate limit / payload too large
+                    await new Promise(r => setTimeout(r, 1000));
+                    continue;
+                }
                 break;
             }
         }
@@ -225,7 +258,7 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
         const schema = await this.getSchema();
         const systemPrompt = this.buildSystemPrompt(schema, documentContext);
 
-        // Build Gemini-format contents
+        // Build Gemini-format contents (full schema)
         const geminiContents = [
             { role: 'user', parts: [{ text: systemPrompt + '\n\nAcknowledge briefly.' }] },
             { role: 'model', parts: [{ text: 'Ready. I can query the database, generate charts, and analyze data.' }] },
@@ -235,10 +268,13 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
         }
         geminiContents.push({ role: 'user', parts: [{ text: message }] });
 
-        // Build Groq-format messages
+        // Build Groq-format messages (compact schema, limited history)
+        const compactSchema = await this.getCompactSchema();
+        const groqSystemPrompt = this.buildSystemPrompt(compactSchema, documentContext ? documentContext.substring(0, 2000) : '');
+        const groqHistory = conversationHistory.slice(-4); // only last 4 msgs to save tokens
         const groqMessages = [
-            { role: 'system', content: systemPrompt },
-            ...conversationHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
+            { role: 'system', content: groqSystemPrompt },
+            ...groqHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
             { role: 'user', content: message }
         ];
 
