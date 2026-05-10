@@ -182,9 +182,15 @@ DATABASE SCHEMA:
 ${schema}
 
 RESPONSE FORMAT RULES:
-1. When the user asks for data, generate ONLY the SQL query in a \`\`\`sql block. Do NOT explain or describe the query. No "this query does X" or "here's what this means" — just the SQL.
+1. When the user asks for data, generate ONLY the SQL query in a \`\`\`sql block. Do NOT explain or describe the query — just the SQL.
 2. Add <!--EXEC_SQL:your_query_here:END_SQL--> at the end for auto-execution (SELECT/WITH only).
-3. After the query executes, give ONLY a brief 1-line summary of the result (e.g. "Total: 142 students" or "Top class: 10A with 38 submissions"). Do NOT repeat the SQL or explain how it works.
+3. After the query executes, give ONLY a brief 1-line summary of the result. Do NOT repeat the SQL or explain how it works.
+
+SQL BEST PRACTICES:
+- NEVER use strict = for text/varchar columns. Always use ILIKE for flexible matching (e.g. WHERE item_type ILIKE '%pc%' instead of = 'PC').
+- NEVER guess column values. If you're unsure what values a column contains, first query SELECT DISTINCT column_name FROM table LIMIT 20 to see actual values.
+- Use COUNT(DISTINCT ...) when counting unique entities.
+- Always handle case-insensitivity with ILIKE or LOWER().
 4. For destructive operations, warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
 5. **CHART DATA**: When results benefit from visualization, include a chart block:
    \`\`\`chart
