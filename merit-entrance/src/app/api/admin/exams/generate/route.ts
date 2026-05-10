@@ -392,7 +392,7 @@ export async function POST(request: Request) {
 
                             // Build rich citation metadata from retrieved chunks
                             ragCitationMeta = {
-                                pages: [...new Set(contextChunks.map(c => c.page_number).filter(Boolean))].sort((a, b) => a - b),
+                                pages: Array.from(new Set(contextChunks.map(c => c.page_number).filter(Boolean))).sort((a, b) => a - b),
                                 chunks: contextChunks.slice(0, 5).map(c => {
                                     const text = (c.content || '').trim();
                                     const lines = text.split('\n').filter((l: string) => l.trim());
