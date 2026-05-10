@@ -147,21 +147,17 @@ class ChatbotService {
         return `CORE TABLES: users, schools, academic_years, classes, class_enrollments, subjects, assignments, submissions, grades, labs, lab_items, documents, activity_logs, tickets, procurement_requests, notifications, timetables, training_modules`;
     }
 
-    // ═══ SQL EXECUTION ═══
+    // ═══ SQL EXECUTION (via Prisma — no separate pg dependency needed) ═══
     async executeSQL(sql) {
-        const { Client } = require('pg');
-        const client = new Client({
-            connectionString: process.env.DATABASE_URL,
-            ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false
-        });
-        await client.connect();
         try {
-            const result = await client.query(sql);
-            return { success: true, rows: result.rows || [], rowCount: result.rowCount,
-                fields: result.fields?.map(f => ({ name: f.name, dataTypeID: f.dataTypeID })) || [], command: result.command };
+            const rows = await prisma.$queryRawUnsafe(sql);
+            const fields = rows.length > 0
+                ? Object.keys(rows[0]).map(name => ({ name }))
+                : [];
+            return { success: true, rows, rowCount: rows.length, fields, command: sql.trim().split(/\s+/)[0].toUpperCase() };
         } catch (error) {
-            return { success: false, error: error.message, detail: error.detail, hint: error.hint };
-        } finally { await client.end(); }
+            return { success: false, error: error.message, detail: error.meta?.message, hint: error.meta?.hint };
+        }
     }
 
     // ═══ SYSTEM PROMPT ═══

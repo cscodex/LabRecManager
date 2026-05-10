@@ -57,21 +57,44 @@ function CodeBlock({ code, language }) {
     );
 }
 
-/* ─── Collapsible SQL result ─── */
+/* ─── SQL result panel: SQL hidden by default, table shown, CSV export ─── */
 function SQLResult({ sql, result, onRerun }) {
-    const [open, setOpen] = useState(true);
+    const [tableOpen, setTableOpen] = useState(true);
     const [sqlOpen, setSqlOpen] = useState(false);
     if (!result) return null;
 
+    const cols = result.rows?.length > 0
+        ? (result.fields?.map(f => f.name) || Object.keys(result.rows[0]))
+        : [];
+
+    const exportCSV = () => {
+        if (!result.rows?.length) return;
+        const escape = (v) => {
+            if (v === null || v === undefined) return '';
+            const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+            return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const header = cols.map(escape).join(',');
+        const rows = result.rows.map(row => cols.map(c => escape(row[c])).join(','));
+        const csv = [header, ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `query_results_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast.success(`Exported ${result.rows.length} rows`);
+    };
+
     return (
         <div className="mt-2 rounded-lg border border-indigo-200 overflow-hidden bg-white text-[12px]">
+            {/* SQL toggle — hidden by default */}
             {sql && (
                 <button onClick={() => setSqlOpen(!sqlOpen)}
-                    className="w-full flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 transition text-left">
+                    className="w-full flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 transition text-left border-b border-indigo-100">
                     {sqlOpen ? <ChevronDown className="w-3 h-3 text-indigo-500" /> : <ChevronRight className="w-3 h-3 text-indigo-500" />}
                     <Database className="w-3 h-3 text-indigo-500" />
                     <span className="font-medium text-indigo-700 text-[11px]">SQL Query</span>
-                    <span className="text-indigo-400 ml-auto font-mono truncate max-w-[180px] text-[10px]">{sql.substring(0, 50)}...</span>
                 </button>
             )}
             {sqlOpen && sql && (
@@ -90,31 +113,41 @@ function SQLResult({ sql, result, onRerun }) {
                     </div>
                 </div>
             )}
+
+            {/* Result */}
             {!result.success ? (
                 <div className="px-3 py-2 bg-red-50 text-red-700 text-[11px]">
                     <AlertTriangle className="w-3 h-3 inline mr-1" /> {result.error}
                 </div>
             ) : (
                 <>
-                    <button onClick={() => setOpen(!open)}
-                        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-50 transition text-[11px]">
-                        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                        <span className="text-slate-500">{result.rowCount ?? result.rows?.length ?? 0} row(s)</span>
-                    </button>
-                    {open && result.rows?.length > 0 && (
-                        <div className="overflow-x-auto max-h-48">
+                    {/* Header bar with row count, toggle, and export */}
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+                        <button onClick={() => setTableOpen(!tableOpen)} className="flex items-center gap-1.5 text-[11px] text-slate-600 hover:text-slate-900">
+                            {tableOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            <span className="font-medium">{result.rowCount ?? result.rows?.length ?? 0} row(s)</span>
+                        </button>
+                        {result.rows?.length > 0 && (
+                            <button onClick={exportCSV} className="flex items-center gap-1 text-[10px] text-indigo-500 hover:text-indigo-700 font-medium">
+                                <Download className="w-3 h-3" /> Export CSV
+                            </button>
+                        )}
+                    </div>
+                    {/* Data table — shown by default */}
+                    {tableOpen && result.rows?.length > 0 && (
+                        <div className="overflow-x-auto max-h-52">
                             <table className="w-full text-[11px]">
                                 <thead className="bg-slate-50 sticky top-0">
                                     <tr>
-                                        {(result.fields?.map(f => f.name) || Object.keys(result.rows[0])).map((c, i) => (
+                                        {cols.map((c, i) => (
                                             <th key={i} className="px-2 py-1.5 text-left font-semibold text-slate-600 border-b whitespace-nowrap">{c}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {result.rows.slice(0, 30).map((row, ri) => (
+                                    {result.rows.slice(0, 50).map((row, ri) => (
                                         <tr key={ri} className={ri % 2 ? 'bg-slate-50/50' : ''}>
-                                            {(result.fields?.map(f => f.name) || Object.keys(row)).map((c, ci) => (
+                                            {cols.map((c, ci) => (
                                                 <td key={ci} className="px-2 py-1 border-b border-slate-100 font-mono whitespace-nowrap max-w-[200px] truncate">
                                                     {row[c] === null ? <span className="text-slate-400 italic">NULL</span>
                                                         : typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c])}
@@ -124,7 +157,7 @@ function SQLResult({ sql, result, onRerun }) {
                                     ))}
                                 </tbody>
                             </table>
-                            {result.rows.length > 30 && <p className="text-[10px] text-slate-400 text-center py-1">Showing 30 of {result.rows.length}</p>}
+                            {result.rows.length > 50 && <p className="text-[10px] text-slate-400 text-center py-1">Showing 50 of {result.rows.length}</p>}
                         </div>
                     )}
                 </>
