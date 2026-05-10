@@ -409,6 +409,23 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
 
         const valueCol = numCols[0];
 
+        // Multi-Numeric Series Chart (1+ strings, 2+ numbers) -> e.g. Lab Name, PC Count, Printer Count
+        if (numCols.length >= 2) {
+            const labelCol = strCols.length > 0 ? strCols[0] : fields[0];
+            const data = result.rows.slice(0, 15).map(row => {
+                const obj = { label: String(row[labelCol] || '').substring(0, 30) };
+                numCols.forEach(col => { obj[col] = Number(row[col]) || 0; });
+                return obj;
+            });
+            return {
+                type: 'bar',
+                title: `${numCols.join(' and ')} by ${labelCol}`,
+                data,
+                seriesKeys: numCols,
+                colors: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4']
+            };
+        }
+
         // Grouped Bar Chart support (2 strings, 1 number) -> e.g. Lab Name, Item Type, Count
         if (strCols.length >= 2 && numCols.length === 1) {
             const groupCol = strCols[0];
