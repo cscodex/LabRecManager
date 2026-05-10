@@ -189,6 +189,7 @@ RESPONSE FORMAT RULES:
 SQL BEST PRACTICES:
 - ALL id columns are UUIDs. NEVER use integers for IDs (e.g. lab_id = 1 is WRONG). Always JOIN to the related table and filter by name instead.
 - NEVER use strict = for text/varchar columns. Always use ILIKE for flexible matching.
+- For IN clauses on text, ALWAYS use LOWER(column) IN ('val1', 'val2') and ensure the values are lowercase. Do NOT rely on exact casing.
 - NEVER guess column values. If unsure, first query SELECT DISTINCT column_name FROM table LIMIT 20.
 - When user asks to read a document (e.g. stored in Cloudinary), first query the 'documents' table to get its 'file_url'.
 - ONCE YOU HAVE THE URL, output ONLY the special marker <!--FETCH_DOC:https://...--> to read its contents. The system will fetch it and pass the text back to you.
