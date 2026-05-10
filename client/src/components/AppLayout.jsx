@@ -8,6 +8,7 @@ import NotificationBell from './NotificationBell';
 import ProfileDropdown from './ProfileDropdown';
 import SessionSelector, { ReadOnlyBanner } from './SessionSelector';
 import { DatabaseStatusBadge } from './DatabaseStatus';
+import FloatingChatbot from './FloatingChatbot';
 import { useAuthStore } from '@/lib/store';
 
 export default function AppLayout({ children }) {
@@ -114,6 +115,9 @@ export default function AppLayout({ children }) {
                     {children}
                 </main>
             </div>
+
+            {/* AI Chatbot floating widget — admin/principal only */}
+            <FloatingChatbot />
         </div>
     );
 }

@@ -1,0 +1,402 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+import {
+    Bot, Send, Upload, Database, ChevronDown, ChevronRight, Trash2,
+    Sparkles, FileText, AlertTriangle, Copy, Check, RefreshCw, X,
+    Loader2, Minimize2, Maximize2, GripVertical
+} from 'lucide-react';
+import { useAuthStore } from '@/lib/store';
+import api from '@/lib/api';
+import toast from 'react-hot-toast';
+
+/* ─── Markdown-ish renderer ─── */
+function RenderMessage({ content }) {
+    if (!content) return null;
+    const parts = content.split(/(```[\s\S]*?```)/g);
+    return (
+        <div className="ai-prose text-[13px] leading-relaxed">
+            {parts.map((part, i) => {
+                if (part.startsWith('```')) {
+                    const m = part.match(/```(\w+)?\n?([\s\S]*?)```/);
+                    if (m) return <CodeBlock key={i} code={m[2].trim()} language={m[1] || ''} />;
+                }
+                const html = part
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 bg-slate-100 rounded text-[11px] font-mono text-pink-600">$1</code>')
+                    .replace(/^### (.+)$/gm, '<h4 class="font-semibold mt-2 mb-0.5 text-[13px]">$1</h4>')
+                    .replace(/^## (.+)$/gm, '<h3 class="font-semibold mt-3 mb-1 text-sm">$1</h3>')
+                    .replace(/^- (.+)$/gm, '<li class="ml-3 list-disc text-[13px]">$1</li>')
+                    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-3 list-decimal text-[13px]">$2</li>')
+                    .replace(/\n{2,}/g, '</p><p class="mb-1.5">')
+                    .replace(/\n/g, '<br/>');
+                return <div key={i} dangerouslySetInnerHTML={{ __html: `<p class="mb-1.5">${html}</p>` }} />;
+            })}
+        </div>
+    );
+}
+
+function CodeBlock({ code, language }) {
+    const [copied, setCopied] = useState(false);
+    return (
+        <div className="my-2 rounded-lg overflow-hidden border border-slate-700 bg-slate-900 text-[11px]">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800">
+                <span className="text-slate-400 font-mono uppercase text-[10px]">{language || 'code'}</span>
+                <button onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+                    className="text-slate-400 hover:text-white flex items-center gap-1 text-[10px]">
+                    {copied ? <><Check className="w-3 h-3 text-emerald-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
+                </button>
+            </div>
+            <pre className="p-3 overflow-x-auto text-slate-100 font-mono leading-relaxed"><code>{code}</code></pre>
+        </div>
+    );
+}
+
+/* ─── Collapsible SQL result ─── */
+function SQLResult({ sql, result, onRerun }) {
+    const [open, setOpen] = useState(true);
+    const [sqlOpen, setSqlOpen] = useState(false);
+    if (!result) return null;
+
+    return (
+        <div className="mt-2 rounded-lg border border-indigo-200 overflow-hidden bg-white text-[12px]">
+            {sql && (
+                <button onClick={() => setSqlOpen(!sqlOpen)}
+                    className="w-full flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 transition text-left">
+                    {sqlOpen ? <ChevronDown className="w-3 h-3 text-indigo-500" /> : <ChevronRight className="w-3 h-3 text-indigo-500" />}
+                    <Database className="w-3 h-3 text-indigo-500" />
+                    <span className="font-medium text-indigo-700 text-[11px]">SQL Query</span>
+                    <span className="text-indigo-400 ml-auto font-mono truncate max-w-[180px] text-[10px]">{sql.substring(0, 50)}...</span>
+                </button>
+            )}
+            {sqlOpen && sql && (
+                <div className="px-3 py-2 bg-slate-900 border-b border-indigo-200">
+                    <pre className="text-[10px] text-indigo-200 font-mono whitespace-pre-wrap">{sql}</pre>
+                    <div className="flex gap-2 mt-1.5">
+                        <button onClick={() => { navigator.clipboard.writeText(sql); toast.success('Copied'); }}
+                            className="text-[10px] text-indigo-400 hover:text-white flex items-center gap-1">
+                            <Copy className="w-2.5 h-2.5" /> Copy
+                        </button>
+                        {onRerun && (
+                            <button onClick={onRerun} className="text-[10px] text-emerald-400 hover:text-white flex items-center gap-1">
+                                <RefreshCw className="w-2.5 h-2.5" /> Re-run
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+            {!result.success ? (
+                <div className="px-3 py-2 bg-red-50 text-red-700 text-[11px]">
+                    <AlertTriangle className="w-3 h-3 inline mr-1" /> {result.error}
+                </div>
+            ) : (
+                <>
+                    <button onClick={() => setOpen(!open)}
+                        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-50 transition text-[11px]">
+                        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        <span className="text-slate-500">{result.rowCount ?? result.rows?.length ?? 0} row(s)</span>
+                    </button>
+                    {open && result.rows?.length > 0 && (
+                        <div className="overflow-x-auto max-h-48">
+                            <table className="w-full text-[11px]">
+                                <thead className="bg-slate-50 sticky top-0">
+                                    <tr>
+                                        {(result.fields?.map(f => f.name) || Object.keys(result.rows[0])).map((c, i) => (
+                                            <th key={i} className="px-2 py-1.5 text-left font-semibold text-slate-600 border-b whitespace-nowrap">{c}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {result.rows.slice(0, 30).map((row, ri) => (
+                                        <tr key={ri} className={ri % 2 ? 'bg-slate-50/50' : ''}>
+                                            {(result.fields?.map(f => f.name) || Object.keys(row)).map((c, ci) => (
+                                                <td key={ci} className="px-2 py-1 border-b border-slate-100 font-mono whitespace-nowrap max-w-[200px] truncate">
+                                                    {row[c] === null ? <span className="text-slate-400 italic">NULL</span>
+                                                        : typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c])}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {result.rows.length > 30 && <p className="text-[10px] text-slate-400 text-center py-1">Showing 30 of {result.rows.length}</p>}
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+/* ─── Document badge ─── */
+function DocBadge({ doc, onRemove }) {
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-violet-50 border border-violet-200 rounded text-[10px]">
+            <FileText className="w-3 h-3 text-violet-500" />
+            <span className="text-violet-700 truncate max-w-[100px]">{doc.fileName}</span>
+            <button onClick={onRemove} className="text-violet-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+        </span>
+    );
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN FLOATING CHATBOT COMPONENT
+   ═══════════════════════════════════════════════════════ */
+export default function FloatingChatbot() {
+    const { user, isAuthenticated } = useAuthStore();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [uploadedDocs, setUploadedDocs] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [unread, setUnread] = useState(0);
+    const messagesEndRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const inputRef = useRef(null);
+
+    // Only render for admin/principal
+    const isAdmin = user?.role === 'admin' || user?.role === 'principal';
+    if (!isAuthenticated || !isAdmin) return null;
+
+    useEffect(() => {
+        if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isOpen]);
+
+    useEffect(() => {
+        if (isOpen) { setUnread(0); inputRef.current?.focus(); }
+    }, [isOpen]);
+
+    // Welcome on first open
+    useEffect(() => {
+        if (isOpen && messages.length === 0) {
+            setMessages([{
+                role: 'assistant',
+                content: `👋 Hi! I'm your **AI Database Assistant**.\n\n- 📊 Query data in plain English\n- 📄 Upload & analyze documents\n- 🗄️ Full schema awareness\n\nTry: *"How many students are enrolled?"*`,
+                timestamp: new Date().toISOString()
+            }]);
+        }
+    }, [isOpen]);
+
+    const handleSend = async () => {
+        const msg = input.trim();
+        if (!msg || isLoading) return;
+        setMessages(prev => [...prev, { role: 'user', content: msg, timestamp: new Date().toISOString() }]);
+        setInput('');
+        setIsLoading(true);
+
+        try {
+            const history = messages.slice(-10).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', content: m.content }));
+            const docCtx = uploadedDocs.map(d => `--- ${d.fileName} ---\n${d.extractedText}`).join('\n\n');
+
+            const res = await api.post('/admin/chatbot/chat', { message: msg, conversationHistory: history, documentContext: docCtx });
+            if (res.data.success) {
+                const d = res.data.data;
+                setMessages(prev => [...prev, { role: 'assistant', content: d.message, sql: d.sql, queryResult: d.queryResult, timestamp: d.timestamp }]);
+                if (!isOpen) setUnread(u => u + 1);
+            }
+        } catch (err) {
+            setMessages(prev => [...prev, {
+                role: 'assistant', content: `❌ ${err.response?.data?.message || err.message}`, timestamp: new Date().toISOString(), isError: true
+            }]);
+        } finally {
+            setIsLoading(false);
+            inputRef.current?.focus();
+        }
+    };
+
+    const handleRerunSQL = async (sql) => {
+        setIsLoading(true);
+        try {
+            const res = await api.post('/admin/chatbot/execute', { sql });
+            if (res.data.success) {
+                setMessages(prev => [...prev, { role: 'assistant', content: '🔄 **Re-executed:**', sql, queryResult: res.data.data, timestamp: new Date().toISOString() }]);
+            }
+        } catch (err) { toast.error(err.response?.data?.message || err.message); }
+        finally { setIsLoading(false); }
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsUploading(true);
+        try {
+            const fd = new FormData();
+            fd.append('document', file);
+            const res = await api.post('/admin/chatbot/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (res.data.success) {
+                setUploadedDocs(prev => [...prev, res.data.data]);
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: `📄 **Loaded:** ${res.data.data.fileName} (${res.data.data.charCount.toLocaleString()} chars).\nAsk me anything about it.`,
+                    timestamp: new Date().toISOString()
+                }]);
+                toast.success('Document loaded');
+            }
+        } catch (err) { toast.error(err.response?.data?.message || err.message); }
+        finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
+    };
+
+    const clearChat = () => {
+        setMessages([{ role: 'assistant', content: '🗑️ Chat cleared. How can I help?', timestamp: new Date().toISOString() }]);
+        setUploadedDocs([]);
+    };
+
+    const suggestions = [
+        "How many students enrolled?",
+        "Top 5 classes by submissions",
+        "Active instructors count",
+        "Pending procurement requests",
+    ];
+
+    // ── Sizing ──
+    const panelClass = isExpanded
+        ? 'fixed inset-4 z-[9999] rounded-2xl'
+        : 'fixed bottom-20 right-4 z-[9999] w-[420px] h-[600px] max-h-[80vh] rounded-2xl';
+
+    return (
+        <>
+            {/* ── FAB Button ── */}
+            {!isOpen && (
+                <button
+                    onClick={() => setIsOpen(true)}
+                    className="fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 text-white shadow-2xl shadow-violet-500/40 flex items-center justify-center hover:scale-110 hover:shadow-violet-500/60 transition-all duration-300 group"
+                    title="AI Assistant"
+                >
+                    <Bot className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                    {/* Pulse ring */}
+                    <span className="absolute inset-0 rounded-full bg-violet-400 animate-ping opacity-20" />
+                    {/* Unread badge */}
+                    {unread > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                            {unread}
+                        </span>
+                    )}
+                </button>
+            )}
+
+            {/* ── Chat Panel ── */}
+            {isOpen && (
+                <div className={`${panelClass} flex flex-col bg-white border border-slate-200 shadow-2xl shadow-slate-900/20 overflow-hidden`}
+                    style={{ backdropFilter: 'blur(20px)' }}>
+
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white flex-shrink-0">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                                <Bot className="w-4.5 h-4.5" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-sm leading-none">AI Assistant</h3>
+                                <p className="text-[10px] text-white/70 mt-0.5">Database-aware • Schema-synced</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button onClick={clearChat} className="p-1.5 hover:bg-white/20 rounded-lg transition" title="Clear chat">
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setIsExpanded(!isExpanded)} className="p-1.5 hover:bg-white/20 rounded-lg transition" title={isExpanded ? 'Minimize' : 'Expand'}>
+                                {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => { setIsOpen(false); setIsExpanded(false); }} className="p-1.5 hover:bg-white/20 rounded-lg transition" title="Close">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Document badges */}
+                    {uploadedDocs.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                            {uploadedDocs.map((doc, i) => (
+                                <DocBadge key={i} doc={doc} onRemove={() => setUploadedDocs(p => p.filter((_, j) => j !== i))} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Messages area */}
+                    <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-slate-50/50">
+                        {messages.map((msg, i) => (
+                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[90%] ${msg.role === 'user'
+                                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-2xl rounded-br-sm px-3.5 py-2.5 shadow-md shadow-indigo-500/15'
+                                    : `rounded-2xl rounded-bl-sm px-3.5 py-3 shadow-sm ${msg.isError
+                                        ? 'bg-red-50 border border-red-200'
+                                        : 'bg-white border border-slate-200'}`
+                                    }`}>
+                                    {msg.role === 'assistant' && (
+                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
+                                                <Bot className="w-3 h-3 text-white" />
+                                            </div>
+                                            <span className="text-[10px] text-slate-400">
+                                                {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {msg.role === 'user'
+                                        ? <p className="text-[13px] whitespace-pre-wrap">{msg.content}</p>
+                                        : <RenderMessage content={msg.content} />
+                                    }
+                                    {msg.queryResult && <SQLResult sql={msg.sql} result={msg.queryResult} onRerun={() => handleRerunSQL(msg.sql)} />}
+                                </div>
+                            </div>
+                        ))}
+
+                        {isLoading && (
+                            <div className="flex justify-start">
+                                <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-3.5 py-3 shadow-sm">
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
+                                        <div className="flex gap-1">
+                                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                        </div>
+                                        <span className="text-[11px] text-slate-400">Thinking...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div ref={messagesEndRef} />
+
+                        {/* Suggestions on empty */}
+                        {messages.length <= 1 && !isLoading && (
+                            <div className="grid grid-cols-1 gap-1.5 mt-2">
+                                {suggestions.map((s, i) => (
+                                    <button key={i} onClick={() => setInput(s)}
+                                        className="text-left px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition text-[12px] text-slate-600 hover:text-indigo-600">
+                                        <Sparkles className="w-3 h-3 inline mr-1.5 text-indigo-400" />{s}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Input bar */}
+                    <div className="flex items-end gap-2 px-3 py-2.5 bg-white border-t border-slate-200 flex-shrink-0">
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".txt,.csv,.json,.pdf,.md,.sql,.log" />
+                        <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
+                            className="flex-shrink-0 w-8 h-8 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center text-violet-500 hover:bg-violet-100 transition disabled:opacity-50" title="Upload document">
+                            {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        </button>
+                        <textarea ref={inputRef} value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                            placeholder="Ask anything..."
+                            rows={1}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                            style={{ minHeight: '36px', maxHeight: '80px' }}
+                        />
+                        <button onClick={handleSend} disabled={!input.trim() || isLoading}
+                            className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center hover:from-indigo-600 hover:to-violet-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20">
+                            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </button>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
