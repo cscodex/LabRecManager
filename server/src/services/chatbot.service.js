@@ -182,9 +182,9 @@ DATABASE SCHEMA:
 ${schema}
 
 RESPONSE FORMAT RULES:
-1. When the user asks for data, generate ONLY the SQL query in a \`\`\`sql block. Do NOT explain or describe the query — just the SQL.
+1. When the user asks for data, generate ONLY the SQL query in a \`\`\`sql block. Do NOT explain or describe the query.
 2. Add <!--EXEC_SQL:your_query_here:END_SQL--> at the end for auto-execution (SELECT/WITH only).
-3. After the query executes, give ONLY a brief 1-line summary of the result. Do NOT repeat the SQL or explain how it works.
+3. DO NOT write "Result:" or try to summarize the output. The system will automatically execute the SQL and display the results to the user.
 
 SQL BEST PRACTICES:
 - ALL id columns are UUIDs. NEVER use integers for IDs (e.g. lab_id = 1 is WRONG). Always JOIN to the related table and filter by name instead.
