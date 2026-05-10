@@ -371,12 +371,16 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
             const autoChart = this.autoGenerateChart(queryResult);
             if (autoChart) {
                 if (chartData) {
-                    // AI requested a chart (e.g. type: 'pie') but might have fake/empty data since it didn't see the SQL result yet
+                    // AI requested a chart but might have fake/empty data
                     chartData.data = autoChart.data;
+                    chartData.seriesKeys = autoChart.seriesKeys;
+                    // Grouped data requires multi-series charts (bar, line, area). Pie won't work.
+                    if (autoChart.seriesKeys?.length > 1 && chartData.type === 'pie') {
+                        chartData.type = 'bar';
+                    }
                     if (!chartData.title || chartData.title === 'Chart Title') chartData.title = autoChart.title;
                     if (!chartData.colors) chartData.colors = autoChart.colors;
                 } else {
-                    // No AI chart block, but data looks visualizable -> auto chart
                     chartData = autoChart;
                 }
             }
@@ -394,8 +398,11 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
         const fields = result.fields?.map(f => f.name) || Object.keys(result.rows[0]);
         if (fields.length < 2) return null;
 
-        const numCols = fields.filter(f => typeof result.rows[0][f] === 'number' || (!isNaN(Number(result.rows[0][f])) && result.rows[0][f] !== null));
-        const strCols = fields.filter(f => typeof result.rows[0][f] === 'string' && !numCols.includes(f));
+        const numCols = fields.filter(f => {
+            const val = result.rows[0][f];
+            return typeof val === 'number' || (val !== null && val !== '' && !isNaN(Number(val)));
+        });
+        const strCols = fields.filter(f => !numCols.includes(f));
 
         if (numCols.length === 0) return null;
 
