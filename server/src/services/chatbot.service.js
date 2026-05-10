@@ -9,10 +9,18 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const prisma = require('../config/database');
 
+// Model fallback chain — tries each in order on 429 errors
+const MODEL_CHAIN = [
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+];
+
 class ChatbotService {
     constructor() {
         this.genAI = null;
-        this.model = null;
+        this.models = [];          // array of model instances
+        this.currentModelIdx = 0;  // which model we're currently using
         this.cachedSchema = null;
         this.schemaCachedAt = null;
         this.SCHEMA_TTL_MS = 30 * 60 * 1000; // 30 min cache
@@ -26,8 +34,17 @@ class ChatbotService {
             return;
         }
         this.genAI = new GoogleGenerativeAI(apiKey);
-        this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-        console.log('[ChatBot] Gemini AI initialized');
+        this.models = MODEL_CHAIN.map(name => ({
+            name,
+            instance: this.genAI.getGenerativeModel({ model: name })
+        }));
+        this.currentModelIdx = 0;
+        console.log(`[ChatBot] Gemini AI initialized with ${MODEL_CHAIN.length} model fallbacks: ${MODEL_CHAIN.join(' → ')}`);
+    }
+
+    /** Get the current active model (with fallback info) */
+    get activeModel() {
+        return this.models[this.currentModelIdx] || this.models[0];
     }
 
     /**
@@ -202,7 +219,7 @@ CORE TABLES:
      * Process a chat message from the admin
      */
     async chat(message, options = {}) {
-        if (!this.model) {
+        if (!this.models.length) {
             throw new Error('Gemini API not configured. Please set GEMINI_API_KEY.');
         }
 
@@ -236,8 +253,6 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
 
         // Build the conversation for Gemini
         const contents = [];
-
-        // Add system instruction as first user message context
         contents.push({
             role: 'user',
             parts: [{ text: systemPrompt + '\n\nPlease acknowledge that you understand your role. Just say "Ready" briefly.' }]
@@ -246,57 +261,75 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
             role: 'model',
             parts: [{ text: 'Ready. I have access to the full database schema and can help you query data, analyze trends, and manage the system. What would you like to know?' }]
         });
-
-        // Add conversation history
         for (const msg of conversationHistory) {
-            contents.push({
-                role: msg.role === 'user' ? 'user' : 'model',
-                parts: [{ text: msg.content }]
-            });
+            contents.push({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] });
         }
+        contents.push({ role: 'user', parts: [{ text: message }] });
 
-        // Add current message
-        contents.push({
-            role: 'user',
-            parts: [{ text: message }]
-        });
+        // Try each model in the fallback chain
+        let lastError = null;
+        const startIdx = this.currentModelIdx;
 
-        try {
-            const result = await this.model.generateContent({ contents });
-            const response = await result.response;
-            let aiText = response.text();
+        for (let attempt = 0; attempt < this.models.length; attempt++) {
+            const idx = (startIdx + attempt) % this.models.length;
+            const { name, instance } = this.models[idx];
 
-            // Check for auto-executable SQL
-            const sqlMatch = aiText.match(/<!--EXEC_SQL:([\s\S]*?):END_SQL-->/);
-            let queryResult = null;
-            let executedSQL = null;
+            try {
+                console.log(`[ChatBot] Trying model: ${name}`);
+                const result = await instance.generateContent({ contents });
+                const response = await result.response;
+                let aiText = response.text();
 
-            if (sqlMatch) {
-                executedSQL = sqlMatch[1].trim();
-                // Only auto-execute SELECT/WITH queries
-                const normalizedSQL = executedSQL.toLowerCase().trim();
-                if (normalizedSQL.startsWith('select') || normalizedSQL.startsWith('with')) {
-                    try {
-                        queryResult = await this.executeSQL(executedSQL);
-                    } catch (err) {
-                        queryResult = { success: false, error: err.message };
+                // On success, remember this model for next request
+                this.currentModelIdx = idx;
+
+                // Check for auto-executable SQL
+                const sqlMatch = aiText.match(/<!--EXEC_SQL:([\s\S]*?):END_SQL-->/);
+                let queryResult = null;
+                let executedSQL = null;
+
+                if (sqlMatch) {
+                    executedSQL = sqlMatch[1].trim();
+                    const normalizedSQL = executedSQL.toLowerCase().trim();
+                    if (normalizedSQL.startsWith('select') || normalizedSQL.startsWith('with')) {
+                        try { queryResult = await this.executeSQL(executedSQL); }
+                        catch (err) { queryResult = { success: false, error: err.message }; }
                     }
+                    aiText = aiText.replace(/<!--EXEC_SQL:[\s\S]*?:END_SQL-->/g, '').trim();
                 }
-                // Remove the marker from displayed text
-                aiText = aiText.replace(/<!--EXEC_SQL:[\s\S]*?:END_SQL-->/g, '').trim();
+
+                return {
+                    message: aiText,
+                    sql: executedSQL,
+                    queryResult,
+                    model: name,
+                    timestamp: new Date().toISOString()
+                };
+
+            } catch (error) {
+                lastError = error;
+                const is429 = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('rate');
+                console.warn(`[ChatBot] Model ${name} failed: ${error.message.substring(0, 100)}`);
+
+                if (is429 && attempt < this.models.length - 1) {
+                    // Wait briefly before trying next model
+                    const waitMs = 1000 * (attempt + 1);
+                    console.log(`[ChatBot] Rate limited on ${name}, waiting ${waitMs}ms then trying next model...`);
+                    await new Promise(r => setTimeout(r, waitMs));
+                    continue;
+                }
+
+                // Non-429 error or last model — break out
+                if (!is429) break;
             }
-
-            return {
-                message: aiText,
-                sql: executedSQL,
-                queryResult,
-                timestamp: new Date().toISOString()
-            };
-
-        } catch (error) {
-            console.error('[ChatBot] Gemini error:', error.message);
-            throw new Error(`AI processing failed: ${error.message}`);
         }
+
+        // All models exhausted
+        const is429 = lastError?.message?.includes('429') || lastError?.message?.includes('quota');
+        if (is429) {
+            throw new Error('All AI models are currently rate-limited. Please wait a minute and try again. The free-tier quota resets every minute.');
+        }
+        throw new Error(`AI processing failed: ${lastError?.message || 'Unknown error'}`);
     }
 
     /**
