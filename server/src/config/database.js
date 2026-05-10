@@ -37,6 +37,28 @@ prisma.$on('query', (e) => {
     }
 });
 
+// Batched query log buffer — flushes every 5 seconds to avoid per-query DB writes
+const queryLogBuffer = [];
+const FLUSH_INTERVAL_MS = 5000;
+const SLOW_QUERY_THRESHOLD_MS = 500;
+
+let flushTimer = null;
+function scheduleFlush() {
+    if (flushTimer) return;
+    flushTimer = setTimeout(flushQueryLogs, FLUSH_INTERVAL_MS);
+}
+
+async function flushQueryLogs() {
+    flushTimer = null;
+    if (queryLogBuffer.length === 0 || !isDatabaseConnected) return;
+    const batch = queryLogBuffer.splice(0, queryLogBuffer.length);
+    try {
+        await prisma.queryLog.createMany({ data: batch });
+    } catch (err) {
+        console.error('Query log batch flush failed:', err.message);
+    }
+}
+
 // Query logging middleware (logs to query_logs table)
 prisma.$use(async (params, next) => {
     // Skip logging for QueryLog operations to prevent infinite loop
@@ -56,24 +78,20 @@ prisma.$use(async (params, next) => {
 
     const duration = Date.now() - startTime;
 
-    // Log to database asynchronously (don't await to avoid slowing down requests)
-    // Log all operations now, not just writes
-    if (isDatabaseConnected) {
+    // Only log errors and slow queries to the DB (avoids doubling latency on every call)
+    const isSlowOrError = error || duration > SLOW_QUERY_THRESHOLD_MS;
+    if (isDatabaseConnected && isSlowOrError) {
         const paramsStr = JSON.stringify(params.args || {});
-
-        prisma.queryLog.create({
-            data: {
-                query: `${params.model}.${params.action}`,
-                params: paramsStr.substring(0, 5000),
-                duration,
-                error: error ? `${error.message}\n${error.stack || ''}`.substring(0, 2000) : null,
-                success: !error,
-                model: params.model,
-                action: params.action,
-            }
-        }).catch(logError => {
-            console.error('Query log failed:', logError.message);
+        queryLogBuffer.push({
+            query: `${params.model}.${params.action}`,
+            params: paramsStr.substring(0, 5000),
+            duration,
+            error: error ? `${error.message}\n${error.stack || ''}`.substring(0, 2000) : null,
+            success: !error,
+            model: params.model,
+            action: params.action,
         });
+        scheduleFlush();
     }
 
     // Rethrow error if there was one

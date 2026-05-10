@@ -8,7 +8,7 @@ import {
     Home, BookOpen, FileText, Award, Users, GraduationCap,
     Video, BarChart3, Settings, LogOut, Menu, X, ChevronLeft,
     Beaker, ClipboardList, Activity, ClipboardCheck, Send, ListChecks, UserPlus, Monitor, FolderOpen, Pencil, Ticket, Building, Film, HardDrive,
-    Clock, CalendarDays, Presentation, BookMarked
+    Clock, CalendarDays, Presentation, BookMarked, Bot
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import LanguageSelector from './LanguageSelector';
@@ -36,6 +36,7 @@ const navItems = {
         { href: '/admin/timetable', labelKey: 'nav.timetable', icon: Clock },
         { href: '/admin/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
         { href: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
+        { href: '/admin/ai-assistant', labelKey: 'AI Assistant', icon: Bot },
         { href: '/settings', labelKey: 'nav.settings', icon: Settings },
     ],
     principal: [
@@ -52,6 +53,7 @@ const navItems = {
         { href: '/admin/timetable', labelKey: 'nav.timetable', icon: Clock },
         { href: '/admin/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
         { href: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
+        { href: '/admin/ai-assistant', labelKey: 'AI Assistant', icon: Bot },
         { href: '/settings', labelKey: 'nav.settings', icon: Settings },
     ],
     instructor: [
@@ -216,7 +218,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                                 ? pathname === '/training' || pathname.startsWith('/training/')
                                 : pathname === item.href || pathname.startsWith(item.href + '/');
                         const Icon = item.icon;
-                        const label = item.labelKey === 'Training' ? 'Training' : t(item.labelKey);
+                        const label = !item.labelKey.startsWith('nav.') ? item.labelKey : t(item.labelKey);
                         return (
                             <li key={item.href}>
                                 <Link
