@@ -187,12 +187,13 @@ RESPONSE FORMAT RULES:
 3. After the query executes, give ONLY a brief 1-line summary of the result. Do NOT repeat the SQL or explain how it works.
 
 SQL BEST PRACTICES:
-- ALL id columns are UUIDs. NEVER use integers for IDs (e.g. lab_id = 1 is WRONG). Always JOIN to the related table and filter by name instead (e.g. JOIN labs l ON li.lab_id = l.id WHERE l.name ILIKE '%lab 1%').
+- ALL id columns are UUIDs. NEVER use integers for IDs (e.g. lab_id = 1 is WRONG). Always JOIN to the related table and filter by name instead.
 - NEVER use strict = for text/varchar columns. Always use ILIKE for flexible matching.
 - NEVER guess column values. If unsure, first query SELECT DISTINCT column_name FROM table LIMIT 20.
+- When user asks to read a document (e.g. stored in Cloudinary), first query the 'documents' table to get its 'file_url'.
+- ONCE YOU HAVE THE URL, output ONLY the special marker <!--FETCH_DOC:https://...--> to read its contents. The system will fetch it and pass the text back to you.
 - Use COUNT(DISTINCT ...) when counting unique entities.
 - Always handle case-insensitivity with ILIKE or LOWER().
-- When user says "Lab 1" or "Class 10A", always JOIN to find by name, never assume numeric IDs.
 4. For destructive operations, warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
 5. **CHART DATA**: When results benefit from visualization, include a chart block:
    \`\`\`chart
@@ -315,6 +316,35 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
 
         let aiText = aiResult.text;
 
+        // Extract document fetch request
+        const docMatch = aiText.match(/<!--FETCH_DOC:\s*(https?:\/\/[^\s>]+)\s*-->/);
+        if (docMatch) {
+            const url = docMatch[1].trim();
+            console.log('[ChatBot] Fetching document from URL:', url);
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                const mimeType = response.headers.get('content-type') || 'application/pdf';
+                const text = await this.extractDocumentText(buffer, mimeType, url.split('/').pop());
+                
+                // Recurse chat with the new document text
+                return await this.chat(`I fetched the document from ${url}. Here is its text:\n\n${text}\n\nPlease summarize it or answer my original question.`, {
+                    conversationHistory: [
+                        ...conversationHistory,
+                        { role: 'user', content: message },
+                        { role: 'assistant', content: aiText.replace(/<!--FETCH_DOC:.*-->/, '*[Fetching document from database...]*') }
+                    ],
+                    documentContext,
+                    userId
+                });
+            } catch (err) {
+                console.warn('[ChatBot] Document fetch failed:', err.message);
+                aiText += `\n\n*(Failed to read document from URL: ${err.message})*`;
+            }
+        }
+
         // Extract auto-exec SQL
         const sqlMatch = aiText.match(/<!--EXEC_SQL:([\s\S]*?):END_SQL-->/);
         let queryResult = null, executedSQL = null;
@@ -374,16 +404,21 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
     }
 
     // ═══ DOCUMENT EXTRACTION ═══
-    extractDocumentText(buffer, mimeType, fileName) {
+    async extractDocumentText(buffer, mimeType, fileName) {
         try {
-            if (mimeType === 'text/plain' || mimeType === 'text/csv') return buffer.toString('utf-8');
-            if (mimeType === 'application/json') return JSON.stringify(JSON.parse(buffer.toString('utf-8')), null, 2);
-            if (mimeType === 'application/pdf') {
-                const readable = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s{3,}/g, ' ').trim();
-                return readable.length > 100 ? readable.substring(0, 10000) : `[PDF: ${fileName}, ${buffer.length}B - text extraction limited]`;
+            if (mimeType.includes('text/plain') || mimeType.includes('text/csv')) return buffer.toString('utf-8');
+            if (mimeType.includes('application/json')) return JSON.stringify(JSON.parse(buffer.toString('utf-8')), null, 2);
+            if (mimeType.includes('application/pdf') || fileName.toLowerCase().endsWith('.pdf')) {
+                const pdfParse = require('pdf-parse');
+                const data = await pdfParse(buffer);
+                const readable = data.text.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s{3,}/g, ' ').trim();
+                return readable.length > 50 ? readable.substring(0, 15000) : `[PDF extracted text is empty or too short]`;
             }
             return `[Binary file: ${fileName}, ${buffer.length}B, ${mimeType}]`;
-        } catch (err) { return `[Failed: ${fileName}: ${err.message}]`; }
+        } catch (err) { 
+            console.error('[ChatBot] Document parse error:', err.message);
+            return `[Failed to parse ${fileName}: ${err.message}]`; 
+        }
     }
 }
 

@@ -100,7 +100,7 @@ router.post('/upload', authenticate, authorize('admin', 'principal'), upload.sin
     }
 
     try {
-        const text = chatbotService.extractDocumentText(
+        const text = await chatbotService.extractDocumentText(
             req.file.buffer,
             req.file.mimetype,
             req.file.originalname
