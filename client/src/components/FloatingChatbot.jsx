@@ -341,17 +341,6 @@ export default function FloatingChatbot() {
         if (isOpen) { setUnread(0); inputRef.current?.focus(); }
     }, [isOpen]);
 
-    // Welcome on first open
-    useEffect(() => {
-        if (isOpen && messages.length === 0) {
-            setMessages([{
-                role: 'assistant',
-                content: `👋 Hi! I'm your **AI Database Assistant**.\n\n- 📊 Query data in plain English\n- 📄 Upload & analyze documents\n- 🗄️ Full schema awareness\n\nTry: *"How many students are enrolled?"*`,
-                timestamp: new Date().toISOString()
-            }]);
-        }
-    }, [isOpen]);
-
     const handleSend = async () => {
         const msg = input.trim();
         if (!msg || isLoading) return;
