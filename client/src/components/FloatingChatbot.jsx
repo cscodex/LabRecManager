@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Bot, Send, Upload, Database, ChevronDown, ChevronRight, Trash2,
     Sparkles, FileText, AlertTriangle, Copy, Check, RefreshCw, X,
-    Loader2, Minimize2, Maximize2, Download, Image as ImageIcon
+    Loader2, Minimize2, Maximize2, Download, Image as ImageIcon, User, BarChart2, Expand, Shrink, File
 } from 'lucide-react';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
@@ -173,7 +173,7 @@ function ChatChart({ chartData }) {
     const chartRef = useRef(null);
     if (!chartData || !chartData.data?.length) return null;
 
-    const { type, title, data, colors = DEFAULT_COLORS } = chartData;
+    const { type, title, data, seriesKeys = ['value'], colors = DEFAULT_COLORS } = chartData;
 
     const downloadChart = () => {
         const svg = chartRef.current?.querySelector('svg');
@@ -223,11 +223,13 @@ function ChatChart({ chartData }) {
                     <ResponsiveContainer width="100%" height={h}>
                         <PieChart>
                             <Pie data={data} dataKey="value" nameKey="label" cx="50%" cy="50%"
-                                outerRadius={70} innerRadius={type === 'doughnut' ? 40 : 0} label={({ label, percent }) => `${label} ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={70} innerRadius={type === 'doughnut' ? 40 : 0} 
+                                label={({ label, value }) => `${label} (${value})`}
                                 labelLine={false} fontSize={10}>
                                 {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => v.toLocaleString()} />
+                            <Legend wrapperStyle={{ fontSize: '10px' }} />
                         </PieChart>
                     </ResponsiveContainer>
                 );
@@ -239,7 +241,10 @@ function ChatChart({ chartData }) {
                             <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                             <YAxis tick={{ fontSize: 10 }} />
                             <Tooltip />
-                            <Line type="monotone" dataKey="value" stroke={colors[0]} strokeWidth={2} dot={{ r: 3 }} />
+                            <Legend wrapperStyle={{ fontSize: '10px' }} />
+                            {seriesKeys.map((key, i) => (
+                                <Line key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} strokeWidth={2} dot={{ r: 3 }} />
+                            ))}
                         </LineChart>
                     </ResponsiveContainer>
                 );
@@ -251,7 +256,10 @@ function ChatChart({ chartData }) {
                             <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                             <YAxis tick={{ fontSize: 10 }} />
                             <Tooltip />
-                            <Area type="monotone" dataKey="value" stroke={colors[0]} fill={colors[0]} fillOpacity={0.2} />
+                            <Legend wrapperStyle={{ fontSize: '10px' }} />
+                            {seriesKeys.map((key, i) => (
+                                <Area key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.2} />
+                            ))}
                         </AreaChart>
                     </ResponsiveContainer>
                 );
@@ -263,9 +271,12 @@ function ChatChart({ chartData }) {
                             <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
                             <YAxis tick={{ fontSize: 10 }} />
                             <Tooltip />
-                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
-                            </Bar>
+                            <Legend wrapperStyle={{ fontSize: '10px' }} />
+                            {seriesKeys.map((key, i) => (
+                                <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]}>
+                                    {seriesKeys.length === 1 && data.map((_, di) => <Cell key={di} fill={colors[di % colors.length]} />)}
+                                </Bar>
+                            ))}
                         </BarChart>
                     </ResponsiveContainer>
                 );

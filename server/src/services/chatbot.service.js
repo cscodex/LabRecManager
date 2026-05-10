@@ -389,19 +389,48 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
         };
     }
 
-    // ═══ AUTO CHART GENERATION ═══
     autoGenerateChart(result) {
         if (!result.rows || result.rows.length < 2) return null;
         const fields = result.fields?.map(f => f.name) || Object.keys(result.rows[0]);
         if (fields.length < 2) return null;
 
-        // Find a text/label column and a numeric column
-        const labelCol = fields.find(f => typeof result.rows[0][f] === 'string') || fields[0];
-        const valueCol = fields.find(f => {
-            const v = result.rows[0][f];
-            return typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)));
-        });
-        if (!valueCol || labelCol === valueCol) return null;
+        const numCols = fields.filter(f => typeof result.rows[0][f] === 'number' || (!isNaN(Number(result.rows[0][f])) && result.rows[0][f] !== null));
+        const strCols = fields.filter(f => typeof result.rows[0][f] === 'string' && !numCols.includes(f));
+
+        if (numCols.length === 0) return null;
+
+        const valueCol = numCols[0];
+
+        // Grouped Bar Chart support (2 strings, 1 number) -> e.g. Lab Name, Item Type, Count
+        if (strCols.length >= 2 && numCols.length === 1) {
+            const groupCol = strCols[0];
+            const seriesCol = strCols[1];
+            
+            const pivot = {};
+            const seriesKeys = new Set();
+            
+            result.rows.forEach(row => {
+                const group = String(row[groupCol] || 'Unknown');
+                const series = String(row[seriesCol] || 'Unknown');
+                const val = Number(row[valueCol]) || 0;
+                
+                if (!pivot[group]) pivot[group] = { label: group };
+                pivot[group][series] = val;
+                seriesKeys.add(series);
+            });
+            
+            return {
+                type: 'bar',
+                title: `${valueCol} by ${groupCol} and ${seriesCol}`,
+                data: Object.values(pivot).slice(0, 20),
+                seriesKeys: Array.from(seriesKeys),
+                colors: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4']
+            };
+        }
+
+        // Standard Single-Series Chart
+        const labelCol = strCols[0] || fields[0];
+        if (labelCol === valueCol) return null;
 
         const data = result.rows.slice(0, 15).map(row => ({
             label: String(row[labelCol] || '').substring(0, 30),
@@ -411,6 +440,7 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
         const type = data.length <= 6 ? 'doughnut' : 'bar';
         return {
             type, title: `${valueCol} by ${labelCol}`, data,
+            seriesKeys: ['value'],
             colors: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4']
         };
     }
