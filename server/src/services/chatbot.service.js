@@ -195,10 +195,11 @@ SQL BEST PRACTICES:
 - Use COUNT(DISTINCT ...) when counting unique entities.
 - Always handle case-insensitivity with ILIKE or LOWER().
 4. For destructive operations, warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
-5. **CHART DATA**: When results benefit from visualization, include a chart block:
+5. **CHART DATA**: When the user explicitly asks for a chart (e.g. pie chart), include this block:
    \`\`\`chart
-   {"type":"bar|line|pie|doughnut|area","title":"Chart Title","data":[{"label":"A","value":10},{"label":"B","value":20}],"colors":["#6366f1","#8b5cf6","#a855f7","#d946ef","#ec4899","#f43f5e"]}
+   {"type":"pie","title":"Chart Title","data":[]}
    \`\`\`
+   Keep "data" as an empty array []. The system will automatically inject the SQL results into it. Valid types: bar, line, pie, doughnut, area.
 6. Be extremely concise. No unnecessary explanations. Results speak for themselves.
 ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
     }
@@ -365,9 +366,20 @@ ${documentContext ? `\nUPLOADED DOCUMENT CONTEXT:\n${documentContext}\n` : ''}`;
             aiText = aiText.replace(/```chart\n?[\s\S]*?```/g, '').trim();
         }
 
-        // If we have query results and no chart yet, auto-generate chart for visualizable data
-        if (queryResult?.success && queryResult.rows?.length >= 2 && !chartData) {
-            chartData = this.autoGenerateChart(queryResult);
+        // If we have query results that can be visualized
+        if (queryResult?.success && queryResult.rows?.length >= 2) {
+            const autoChart = this.autoGenerateChart(queryResult);
+            if (autoChart) {
+                if (chartData) {
+                    // AI requested a chart (e.g. type: 'pie') but might have fake/empty data since it didn't see the SQL result yet
+                    chartData.data = autoChart.data;
+                    if (!chartData.title || chartData.title === 'Chart Title') chartData.title = autoChart.title;
+                    if (!chartData.colors) chartData.colors = autoChart.colors;
+                } else {
+                    // No AI chart block, but data looks visualizable -> auto chart
+                    chartData = autoChart;
+                }
+            }
         }
 
         return {
