@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList, ComposedChart
 } from 'recharts';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -265,6 +265,32 @@ function ChatChart({ chartData }) {
                                 </Area>
                             ))}
                         </AreaChart>
+                    </ResponsiveContainer>
+                );
+            case 'composed':
+                return (
+                    <ResponsiveContainer width="100%" height={h}>
+                        <ComposedChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip />
+                            <Legend wrapperStyle={{ fontSize: '10px' }} />
+                            {seriesKeys.map((key, i) => {
+                                if (i === 0) {
+                                    return (
+                                        <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]}>
+                                            <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
+                                        </Bar>
+                                    );
+                                }
+                                return (
+                                    <Line key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} strokeWidth={2} dot={{ r: 3 }}>
+                                        <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
+                                    </Line>
+                                );
+                            })}
+                        </ComposedChart>
                     </ResponsiveContainer>
                 );
             default: // bar
