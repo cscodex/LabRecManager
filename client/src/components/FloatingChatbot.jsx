@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList
 } from 'recharts';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -243,7 +243,9 @@ function ChatChart({ chartData }) {
                             <Tooltip />
                             <Legend wrapperStyle={{ fontSize: '10px' }} />
                             {seriesKeys.map((key, i) => (
-                                <Line key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} strokeWidth={2} dot={{ r: 3 }} />
+                                <Line key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} strokeWidth={2} dot={{ r: 3 }}>
+                                    <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
+                                </Line>
                             ))}
                         </LineChart>
                     </ResponsiveContainer>
@@ -258,7 +260,9 @@ function ChatChart({ chartData }) {
                             <Tooltip />
                             <Legend wrapperStyle={{ fontSize: '10px' }} />
                             {seriesKeys.map((key, i) => (
-                                <Area key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.2} />
+                                <Area key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.2}>
+                                    <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
+                                </Area>
                             ))}
                         </AreaChart>
                     </ResponsiveContainer>
@@ -275,6 +279,7 @@ function ChatChart({ chartData }) {
                             {seriesKeys.map((key, i) => (
                                 <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]}>
                                     {seriesKeys.length === 1 && data.map((_, di) => <Cell key={di} fill={colors[di % colors.length]} />)}
+                                    <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
                                 </Bar>
                             ))}
                         </BarChart>
