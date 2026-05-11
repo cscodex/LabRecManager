@@ -175,6 +175,9 @@ function ChatChart({ chartData }) {
 
     const { type, title, data, seriesKeys = ['value'], colors = DEFAULT_COLORS } = chartData;
 
+    const [activeType, setActiveType] = useState(type || 'bar');
+    useEffect(() => { if (type) setActiveType(type); }, [type]);
+
     const downloadChart = () => {
         const svg = chartRef.current?.querySelector('svg');
         if (!svg) { toast.error('No chart to export'); return; }
@@ -217,12 +220,12 @@ function ChatChart({ chartData }) {
 
     const renderChart = () => {
         const h = 220;
-        switch (type) {
+        switch (activeType) {
             case 'pie': case 'doughnut':
                 return (
                     <ResponsiveContainer width="100%" height={h}>
                         <PieChart>
-                            <Pie data={data} dataKey="value" nameKey="label" cx="50%" cy="50%"
+                            <Pie data={data} dataKey={seriesKeys[0] || "value"} nameKey="label" cx="50%" cy="50%"
                                 outerRadius={70} innerRadius={type === 'doughnut' ? 40 : 0} 
                                 label={({ label, value }) => `${label} (${value})`}
                                 labelLine={false} fontSize={10}>
@@ -317,14 +320,28 @@ function ChatChart({ chartData }) {
     return (
         <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden bg-white">
             <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-slate-200">
-                <span className="text-[11px] font-semibold text-indigo-700">{title || 'Chart'}</span>
-                <div className="flex items-center gap-1">
-                    <button onClick={copyChart} className="p-1 hover:bg-indigo-100 rounded transition" title="Copy as image">
-                        <ImageIcon className="w-3 h-3 text-indigo-500" />
-                    </button>
-                    <button onClick={downloadChart} className="p-1 hover:bg-indigo-100 rounded transition" title="Download PNG">
-                        <Download className="w-3 h-3 text-indigo-500" />
-                    </button>
+                <span className="text-[11px] font-semibold text-indigo-700 truncate mr-2">{title || 'Chart'}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                    <select 
+                        value={activeType}
+                        onChange={(e) => setActiveType(e.target.value)}
+                        className="text-[10px] bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-600 outline-none cursor-pointer hover:border-indigo-300"
+                    >
+                        <option value="bar">Bar</option>
+                        <option value="line">Line</option>
+                        <option value="area">Area</option>
+                        {seriesKeys.length === 1 && <option value="pie">Pie</option>}
+                        {seriesKeys.length === 1 && <option value="doughnut">Doughnut</option>}
+                        {seriesKeys.length > 1 && <option value="composed">Composed</option>}
+                    </select>
+                    <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                        <button onClick={copyChart} className="p-1 hover:bg-indigo-100 rounded transition" title="Copy as image">
+                            <ImageIcon className="w-3 h-3 text-indigo-500" />
+                        </button>
+                        <button onClick={downloadChart} className="p-1 hover:bg-indigo-100 rounded transition" title="Download PNG">
+                            <Download className="w-3 h-3 text-indigo-500" />
+                        </button>
+                    </div>
                 </div>
             </div>
             <div ref={chartRef} className="p-2 bg-white">{renderChart()}</div>
