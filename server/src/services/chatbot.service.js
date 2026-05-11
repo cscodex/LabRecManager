@@ -104,6 +104,26 @@ class ChatbotService {
                 schemaText += '\nENUM TYPES:\n';
                 enums.forEach(en => { schemaText += `  ${en.enum_name}: [${en.values.join(', ')}]\n`; });
             }
+            
+            // Fetch distinct values for common categorization columns to help AI avoid hallucinations
+            const catCols = [
+                { table: 'lab_items', col: 'item_type' },
+                { table: 'tickets', col: 'status' },
+                { table: 'tickets', col: 'priority' },
+                { table: 'tickets', col: 'category' },
+                { table: 'procurement_requests', col: 'status' },
+                { table: 'users', col: 'role' }
+            ];
+            schemaText += '\nDISTINCT VALUES IN DB:\n';
+            for (const {table, col} of catCols) {
+                try {
+                    const vals = await prisma.$queryRawUnsafe(`SELECT DISTINCT ${col} FROM ${table} WHERE ${col} IS NOT NULL LIMIT 15`);
+                    if (vals.length > 0) {
+                        schemaText += `  ${table}.${col}: [${vals.map(v => `'${v[col]}'`).join(', ')}]\n`;
+                    }
+                } catch(e) { /* Ignore if table/col doesn't exist yet */ }
+            }
+
             return schemaText;
         } catch (error) {
             console.error('[ChatBot] Schema introspection failed:', error.message);
