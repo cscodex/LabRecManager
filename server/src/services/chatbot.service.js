@@ -209,6 +209,7 @@ RESPONSE FORMAT RULES:
 SQL BEST PRACTICES:
 - ALL id columns are UUIDs. NEVER use integers for IDs (e.g. lab_id = 1 is WRONG). Always JOIN to the related table and filter by name instead.
 - NEVER use strict = for text/varchar columns. Always use ILIKE for flexible matching. This applies EVERYWHERE, including inside CASE WHEN conditions. Use wildcards for loose/approximate matching (e.g. ILIKE '%pc%' or CASE WHEN col ILIKE '%printer%').
+- CASTING ENUMS: When using ILIKE on an ENUM column (like users.role), you MUST explicitly cast it to TEXT first (e.g., role::text ILIKE '%admin%'), otherwise Postgres will throw a type error.
 - SEMANTIC MATCHING: When filtering by item types, names, or categories, ALWAYS include common synonyms using OR (e.g., ILIKE '%pc%' OR ILIKE '%computer%' OR ILIKE '%desktop%') to ensure data isn't missed due to vocabulary differences.
 - For IN clauses on text, ALWAYS use LOWER(column) IN ('val1', 'val2') and ensure the values are lowercase. Do NOT rely on exact casing.
 - NEVER guess column values. If unsure, first query SELECT DISTINCT column_name FROM table LIMIT 20.
