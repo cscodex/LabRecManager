@@ -197,9 +197,9 @@ SQL BEST PRACTICES:
 - Always handle case-insensitivity with ILIKE or LOWER().
 4. For destructive operations, warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
 5. **CHART DATA**: When the user explicitly asks for a chart (e.g. pie chart), include this block:
-   ```chart
+   \`\`\`chart
    {"type":"composed","title":"Chart Title","data":[]}
-   ```
+   \`\`\`
    - Keep "data" as an empty array []. The system will automatically inject the SQL results into it.
    - Supported chart types: "pie", "doughnut", "bar", "line", "area", "composed".
    - For "composed" charts, the first metric will be rendered as a Bar, and the rest as Lines. Use this for complex multi-metric comparisons.
