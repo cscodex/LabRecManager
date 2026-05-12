@@ -6,10 +6,7 @@ import {
     Sparkles, FileText, AlertTriangle, Copy, Check, RefreshCw, X,
     Loader2, Minimize2, Maximize2, Download, Image as ImageIcon, User, BarChart2, Expand, Shrink, File
 } from 'lucide-react';
-import {
-    BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList, ComposedChart
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -170,7 +167,7 @@ function SQLResult({ sql, result, onRerun }) {
 const DEFAULT_COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
 
 function ChatChart({ chartData }) {
-    const chartRef = useRef(null);
+    const echartsRef = useRef(null);
     if (!chartData || !chartData.data?.length) return null;
 
     const { type, title, data, seriesKeys = ['value'], colors = DEFAULT_COLORS } = chartData;
@@ -178,143 +175,82 @@ function ChatChart({ chartData }) {
     const [activeType, setActiveType] = useState(type || 'bar');
     useEffect(() => { if (type) setActiveType(type); }, [type]);
 
+    const getImgData = () => {
+        const inst = echartsRef.current?.getEchartsInstance();
+        if (!inst) return null;
+        return inst.getDataURL({ type: 'png', backgroundColor: '#fff', pixelRatio: 2 });
+    };
+
     const downloadChart = () => {
-        const svg = chartRef.current?.querySelector('svg');
-        if (!svg) { toast.error('No chart to export'); return; }
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new window.Image();
-        img.onload = () => {
-            canvas.width = img.width * 2; canvas.height = img.height * 2;
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
-            const a = document.createElement('a');
-            a.download = `${(title || 'chart').replace(/\s+/g, '_')}.png`;
-            a.href = canvas.toDataURL('image/png');
-            a.click();
-            toast.success('Chart downloaded');
-        };
-        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        const url = getImgData();
+        if (!url) { toast.error('No chart to export'); return; }
+        const a = document.createElement('a');
+        a.download = `${(title || 'chart').replace(/\s+/g, '_')}.png`;
+        a.href = url;
+        a.click();
+        toast.success('Chart downloaded');
     };
 
     const copyChart = async () => {
-        const svg = chartRef.current?.querySelector('svg');
-        if (!svg) return;
-        const svgData = new XMLSerializer().serializeToString(svg);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new window.Image();
-        img.onload = async () => {
-            canvas.width = img.width * 2; canvas.height = img.height * 2;
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
-            try {
-                const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                toast.success('Chart copied to clipboard');
-            } catch { toast.error('Copy not supported in this browser'); }
-        };
-        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        const url = getImgData();
+        if (!url) return;
+        try {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            toast.success('Chart copied to clipboard');
+        } catch { toast.error('Copy not supported in this browser'); }
     };
 
     const renderChart = () => {
-        const h = 220;
-        switch (activeType) {
-            case 'pie': case 'doughnut':
-                return (
-                    <ResponsiveContainer width="100%" height={h}>
-                        <PieChart>
-                            <Pie data={data} dataKey={seriesKeys[0] || "value"} nameKey="label" cx="50%" cy="50%"
-                                outerRadius={70} innerRadius={type === 'doughnut' ? 40 : 0} 
-                                label={({ label, value }) => `${label} (${value})`}
-                                labelLine={false} fontSize={10}>
-                                {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => v.toLocaleString()} />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                );
-            case 'line':
-                return (
-                    <ResponsiveContainer width="100%" height={h}>
-                        <LineChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
-                            {seriesKeys.map((key, i) => (
-                                <Line key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} strokeWidth={2} dot={{ r: 3 }}>
-                                    <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
-                                </Line>
-                            ))}
-                        </LineChart>
-                    </ResponsiveContainer>
-                );
-            case 'area':
-                return (
-                    <ResponsiveContainer width="100%" height={h}>
-                        <AreaChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
-                            {seriesKeys.map((key, i) => (
-                                <Area key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.2}>
-                                    <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
-                                </Area>
-                            ))}
-                        </AreaChart>
-                    </ResponsiveContainer>
-                );
-            case 'composed':
-                return (
-                    <ResponsiveContainer width="100%" height={h}>
-                        <ComposedChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
-                            {seriesKeys.map((key, i) => {
-                                if (i === 0) {
-                                    return (
-                                        <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]}>
-                                            <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
-                                        </Bar>
-                                    );
-                                }
-                                return (
-                                    <Line key={key} type="monotone" dataKey={key} stroke={colors[i % colors.length]} strokeWidth={2} dot={{ r: 3 }}>
-                                        <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
-                                    </Line>
-                                );
-                            })}
-                        </ComposedChart>
-                    </ResponsiveContainer>
-                );
-            default: // bar
-                return (
-                    <ResponsiveContainer width="100%" height={h}>
-                        <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
-                            {seriesKeys.map((key, i) => (
-                                <Bar key={key} dataKey={key} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]}>
-                                    {seriesKeys.length === 1 && data.map((_, di) => <Cell key={di} fill={colors[di % colors.length]} />)}
-                                    <LabelList dataKey={key} position="top" style={{ fontSize: '9px', fill: '#64748b' }} formatter={(val) => val === 0 ? '' : val} />
-                                </Bar>
-                            ))}
-                        </BarChart>
-                    </ResponsiveContainer>
-                );
+        const option = {
+            tooltip: { trigger: 'axis', textStyle: { fontSize: 11 }, backgroundColor: 'rgba(255, 255, 255, 0.9)' },
+            legend: { data: seriesKeys, bottom: 0, textStyle: { fontSize: 10 } },
+            grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+            xAxis: activeType === 'pie' || activeType === 'doughnut' ? { show: false } : {
+                type: 'category',
+                data: data.map(d => d.label),
+                axisLabel: { fontSize: 10, interval: 0, rotate: 20 },
+                axisLine: { lineStyle: { color: '#cbd5e1' } }
+            },
+            yAxis: activeType === 'pie' || activeType === 'doughnut' ? { show: false } : {
+                type: 'value',
+                axisLabel: { fontSize: 10 },
+                splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }
+            },
+            color: colors,
+            series: []
+        };
+
+        if (activeType === 'pie' || activeType === 'doughnut') {
+            option.tooltip = { trigger: 'item' };
+            option.series = [{
+                type: 'pie',
+                radius: activeType === 'doughnut' ? ['40%', '70%'] : '70%',
+                data: data.map(d => ({ name: String(d.label), value: Number(d[seriesKeys[0] || 'value']) || 0 })),
+                label: { show: true, formatter: '{b} ({c})', fontSize: 10 },
+                itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 }
+            }];
+        } else {
+            option.series = seriesKeys.map((key, i) => {
+                let sType = activeType;
+                if (activeType === 'composed') sType = i === 0 ? 'bar' : 'line';
+                if (activeType === 'area') sType = 'line';
+                
+                return {
+                    name: key,
+                    type: sType,
+                    stack: activeType === 'area' ? 'Total' : undefined,
+                    areaStyle: activeType === 'area' ? { opacity: 0.2 } : undefined,
+                    data: data.map(d => Number(d[key]) || 0),
+                    label: { show: true, position: 'top', formatter: (p) => p.value === 0 ? '' : p.value, fontSize: 9, color: '#64748b' },
+                    smooth: true,
+                    symbolSize: sType === 'line' ? 6 : 0,
+                    itemStyle: { borderRadius: sType === 'bar' ? [4, 4, 0, 0] : 0 }
+                };
+            });
         }
+        return <ReactECharts ref={echartsRef} option={option} style={{ height: 220, width: '100%' }} opts={{ renderer: 'svg' }} />;
     };
 
     return (
@@ -344,7 +280,7 @@ function ChatChart({ chartData }) {
                     </div>
                 </div>
             </div>
-            <div ref={chartRef} className="p-2 bg-white">{renderChart()}</div>
+            <div className="p-2 bg-white w-full overflow-hidden">{renderChart()}</div>
         </div>
     );
 }
