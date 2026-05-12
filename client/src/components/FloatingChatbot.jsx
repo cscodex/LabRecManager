@@ -237,16 +237,25 @@ function ChatChart({ chartData }) {
                 if (activeType === 'composed') sType = i === 0 ? 'bar' : 'line';
                 if (activeType === 'area') sType = 'line';
                 
+                const baseColor = colors[i % colors.length];
                 return {
                     name: key,
                     type: sType,
                     stack: activeType === 'area' ? 'Total' : undefined,
-                    areaStyle: activeType === 'area' ? { opacity: 0.2 } : undefined,
+                    areaStyle: activeType === 'area' ? { 
+                        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: baseColor }, { offset: 1, color: baseColor + '11' }] }
+                    } : undefined,
                     data: data.map(d => Number(d[key]) || 0),
                     label: { show: true, position: 'top', formatter: (p) => p.value === 0 ? '' : p.value, fontSize: 9, color: '#64748b' },
                     smooth: true,
-                    symbolSize: sType === 'line' ? 6 : 0,
-                    itemStyle: { borderRadius: sType === 'bar' ? [4, 4, 0, 0] : 0 }
+                    symbolSize: sType === 'line' ? 8 : 0,
+                    itemStyle: { 
+                        borderRadius: sType === 'bar' ? [6, 6, 0, 0] : 0,
+                        color: sType === 'bar' ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: baseColor }, { offset: 1, color: baseColor + '44' }] } : baseColor
+                    },
+                    lineStyle: sType === 'line' ? { width: 3, shadowColor: 'rgba(0,0,0,0.15)', shadowBlur: 10, shadowOffsetY: 5 } : undefined,
+                    animationEasing: 'cubicOut',
+                    animationDuration: 1000
                 };
             });
         }
