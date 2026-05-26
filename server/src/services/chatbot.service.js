@@ -210,11 +210,22 @@ SQL BEST PRACTICES:
 - ALL id columns are UUIDs. NEVER use integers for IDs (e.g. lab_id = 1 is WRONG). Always JOIN to the related table and filter by name instead.
 - NEVER use strict = for text/varchar columns. Always use ILIKE for flexible matching. This applies EVERYWHERE, including inside CASE WHEN conditions. Use wildcards for loose/approximate matching (e.g. ILIKE '%pc%' or CASE WHEN col ILIKE '%printer%').
 - CASTING ENUMS: When using ILIKE on an ENUM column (like users.role), you MUST explicitly cast it to TEXT first (e.g., role::text ILIKE '%admin%'), otherwise Postgres will throw a type error.
-- SEMANTIC TRANSLATION: If the user uses a synonym (e.g., 'computer' or 'desktop') that is NOT in the 'DISTINCT VALUES IN DB' list, you MUST map their word to the correct distinct value that IS in the list (e.g., use 'pc'). Do NOT blindly search for the user's synonym if it doesn't match the known database data!
+
+⚠️ CRITICAL — SYNONYM DICTIONARY (ALWAYS APPLY BEFORE GENERATING SQL):
+The database uses specific short values in item_type and other columns. Users will use everyday language. You MUST translate:
+  "computer", "computers", "desktop", "desktops", "system", "systems", "CPU", "CPUs" → item_type ILIKE '%pc%'
+  "printer", "printers" → item_type ILIKE '%printer%'
+  "projector", "projectors", "LCD projector" → item_type ILIKE '%projector%'
+  "monitor", "monitors", "screen", "screens", "display" → item_type ILIKE '%monitor%'
+  "UPS", "ups", "battery backup" → item_type ILIKE '%ups%'
+  "lab 1", "computer lab 1", "comp lab 1", "CL1" → labs.name ILIKE '%Computer Lab 1%'
+  "lab 2", "computer lab 2", "comp lab 2", "CL2" → labs.name ILIKE '%Computer Lab 2%'
+NEVER search for the user's exact word if it doesn't match a known DB value. ALWAYS map it first using the dictionary above or the DISTINCT VALUES list below.
+
 - For IN clauses on text, ALWAYS use LOWER(column) IN ('val1', 'val2') and ensure the values are lowercase. Do NOT rely on exact casing.
 - NEVER guess column values. If unsure, first query SELECT DISTINCT column_name FROM table LIMIT 20.
 - When user asks to read a document (e.g. stored in Cloudinary), first query the 'documents' table to get its 'file_url'.
-- ONCE YOU HAVE THE URL, output ONLY the special marker <!--FETCH_DOC:https://...--> to read its contents. The system will fetch it and pass the text back to you.
+- ONCE YOU HAVE THE URL, output ONLY the special marker <!--FETCH_DOC:https://...--\> to read its contents. The system will fetch it and pass the text back to you.
 - Use COUNT(DISTINCT ...) when counting unique entities.
 - Always handle case-insensitivity with ILIKE or LOWER().
 4. For destructive operations, warn and ask for confirmation. Never auto-execute INSERT/UPDATE/DELETE.
