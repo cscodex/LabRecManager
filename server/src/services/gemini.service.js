@@ -93,6 +93,54 @@ Generate a PostgreSQL query for the above request. Return ONLY the SQL query, no
             throw new Error(`Failed to generate SQL: ${error.message}`);
         }
     }
+    async extractInventoryFromDocument(mimeType, base64Data) {
+        if (!this.model) {
+            throw new Error('Gemini API not configured. Please set GEMINI_API_KEY in environment variables.');
+        }
+
+        const prompt = `You are a strict data extraction AI. You are given a document (image or PDF) containing an inventory report, usually a table of installed equipment with serial numbers.
+Your task is to extract all items and return a JSON array. 
+Extract the following columns if available:
+- serialNumber: The serial number of the Desktop/PC
+- monitorSerial: The serial number of the Monitor (if applicable)
+- upsSerial: The serial number of the UPS (if applicable)
+- labName: The room or lab name where it is installed (e.g., 'Computer Lab 1', 'CompLab-2')
+
+If the document contains multiple items, extract all of them.
+Return ONLY valid JSON in the format below, without any markdown formatting or code blocks:
+[
+  {
+    "serialNumber": "...",
+    "monitorSerial": "...",
+    "upsSerial": "...",
+    "labName": "..."
+  }
+]
+If no inventory items are found, return an empty array [].`;
+
+        try {
+            const result = await this.model.generateContent([
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: mimeType
+                    }
+                },
+                prompt
+            ]);
+            
+            const response = await result.response;
+            let text = response.text().trim();
+            
+            // Clean up the response - remove markdown code blocks if present
+            text = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
+            
+            return JSON.parse(text);
+        } catch (error) {
+            console.error('Gemini API Error (extractInventoryFromDocument):', error);
+            throw new Error(`Failed to extract inventory: ${error.message}`);
+        }
+    }
 }
 
 // Export singleton instance

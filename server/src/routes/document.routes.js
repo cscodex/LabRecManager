@@ -5,7 +5,10 @@ const prisma = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const cloudinary = require('../services/cloudinary');
-
+const axios = require('axios');
+const geminiService = require('../services/gemini.service');
+const groqService = require('../services/groq.service');
+const ocrService = require('../services/ocr.service');
 // Configure multer for memory storage with 100MB limit
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -838,6 +841,62 @@ router.post('/bulk-delete', authenticate, authorize('admin', 'principal', 'lab_a
     });
 
     res.json({ success: true, message: 'Documents deleted' });
+}));
+
+/**
+ * @route   POST /api/documents/:id/extract-ai-inventory
+ * @desc    Extract inventory data using AI
+ * @access  Private (Admin/Principal/Lab Assistant)
+ */
+router.post('/:id/extract-ai-inventory', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
+    const doc = await prisma.document.findFirst({
+        where: { id: req.params.id, schoolId: req.user.schoolId }
+    });
+
+    if (!doc) {
+        return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    if (!doc.url) {
+        return res.status(400).json({ success: false, message: 'Document has no file URL to process' });
+    }
+
+    // Supported mime types for Gemini Vision: PDF and images
+    const supportedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    const mimeType = doc.mimeType || (doc.fileType === 'pdf' ? 'application/pdf' : 'image/jpeg');
+
+    if (!supportedTypes.includes(mimeType)) {
+        return res.status(400).json({ success: false, message: 'Only PDF or Image documents are supported for AI extraction' });
+    }
+
+    try {
+        // Download document buffer
+        const response = await axios.get(doc.url, { responseType: 'arraybuffer' });
+        const base64Data = Buffer.from(response.data, 'binary').toString('base64');
+
+        const engine = req.query.engine || 'gemini';
+        let extractedData = [];
+
+        if (engine === 'groq') {
+            extractedData = await groqService.extractInventoryFromDocument(mimeType, base64Data, doc.url);
+        } else if (engine === 'ocr') {
+            extractedData = await ocrService.extractInventoryFromDocument(mimeType, base64Data, doc.url);
+        } else {
+            extractedData = await geminiService.extractInventoryFromDocument(mimeType, base64Data);
+        }
+
+        res.json({
+            success: true,
+            message: 'Extracted inventory data successfully',
+            data: {
+                engine,
+                items: extractedData
+            }
+        });
+    } catch (error) {
+        console.error('AI Extraction Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to extract data: ' + error.message });
+    }
 }));
 
 module.exports = router;

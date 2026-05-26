@@ -1860,5 +1860,89 @@ router.get('/laptop-issuances/:id/voucher', authenticate, authorize('admin', 'pr
     }
 }));
 
-module.exports = router;
+/**
+ * @route   POST /api/labs/inventory/bulk-create
+ * @desc    Bulk create inventory items (usually from AI extraction)
+ * @access  Private (Admin/Principal/Lab Assistant)
+ */
+router.post('/inventory/bulk-create', authenticate, authorize('admin', 'principal', 'lab_assistant'), asyncHandler(async (req, res) => {
+    const { items } = req.body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, message: 'No items provided' });
+    }
 
+    const schoolId = req.user.schoolId;
+    const labs = await prisma.lab.findMany({ where: { schoolId } });
+    
+    let createdCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    for (const item of items) {
+        try {
+            // Find lab by name
+            let targetLab = null;
+            if (item.labName) {
+                // Normalize lab name matching
+                const searchName = item.labName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                targetLab = labs.find(l => l.name.toLowerCase().replace(/[^a-z0-9]/g, '') === searchName);
+                
+                // Fallback attempt: if it has "CompLab", change to "Computer Lab "
+                if (!targetLab && item.labName.includes('CompLab-')) {
+                    const fallbackName = item.labName.replace('CompLab-', 'Computer Lab ');
+                    targetLab = labs.find(l => l.name.toLowerCase() === fallbackName.toLowerCase());
+                }
+            }
+
+            if (!targetLab) {
+                errors.push(`Lab not found for item ${item.serialNumber || 'unknown'}: ${item.labName}`);
+                skippedCount++;
+                continue;
+            }
+
+            // Check if already exists
+            const existing = await prisma.labItem.findFirst({
+                where: { labId: targetLab.id, serialNo: item.serialNumber }
+            });
+
+            if (existing) {
+                skippedCount++;
+                continue;
+            }
+
+            // Map AI columns to specs
+            const specs = {};
+            if (item.monitorSerial) specs.monitorSerial = item.monitorSerial;
+            if (item.upsSerial) specs.upsSerial = item.upsSerial;
+
+            await prisma.labItem.create({
+                data: {
+                    labId: targetLab.id,
+                    schoolId: schoolId,
+                    itemType: 'pc', // Default for now
+                    itemNumber: item.serialNumber,
+                    serialNo: item.serialNumber,
+                    brand: item.brand || 'Unknown',
+                    modelNo: item.modelNo || 'Unknown',
+                    status: 'active',
+                    notes: 'Extracted via AI from document',
+                    specs: specs
+                }
+            });
+            createdCount++;
+        } catch (err) {
+            console.error('Error adding item:', err);
+            errors.push(`Failed to add item ${item.serialNumber}: ${err.message}`);
+            skippedCount++;
+        }
+    }
+
+    res.json({
+        success: true,
+        message: `Successfully created ${createdCount} items. Skipped/Failed: ${skippedCount}`,
+        data: { created: createdCount, skipped: skippedCount, errors }
+    });
+}));
+
+module.exports = router;

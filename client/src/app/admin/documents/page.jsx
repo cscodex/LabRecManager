@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap, ChevronUp, ChevronDown, RotateCcw, Trash, HardDrive, Folder, FolderPlus, ChevronRight, FolderInput, CornerUpLeft, Clipboard, ClipboardCopy, Scissors } from 'lucide-react';
+import { FileText, Upload, Search, Eye, Edit2, Trash2, X, Share2, Download, File, QrCode, ExternalLink, Clock, User, Copy, Check, Grid3X3, List, Calendar, Users, UsersRound, Inbox, GraduationCap, ChevronUp, ChevronDown, RotateCcw, Trash, HardDrive, Folder, FolderPlus, ChevronRight, FolderInput, CornerUpLeft, Clipboard, ClipboardCopy, Scissors, Wand2, Plus } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { documentsAPI, classesAPI, storageAPI, foldersAPI } from '@/lib/api';
 import api from '@/lib/api';
@@ -114,6 +114,12 @@ export default function DocumentsPage() {
 
     // Folder Preview Modal
     const [folderPreview, setFolderPreview] = useState(null); // { folder, documents: [], subfolders: [] }
+
+    // AI Extraction Modal
+    const [aiExtracting, setAiExtracting] = useState(false);
+    const [aiExtractDoc, setAiExtractDoc] = useState(null);
+    const [aiExtractData, setAiExtractData] = useState(null);
+    const [aiEngine, setAiEngine] = useState('gemini');
 
     useEffect(() => {
         if (!_hasHydrated) return;
@@ -843,6 +849,47 @@ export default function DocumentsPage() {
     };
     // ---------------------------
 
+    // --- AI Extraction Logic ---
+    const handleExtractAI = async (doc) => {
+        setAiExtractDoc(doc);
+        setAiExtracting(true);
+        setAiExtractData(null);
+        try {
+            const res = await api.post(`/documents/${doc.id}/extract-ai-inventory?engine=${aiEngine}`);
+            setAiExtractData(res.data.data.items);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'AI Extraction failed');
+        } finally {
+            setAiExtracting(false);
+        }
+    };
+
+    const handleReExtractAI = async () => {
+        if (!aiExtractDoc) return;
+        setAiExtracting(true);
+        setAiExtractData(null);
+        try {
+            const res = await api.post(`/documents/${aiExtractDoc.id}/extract-ai-inventory?engine=${aiEngine}`);
+            setAiExtractData(res.data.data.items);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'AI Extraction failed');
+        } finally {
+            setAiExtracting(false);
+        }
+    };
+
+    const handleSaveAIExtraction = async () => {
+        if (!aiExtractData || aiExtractData.length === 0) return;
+        try {
+            const res = await api.post('/labs/inventory/bulk-create', { items: aiExtractData });
+            toast.success(res.data.message || 'Items saved successfully');
+            setAiExtractDoc(null);
+            setAiExtractData(null);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to save items');
+        }
+    };
+
     const formatDate = (date) => new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     // Filter documents by date range
@@ -1352,6 +1399,11 @@ export default function DocumentsPage() {
                                                 <button onClick={() => setDeleteDialog({ open: true, doc })} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
+                                                {['pdf', 'jpg', 'jpeg', 'png', 'webp'].includes(doc.fileType?.toLowerCase()) && (
+                                                    <button onClick={() => handleExtractAI(doc)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="Extract AI Inventory">
+                                                        <Wand2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                         {activeTab === 'shared' && (
@@ -1568,6 +1620,11 @@ export default function DocumentsPage() {
                                                             <button onClick={() => setDeleteDialog({ open: true, doc })} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
                                                                 <Trash2 className="w-4 h-4" />
                                                             </button>
+                                                            {['pdf', 'jpg', 'jpeg', 'png', 'webp'].includes(doc.fileType?.toLowerCase()) && (
+                                                                <button onClick={() => handleExtractAI(doc)} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="Extract AI Inventory">
+                                                                    <Wand2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
                                                         </>
                                                     )}
                                                     {activeTab === 'shared' && (
@@ -2410,6 +2467,102 @@ export default function DocumentsPage() {
                 confirmText="Delete"
                 type="danger"
             />
-        </div >
+            {/* AI Extraction Modal */}
+            {aiExtractDoc && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+                        <div className="p-6 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
+                                    <Wand2 className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-semibold">AI Inventory Extraction</h3>
+                                    <p className="text-sm text-slate-500">Extracting from: {aiExtractDoc.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setAiExtractDoc(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                        </div>
+                        
+                        <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <label className="text-sm font-medium text-slate-700 whitespace-nowrap">Extraction Engine:</label>
+                                <select 
+                                    value={aiEngine} 
+                                    onChange={(e) => setAiEngine(e.target.value)}
+                                    disabled={aiExtracting}
+                                    className="input text-sm py-1.5"
+                                >
+                                    <option value="gemini">Gemini 2.0 Flash (Recommended)</option>
+                                    <option value="ocr">OCR.space (Text Parser)</option>
+                                    <option value="groq">Groq (Llama 3.2 Vision)</option>
+                                </select>
+                            </div>
+                            {aiExtractData && !aiExtracting && (
+                                <button onClick={handleReExtractAI} className="btn btn-secondary text-sm py-1.5 flex items-center gap-2">
+                                    <RotateCcw className="w-4 h-4" /> Re-extract
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="p-6 overflow-auto flex-1 bg-slate-50">
+                            {aiExtracting ? (
+                                <div className="flex flex-col items-center justify-center h-64 text-center">
+                                    <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
+                                    <h4 className="text-lg font-medium text-slate-800">Extracting Data...</h4>
+                                    <p className="text-slate-500 mt-2 max-w-sm">Gemini AI is analyzing the document to extract computer systems, monitors, and UPS serial numbers.</p>
+                                </div>
+                            ) : aiExtractData ? (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
+                                        <p className="text-slate-700">Successfully extracted <span className="font-bold text-primary-600">{aiExtractData.length}</span> items.</p>
+                                        <p className="text-sm text-slate-500">Please review the extracted items before saving.</p>
+                                    </div>
+                                    <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 border-b border-slate-200">
+                                                <tr>
+                                                    <th className="p-3 text-sm font-semibold text-slate-700">Serial No. (System)</th>
+                                                    <th className="p-3 text-sm font-semibold text-slate-700">Monitor Serial</th>
+                                                    <th className="p-3 text-sm font-semibold text-slate-700">UPS Serial</th>
+                                                    <th className="p-3 text-sm font-semibold text-slate-700">Lab</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {aiExtractData.map((item, index) => (
+                                                    <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
+                                                        <td className="p-3 text-slate-800 font-medium">{item.serialNumber || '-'}</td>
+                                                        <td className="p-3 text-slate-600">{item.monitorSerial || '-'}</td>
+                                                        <td className="p-3 text-slate-600">{item.upsSerial || '-'}</td>
+                                                        <td className="p-3">
+                                                            <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-sm">
+                                                                {item.labName || 'Unknown'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        {aiExtractData.length === 0 && (
+                                            <div className="p-8 text-center text-slate-500">No items could be extracted from this document.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+
+                        {!aiExtracting && aiExtractData && (
+                            <div className="p-4 border-t border-slate-200 bg-white flex justify-end gap-3 flex-shrink-0">
+                                <button onClick={() => setAiExtractDoc(null)} className="btn btn-secondary">Cancel</button>
+                                <button onClick={handleSaveAIExtraction} className="btn btn-primary bg-purple-600 hover:bg-purple-700 flex items-center gap-2">
+                                    <Check className="w-4 h-4" /> Save Inventory
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+        </div>
     );
 }
